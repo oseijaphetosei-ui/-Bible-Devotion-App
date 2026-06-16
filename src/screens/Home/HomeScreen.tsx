@@ -12,6 +12,9 @@ import {
   ImageBackground,
   Image,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../types/navigation';
 
 const SCREEN_H = Dimensions.get('window').height;
 
@@ -148,11 +151,12 @@ function ReadingPlanCard() {
 }
 
 function QuickNavSection() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   return (
     <>
       <Text style={styles.sectionLabel}>EXPLORE</Text>
       <View style={styles.quickNavRow}>
-        <TouchableOpacity style={styles.quickNavItem}>
+        <TouchableOpacity style={styles.quickNavItem} onPress={() => navigation.navigate('Bible')}>
           <Image
             source={require('../../assets/holy-bible-card-icon.jpg')}
             style={styles.quickNavImage}
