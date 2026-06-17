@@ -25,6 +25,7 @@ import {
   type ChapterResult,
 } from '../../services/bibleService';
 import { API_BIBLE_KEY } from '../../config/bibleConfig'; // used to show online section when key is present
+import { LinearGradient } from 'expo-linear-gradient';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -119,8 +120,9 @@ export default function BibleScreen() {
       : `${selectedBible.abbreviation} · Offline`;
 
   return (
+    <LinearGradient colors={['#5C3A10', '#080604']} style={{ flex: 1 }}>
     <SafeAreaView style={s.safe} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
       {/* Header */}
       <View style={s.header}>
@@ -315,11 +317,12 @@ export default function BibleScreen() {
         </SafeAreaView>
       </Modal>
     </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.bg },
+  safe: { flex: 1 },
 
   header: {
     flexDirection: 'row',
