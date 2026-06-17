@@ -8,11 +8,19 @@ import {
   TouchableOpacity,
   StatusBar,
   Animated,
+  LayoutAnimation,
+  Platform,
+  UIManager,
   Dimensions,
   ImageBackground,
   Image,
 } from 'react-native';
+
+if (Platform.OS === 'android') {
+  UIManager.setLayoutAnimationEnabledExperimental?.(true);
+}
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
@@ -256,39 +264,25 @@ type AccordionItemProps = {
 };
 
 function AccordionItem({ section, isOpen, onToggle }: AccordionItemProps) {
-  const progress = useRef(new Animated.Value(isOpen ? 1 : 0)).current;
-  const [contentHeight, setContentHeight] = useState(0);
-  const mounted = useRef(false);
+  const chevronAnim = useRef(new Animated.Value(isOpen ? 1 : 0)).current;
 
   React.useEffect(() => {
-    if (!mounted.current) {
-      mounted.current = true;
-      return;
-    }
-    Animated.spring(progress, {
+    Animated.spring(chevronAnim, {
       toValue: isOpen ? 1 : 0,
-      useNativeDriver: false,
-      tension: 58,
-      friction: 10,
+      useNativeDriver: true,
+      tension: 45,
+      friction: 14,
     }).start();
   }, [isOpen]);
 
-  const chevronRotate = progress.interpolate({
+  const chevronRotate = chevronAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: ['0deg', '180deg'],
-  });
-
-  const contentAnimHeight = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, contentHeight],
+    outputRange: ['90deg', '-90deg'],
   });
 
   return (
     <View style={styles.accordionWrap}>
-      <ImageBackground
-        source={section.thumbnail}
-        style={styles.accordionCardBg}
-      >
+      <ImageBackground source={section.thumbnail} style={styles.accordionCardBg}>
         <View style={styles.cardOverlay}>
           <TouchableOpacity
             style={styles.accordionBar}
@@ -306,12 +300,7 @@ function AccordionItem({ section, isOpen, onToggle }: AccordionItemProps) {
               ›
             </Animated.Text>
           </TouchableOpacity>
-
-          <Animated.View style={{ height: contentAnimHeight, overflow: 'hidden' }}>
-            <View onLayout={(e) => setContentHeight(e.nativeEvent.layout.height)}>
-              {renderContent(section.id)}
-            </View>
-          </Animated.View>
+          {isOpen && renderContent(section.id)}
         </View>
       </ImageBackground>
     </View>
@@ -330,6 +319,12 @@ export default function HomeScreen() {
   const weekDays = getWeekDays();
 
   const toggle = useCallback((id: SectionId) => {
+    LayoutAnimation.configureNext({
+      duration: 360,
+      create: { type: 'easeInEaseOut', property: 'opacity' },
+      update: { type: 'easeInEaseOut' },
+      delete: { type: 'easeInEaseOut', property: 'opacity' },
+    });
     setOpenId(prev => (prev === id ? null : id));
   }, []);
 
@@ -349,47 +344,48 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Fixed streak banner */}
-      <View style={styles.streakBanner}>
-        <View style={styles.streakTopRow}>
-          <Text style={styles.streakEmoji}>🔥</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.streakTitle}>7-Day Streak</Text>
-            <Text style={styles.streakSub}>Keep it going — open today's content below</Text>
-          </View>
-          <View style={styles.streakBadge}>
-            <Text style={styles.streakBadgeText}>7</Text>
-          </View>
-        </View>
-
-        <View style={styles.weekRow}>
-          {weekDays.map((d, i) => (
-            <View key={i} style={styles.weekDayCol}>
-              <Text style={styles.weekDayLabel}>{d.label}</Text>
-              <View style={[styles.weekDayCircle, d.isToday && styles.weekDayCircleActive]}>
-                <Text style={[styles.weekDayNum, d.isToday && styles.weekDayNumActive]}>{d.date}</Text>
-              </View>
+      {/* Fixed streak banner — glass card */}
+      <BlurView intensity={55} tint="dark" style={styles.streakCard}>
+        <View style={styles.streakCardTint} pointerEvents="none" />
+        <View style={styles.streakCardHighlight} pointerEvents="none" />
+        <View style={styles.streakInner}>
+          <View style={styles.streakTopRow}>
+            <Text style={styles.streakEmoji}>🔥</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.streakTitle}>7-Day Streak</Text>
+              <Text style={styles.streakSub}>Keep it going — open today's content below</Text>
             </View>
-          ))}
-        </View>
+            <View style={styles.streakBadge}>
+              <Text style={styles.streakBadgeText}>7</Text>
+            </View>
+          </View>
 
-        <View style={styles.progressRow}>
-          <Text style={styles.progressLabel}>Progress today</Text>
-          <Text style={styles.progressPctGold}>0%</Text>
+          <View style={styles.weekRow}>
+            {weekDays.map((d, i) => (
+              <View key={i} style={styles.weekDayCol}>
+                <Text style={styles.weekDayLabel}>{d.label}</Text>
+                <View style={[styles.weekDayCircle, d.isToday && styles.weekDayCircleActive]}>
+                  <Text style={[styles.weekDayNum, d.isToday && styles.weekDayNumActive]}>{d.date}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.progressRow}>
+            <Text style={styles.progressLabel}>Progress today</Text>
+            <Text style={styles.progressPctGold}>0%</Text>
+          </View>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: '0%' }]} />
+          </View>
         </View>
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: '0%' }]} />
-        </View>
-      </View>
+      </BlurView>
 
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Section label */}
-        <Text style={styles.sectionLabel}>TODAY'S CONTENT</Text>
-
         {/* Accordion sections */}
         {SECTIONS.map(section => (
           <AccordionItem
@@ -403,10 +399,6 @@ export default function HomeScreen() {
         {/* Quick nav */}
         <Text style={[styles.sectionLabel, { marginTop: 8 }]}>EXPLORE</Text>
         <View style={styles.quickNavRow}>
-          <TouchableOpacity style={styles.quickNavItem} onPress={() => navigation.navigate('Bible')}>
-            <Image source={require('../../assets/holy-bible-card-icon.jpg')} style={styles.quickNavImage} />
-            <Text style={styles.quickNavLabel}>Bible</Text>
-          </TouchableOpacity>
           <TouchableOpacity style={styles.quickNavItem} onPress={() => navigation.navigate('Stories')}>
             <Image source={require('../../assets/group-story-by-fire.jpg')} style={styles.quickNavImage} />
             <Text style={styles.quickNavLabel}>Stories</Text>
@@ -421,7 +413,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: { flex: 1 },
-  content: { paddingHorizontal: 18, paddingBottom: 48 },
+  content: { paddingHorizontal: 18, paddingBottom: 116 },
 
   header: {
     flexDirection: 'row',
@@ -436,20 +428,39 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: C.goldDim,
+    backgroundColor: 'rgba(80, 48, 10, 0.65)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: { color: C.gold, fontWeight: '700', fontSize: 16 },
 
-  streakBanner: {
-    backgroundColor: 'rgba(8, 5, 2, 0.5)',
-    borderRadius: 14,
-    padding: 14,
+  // Glass streak card
+  streakCard: {
     marginHorizontal: 18,
-    marginBottom: 10,
+    marginBottom: 12,
+    borderRadius: 20,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.22)',
+    borderColor: 'rgba(255,255,255,0.11)',
+  },
+  streakCardTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(72, 38, 8, 0.32)',
+  },
+  streakCardHighlight: {
+    position: 'absolute',
+    top: 0,
+    left: 16,
+    right: 16,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderRadius: 1,
+  },
+  streakInner: {
+    padding: 16,
+    paddingTop: 14,
     gap: 12,
   },
   streakTopRow: {
@@ -458,13 +469,15 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   streakEmoji: { fontSize: 22 },
-  streakTitle: { color: C.gold, fontWeight: '700', fontSize: 14 },
-  streakSub: { color: C.textSub, fontSize: 12, marginTop: 1 },
+  streakTitle: { color: C.text, fontWeight: '700', fontSize: 14 },
+  streakSub: { color: 'rgba(255,255,255,0.55)', fontSize: 12, marginTop: 1 },
   streakBadge: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: C.gold,
+    backgroundColor: 'rgba(212, 175, 55, 0.88)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -473,24 +486,25 @@ const styles = StyleSheet.create({
   weekRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 4,
   },
   weekDayCol: { alignItems: 'center', gap: 4 },
-  weekDayLabel: { fontSize: 10, color: C.textMuted, fontWeight: '600', letterSpacing: 0.5 },
+  weekDayLabel: { fontSize: 10, color: 'rgba(255,255,255,0.45)', fontWeight: '600', letterSpacing: 0.5 },
   weekDayCircle: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   weekDayCircleActive: {
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(212,175,55,0.12)',
     borderWidth: 1.5,
     borderColor: C.gold,
   },
-  weekDayNum: { fontSize: 13, color: C.textSub, fontWeight: '500' },
+  weekDayNum: { fontSize: 13, color: 'rgba(255,255,255,0.65)', fontWeight: '500' },
   weekDayNumActive: { color: C.gold, fontWeight: '700' },
 
   progressRow: {
@@ -499,7 +513,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 6,
   },
-  progressLabel: { fontSize: 12, color: C.textSub, fontWeight: '500' },
+  progressLabel: { fontSize: 12, color: 'rgba(255,255,255,0.55)', fontWeight: '500' },
   progressPctGold: { fontSize: 12, color: C.gold, fontWeight: '700' },
 
   sectionLabel: {
@@ -510,19 +524,21 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
 
-  // Accordion
+  // Accordion — glass-refined
   accordionWrap: {
     marginBottom: 8,
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: C.cardBorder,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   accordionCardBg: {
     width: '100%',
   },
   cardOverlay: {
-    backgroundColor: 'rgba(8, 6, 18, 0.55)',
+    backgroundColor: 'rgba(8, 6, 18, 0.46)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
   },
   accordionBar: {
     flexDirection: 'row',
@@ -554,7 +570,6 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: C.textSub,
     lineHeight: 26,
-    transform: [{ rotate: '90deg' }],
   },
 
   // Expanded image content
@@ -635,7 +650,7 @@ const styles = StyleSheet.create({
   plainMeta: { fontSize: 13, color: C.textSub, marginBottom: 14 },
   progressTrack: {
     height: 4,
-    backgroundColor: C.progressBg,
+    backgroundColor: 'rgba(255,255,255,0.09)',
     borderRadius: 2,
     overflow: 'hidden',
     marginBottom: 6,
@@ -669,12 +684,12 @@ const styles = StyleSheet.create({
   quickNavItem: {
     flex: 1,
     alignItems: 'center',
-    backgroundColor: C.card,
+    backgroundColor: 'rgba(18, 14, 8, 0.72)',
     borderRadius: 14,
     overflow: 'hidden',
     paddingBottom: 12,
     borderWidth: 1,
-    borderColor: C.cardBorder,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   quickNavImage: { width: '100%', height: 90, marginBottom: 10 },
   quickNavLabel: { fontSize: 13, color: C.text, fontWeight: '600' },

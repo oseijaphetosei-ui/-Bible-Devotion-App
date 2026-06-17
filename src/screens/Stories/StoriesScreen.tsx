@@ -35,16 +35,21 @@ function StoryCard({ story, onPress }: { story: Story; onPress: () => void }) {
   return (
     <TouchableOpacity style={s.card} onPress={onPress} activeOpacity={0.85}>
       <Image source={story.image} style={s.cardImage} resizeMode="cover" />
+      {/* Light vignette — image stays vivid, glass panel handles readability */}
       <View style={s.cardOverlay} />
       <View style={s.cardBody}>
-        <View style={[s.categoryTag, { borderColor: tagColor + '60' }]}>
-          <Text style={[s.categoryTagText, { color: tagColor }]}>{story.category.toUpperCase()}</Text>
-        </View>
-        <Text style={s.cardTitle} numberOfLines={2}>{story.title}</Text>
-        <Text style={s.cardSubtitle} numberOfLines={1}>{story.subtitle}</Text>
-        <View style={s.cardMeta}>
-          <Text style={s.cardRef}>{story.reference}</Text>
-          <Text style={s.cardTime}>{story.readTime} min</Text>
+        {/* Frosted glass text panel at the bottom of each card */}
+        <View style={s.cardGlass}>
+          <View style={s.cardGlassHighlight} pointerEvents="none" />
+          <View style={[s.categoryTag, { borderColor: tagColor + '60' }]}>
+            <Text style={[s.categoryTagText, { color: tagColor }]}>{story.category.toUpperCase()}</Text>
+          </View>
+          <Text style={s.cardTitle} numberOfLines={2}>{story.title}</Text>
+          <Text style={s.cardSubtitle} numberOfLines={1}>{story.subtitle}</Text>
+          <View style={s.cardMeta}>
+            <Text style={s.cardRef}>{story.reference}</Text>
+            <Text style={s.cardTime}>{story.readTime} min</Text>
+          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -112,6 +117,17 @@ export default function StoriesScreen() {
         columnWrapperStyle={s.row}
         contentContainerStyle={s.listContent}
         showsVerticalScrollIndicator={false}
+        // Render all cards immediately — images are local bundle assets, no network cost
+        initialNumToRender={52}
+        maxToRenderPerBatch={52}
+        windowSize={21}
+        removeClippedSubviews={false}
+        // Fixed dimensions let FlatList skip per-item measurement entirely
+        getItemLayout={(_data, index) => ({
+          length: CARD_ROW_H,
+          offset: LIST_PADDING_TOP + Math.floor(index / 2) * CARD_ROW_H,
+          index,
+        })}
         renderItem={({ item }) => (
           <StoryCard
             story={item}
@@ -125,6 +141,8 @@ export default function StoriesScreen() {
 }
 
 const CARD_W = '48%';
+const CARD_ROW_H = 236;      // card height (220) + row marginBottom (16)
+const LIST_PADDING_TOP = 8;  // listContent paddingTop
 
 const s = StyleSheet.create({
   safe: { flex: 1 },
@@ -135,22 +153,21 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: C.cardBorder,
   },
   backBtn: { width: 44, alignItems: 'flex-start' },
   backIcon: { fontSize: 30, color: C.gold, lineHeight: 34 },
   headerTitle: { fontSize: 12, fontWeight: '700', color: C.textMuted, letterSpacing: 1.5 },
   headerSpacer: { width: 44 },
 
-  filterWrapper: { borderBottomWidth: 1, borderBottomColor: C.cardBorder },
+  filterWrapper: {},
   filterContent: { paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
   filterTab: {
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: C.cardBorder,
+    borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
   filterTabText: { fontSize: 12, fontWeight: '600', color: C.textMuted, letterSpacing: 0.4 },
 
@@ -172,20 +189,36 @@ const s = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: C.card,
     borderWidth: 1,
-    borderColor: C.cardBorder,
+    borderColor: 'rgba(255,255,255,0.09)',
     height: 220,
   },
   cardImage: { position: 'absolute', width: '100%', height: '100%' },
+  // Light vignette only — image stays vivid, glass panel handles readability
   cardOverlay: {
     position: 'absolute',
     width: '100%',
     height: '100%',
-    backgroundColor: 'rgba(8,9,18,0.68)',
+    backgroundColor: 'rgba(8,9,18,0.28)',
   },
   cardBody: {
     flex: 1,
     justifyContent: 'flex-end',
+  },
+  // Frosted glass panel for card text
+  cardGlass: {
+    backgroundColor: 'rgba(10, 8, 22, 0.84)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
     padding: 12,
+  },
+  cardGlassHighlight: {
+    position: 'absolute',
+    top: 0,
+    left: 10,
+    right: 10,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 1,
   },
   categoryTag: {
     alignSelf: 'flex-start',
