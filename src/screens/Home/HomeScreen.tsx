@@ -1,4 +1,5 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
+import * as Speech from 'expo-speech';
 import {
   View,
   Text,
@@ -16,8 +17,29 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getTodayVerseEntry } from '../../services/verseService';
+import { loadGoals, calcStreak, isCompletedToday } from '../../services/goalsService';
+import { Goal } from '../../types/goal';
+import { useFocusEffect } from '@react-navigation/native';
 
 const SCREEN_W = Dimensions.get('window').width;
+
+function sanitizeForSpeech(raw: string): string {
+  return raw
+    .replace(/–/g, ' to ')
+    .replace(/—/g, ', ')
+    .replace(/\b(\d+):(\d+)\b/g, 'chapter $1 verse $2')
+    .replace(/\s*\(([^)]+)\)\s*/g, ', $1, ')
+    .replace(/[""]/g, '')
+    .replace(/['']/g, "'")
+    .replace(/…|\.\.\./g, ', ')
+    .replace(/;/g, ',')
+    .replace(/(\d+)-(\d+)/g, '$1 to $2')
+    .replace(/,\s*,/g, ',')
+    .replace(/,\s*([.!?])/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 const C = {
   bg: '#0D0F1A',
@@ -68,7 +90,7 @@ const SECTIONS: AccordionSection[] = [
     icon: '📖',
     title: "Today's Verse",
     meta: '2 MIN',
-    thumbnail: require('../../assets/open-bible-on-table-in-dusk.jpg'),
+    thumbnail: require('../../assets/water-way.jpg'),
   },
   {
     id: 'devotion',
@@ -89,15 +111,37 @@ const SECTIONS: AccordionSection[] = [
 
 function VerseContent() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const tags = ['PSALM 46', 'STILLNESS', 'PEACE'];
+  const verse = getTodayVerseEntry();
+  const [speaking, setSpeaking] = useState(false);
+
+  useEffect(() => {
+    return () => { Speech.stop(); };
+  }, []);
+
+  const handleReadAloud = () => {
+    if (speaking) {
+      Speech.stop();
+      setSpeaking(false);
+      return;
+    }
+    const text = `${sanitizeForSpeech(verse.label)}. ${sanitizeForSpeech(verse.fallbackText)}`;
+    setSpeaking(true);
+    Speech.speak(text, {
+      language: 'en',
+      pitch: 1.0,
+      rate: 0.9,
+      onDone: () => setSpeaking(false),
+      onStopped: () => setSpeaking(false),
+      onError: () => setSpeaking(false),
+    });
+  };
+
   return (
     <View style={styles.expandedOverlay}>
-      <Text style={styles.expandedTitle}>Psalm 46:10</Text>
-      <Text style={styles.expandedVerseText}>
-        "Be still, and know that I am God."
-      </Text>
+      <Text style={styles.expandedTitle}>{verse.label}</Text>
+      <Text style={styles.expandedVerseText}>{verse.fallbackText}</Text>
       <View style={styles.tagRow}>
-        {tags.map(t => (
+        {verse.tags.map(t => (
           <View key={t} style={styles.tag}>
             <Text style={styles.tagText}>{t}</Text>
           </View>
@@ -107,8 +151,10 @@ function VerseContent() {
         <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('Verse')}>
           <Text style={styles.actionBtnText}>📖  Read</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionBtn, styles.actionBtnOutline]}>
-          <Text style={[styles.actionBtnText, styles.actionBtnOutlineText]}>🔖  Save</Text>
+        <TouchableOpacity style={[styles.actionBtn, styles.actionBtnOutline]} onPress={handleReadAloud}>
+          <Text style={[styles.actionBtnText, styles.actionBtnOutlineText]}>
+            {speaking ? '⏹  Stop' : '🔊  Read aloud'}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -141,29 +187,55 @@ function DevotionContent() {
 
 
 function GoalsContent() {
-  const goals = [
-    { title: 'Read Bible daily', streak: 7, target: 30 },
-    { title: 'Morning prayer', streak: 3, target: 14 },
-  ];
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const [goals, setGoals] = React.useState<Goal[]>([]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadGoals().then(setGoals);
+    }, [])
+  );
+
+  const preview = goals.slice(0, 2);
+  const completedCount = goals.filter(isCompletedToday).length;
+
   return (
     <View style={styles.expandedPlain}>
-      {goals.map((goal, i) => {
-        const pct = goal.streak / goal.target;
-        return (
-          <View key={goal.title} style={[styles.goalRow, i < goals.length - 1 && styles.goalRowBorder]}>
-            <View style={styles.goalInfo}>
-              <Text style={styles.goalTitle}>{goal.title}</Text>
-              <Text style={styles.goalStreak}>{goal.streak}-day streak 🔥</Text>
-            </View>
-            <View style={styles.goalRight}>
-              <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: `${pct * 100}%` as any }]} />
+      {goals.length === 0 ? (
+        <View style={{ alignItems: 'center', paddingVertical: 12, gap: 10 }}>
+          <Text style={styles.goalStreak}>No goals set yet.</Text>
+          <TouchableOpacity style={styles.primaryBtn} onPress={() => navigation.navigate('Goals')}>
+            <Text style={styles.primaryBtnText}>Set Goals</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <>
+          <Text style={styles.goalStreak}>
+            {completedCount}/{goals.length} completed today
+          </Text>
+          {preview.map((goal, i) => {
+            const streak = calcStreak(goal.completedDates);
+            const pct = Math.min(1, streak / goal.target);
+            return (
+              <View key={goal.id} style={[styles.goalRow, i < preview.length - 1 && styles.goalRowBorder]}>
+                <View style={styles.goalInfo}>
+                  <Text style={styles.goalTitle}>{goal.title}</Text>
+                  <Text style={styles.goalStreak}>{streak > 0 ? `${streak}-day streak 🔥` : 'No streak yet'}</Text>
+                </View>
+                <View style={styles.goalRight}>
+                  <View style={styles.progressTrack}>
+                    <View style={[styles.progressFill, { width: `${pct * 100}%` as any }]} />
+                  </View>
+                  <Text style={styles.goalTarget}>{streak}/{goal.target}d</Text>
+                </View>
               </View>
-              <Text style={styles.goalTarget}>{goal.streak}/{goal.target}d</Text>
-            </View>
-          </View>
-        );
-      })}
+            );
+          })}
+          <TouchableOpacity style={styles.primaryBtn} onPress={() => navigation.navigate('Goals')}>
+            <Text style={styles.primaryBtnText}>View All Goals</Text>
+          </TouchableOpacity>
+        </>
+      )}
     </View>
   );
 }
@@ -184,19 +256,31 @@ type AccordionItemProps = {
 };
 
 function AccordionItem({ section, isOpen, onToggle }: AccordionItemProps) {
-  const anim = useRef(new Animated.Value(isOpen ? 1 : 0)).current;
+  const progress = useRef(new Animated.Value(isOpen ? 1 : 0)).current;
+  const [contentHeight, setContentHeight] = useState(0);
+  const mounted = useRef(false);
 
   React.useEffect(() => {
-    Animated.timing(anim, {
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
+    Animated.spring(progress, {
       toValue: isOpen ? 1 : 0,
-      duration: 300,
       useNativeDriver: false,
+      tension: 58,
+      friction: 10,
     }).start();
   }, [isOpen]);
 
-  const chevronRotate = anim.interpolate({
+  const chevronRotate = progress.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '180deg'],
+  });
+
+  const contentAnimHeight = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, contentHeight],
   });
 
   return (
@@ -205,28 +289,30 @@ function AccordionItem({ section, isOpen, onToggle }: AccordionItemProps) {
         source={section.thumbnail}
         style={styles.accordionCardBg}
       >
-        <TouchableOpacity
-          style={[styles.accordionBar, isOpen && styles.accordionBarOpen]}
-          onPress={onToggle}
-          activeOpacity={0.8}
-        >
-          <View style={styles.barLeft}>
-            <Text style={styles.barIcon}>{section.icon}</Text>
-            <View>
-              <Text style={styles.barTitle}>{section.title}</Text>
-              <Text style={styles.barMeta}>{section.meta}</Text>
+        <View style={styles.cardOverlay}>
+          <TouchableOpacity
+            style={styles.accordionBar}
+            onPress={onToggle}
+            activeOpacity={0.8}
+          >
+            <View style={styles.barLeft}>
+              <Text style={styles.barIcon}>{section.icon}</Text>
+              <View>
+                <Text style={styles.barTitle}>{section.title}</Text>
+                <Text style={styles.barMeta}>{section.meta}</Text>
+              </View>
             </View>
-          </View>
-          <Animated.Text style={[styles.chevron, { transform: [{ rotate: chevronRotate }] }]}>
-            ›
-          </Animated.Text>
-        </TouchableOpacity>
+            <Animated.Text style={[styles.chevron, { transform: [{ rotate: chevronRotate }] }]}>
+              ›
+            </Animated.Text>
+          </TouchableOpacity>
 
-        {isOpen && (
-          <Animated.View style={{ opacity: anim }}>
-            {renderContent(section.id)}
+          <Animated.View style={{ height: contentAnimHeight, overflow: 'hidden' }}>
+            <View onLayout={(e) => setContentHeight(e.nativeEvent.layout.height)}>
+              {renderContent(section.id)}
+            </View>
           </Animated.View>
-        )}
+        </View>
       </ImageBackground>
     </View>
   );
@@ -251,55 +337,56 @@ export default function HomeScreen() {
     <LinearGradient colors={['#5C3A10', '#080604']} style={{ flex: 1 }}>
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+
+      {/* Fixed greeting header */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.greeting}>{getGreeting()}</Text>
+          <Text style={styles.date}>{today}</Text>
+        </View>
+        <TouchableOpacity style={styles.avatar}>
+          <Text style={styles.avatarText}>J</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Fixed streak banner */}
+      <View style={styles.streakBanner}>
+        <View style={styles.streakTopRow}>
+          <Text style={styles.streakEmoji}>🔥</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.streakTitle}>7-Day Streak</Text>
+            <Text style={styles.streakSub}>Keep it going — open today's content below</Text>
+          </View>
+          <View style={styles.streakBadge}>
+            <Text style={styles.streakBadgeText}>7</Text>
+          </View>
+        </View>
+
+        <View style={styles.weekRow}>
+          {weekDays.map((d, i) => (
+            <View key={i} style={styles.weekDayCol}>
+              <Text style={styles.weekDayLabel}>{d.label}</Text>
+              <View style={[styles.weekDayCircle, d.isToday && styles.weekDayCircleActive]}>
+                <Text style={[styles.weekDayNum, d.isToday && styles.weekDayNumActive]}>{d.date}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.progressRow}>
+          <Text style={styles.progressLabel}>Progress today</Text>
+          <Text style={styles.progressPctGold}>0%</Text>
+        </View>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: '0%' }]} />
+        </View>
+      </View>
+
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>{getGreeting()}</Text>
-            <Text style={styles.date}>{today}</Text>
-          </View>
-          <TouchableOpacity style={styles.avatar}>
-            <Text style={styles.avatarText}>J</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Streak banner */}
-        <View style={styles.streakBanner}>
-          <View style={styles.streakTopRow}>
-            <Text style={styles.streakEmoji}>🔥</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.streakTitle}>7-Day Streak</Text>
-              <Text style={styles.streakSub}>Keep it going — open today's content below</Text>
-            </View>
-            <View style={styles.streakBadge}>
-              <Text style={styles.streakBadgeText}>7</Text>
-            </View>
-          </View>
-
-          <View style={styles.weekRow}>
-            {weekDays.map((d, i) => (
-              <View key={i} style={styles.weekDayCol}>
-                <Text style={styles.weekDayLabel}>{d.label}</Text>
-                <View style={[styles.weekDayCircle, d.isToday && styles.weekDayCircleActive]}>
-                  <Text style={[styles.weekDayNum, d.isToday && styles.weekDayNumActive]}>{d.date}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-
-          <View style={styles.progressRow}>
-            <Text style={styles.progressLabel}>Progress today</Text>
-            <Text style={styles.progressPctGold}>0%</Text>
-          </View>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: '0%' }]} />
-          </View>
-        </View>
-
         {/* Section label */}
         <Text style={styles.sectionLabel}>TODAY'S CONTENT</Text>
 
@@ -340,7 +427,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
   },
   greeting: { fontSize: 22, fontWeight: '700', color: C.text },
   date: { fontSize: 13, color: C.textSub, marginTop: 2 },
@@ -355,12 +443,13 @@ const styles = StyleSheet.create({
   avatarText: { color: C.gold, fontWeight: '700', fontSize: 16 },
 
   streakBanner: {
-    backgroundColor: C.goldDim,
+    backgroundColor: 'rgba(8, 5, 2, 0.5)',
     borderRadius: 14,
     padding: 14,
-    marginBottom: 24,
+    marginHorizontal: 18,
+    marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#5A4020',
+    borderColor: 'rgba(212, 175, 55, 0.22)',
     gap: 12,
   },
   streakTopRow: {
@@ -432,17 +521,15 @@ const styles = StyleSheet.create({
   accordionCardBg: {
     width: '100%',
   },
+  cardOverlay: {
+    backgroundColor: 'rgba(8, 6, 18, 0.55)',
+  },
   accordionBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(8, 6, 18, 0.52)',
     paddingVertical: 22,
     paddingHorizontal: 14,
-  },
-  accordionBarOpen: {
-    borderBottomWidth: 1,
-    borderBottomColor: C.cardBorder,
   },
   barLeft: {
     flexDirection: 'row',
@@ -476,7 +563,6 @@ const styles = StyleSheet.create({
     minHeight: 200,
   },
   expandedOverlay: {
-    backgroundColor: 'rgba(8, 6, 18, 0.75)',
     padding: 20,
     minHeight: 200,
     justifyContent: 'flex-end',
@@ -536,7 +622,6 @@ const styles = StyleSheet.create({
 
   // Expanded plain content
   expandedPlain: {
-    backgroundColor: C.card,
     padding: 18,
   },
   plainLabel: {
@@ -558,12 +643,10 @@ const styles = StyleSheet.create({
   progressFill: { height: 4, backgroundColor: C.gold, borderRadius: 2 },
   progressPct: { fontSize: 11, color: C.textSub, marginBottom: 16, textAlign: 'right' },
   primaryBtn: {
-    backgroundColor: C.gold,
-    borderRadius: 10,
     paddingVertical: 13,
     alignItems: 'center',
   },
-  primaryBtnText: { color: '#0D0F1A', fontWeight: '700', fontSize: 14 },
+  primaryBtnText: { color: C.text, fontWeight: '700', fontSize: 14 },
 
   goalRow: {
     flexDirection: 'row',

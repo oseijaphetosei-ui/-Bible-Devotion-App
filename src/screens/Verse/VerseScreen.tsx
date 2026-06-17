@@ -100,7 +100,7 @@ export default function VerseScreen() {
                 <View style={s.actions}>
                   <TouchableOpacity
                     style={s.primaryBtn}
-                    onPress={() => navigation.navigate('Bible')}
+                    onPress={() => navigation.navigate('Bible', { bookIndex: verse.bookIndex, chapter: verse.chapter })}
                   >
                     <Text style={s.primaryBtnText}>📖  Read Chapter</Text>
                   </TouchableOpacity>

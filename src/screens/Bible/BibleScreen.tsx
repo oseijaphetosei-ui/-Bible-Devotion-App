@@ -11,7 +11,7 @@ import {
   TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
 import { BOOKS } from '../../constants/books';
@@ -28,6 +28,7 @@ import { API_BIBLE_KEY } from '../../config/bibleConfig'; // used to show online
 import { LinearGradient } from 'expo-linear-gradient';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
+type BibleRouteProp = RouteProp<RootStackParamList, 'Bible'>;
 
 const C = {
   bg: '#0D0F1A',
@@ -45,9 +46,10 @@ const C = {
 
 export default function BibleScreen() {
   const navigation = useNavigation<NavProp>();
+  const route = useRoute<BibleRouteProp>();
 
-  const [bookIndex, setBookIndex] = useState(42); // default: John
-  const [chapter, setChapter] = useState(1);
+  const [bookIndex, setBookIndex] = useState(route.params?.bookIndex ?? 42);
+  const [chapter, setChapter] = useState(route.params?.chapter ?? 1);
   const [verses, setVerses] = useState<Verse[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,6 +79,15 @@ export default function BibleScreen() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (route.params?.bookIndex !== undefined) {
+      setBookIndex(route.params.bookIndex);
+    }
+    if (route.params?.chapter !== undefined) {
+      setChapter(route.params.chapter);
+    }
+  }, [route.params]);
 
   useEffect(() => {
     fetchChapter(bookIndex, chapter, selectedBible);

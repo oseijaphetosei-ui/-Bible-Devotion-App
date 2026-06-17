@@ -7,7 +7,6 @@ import {
   StyleSheet,
   StatusBar,
   Animated,
-  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -35,23 +34,55 @@ const C = {
   errorText: '#E07070',
 };
 
-const SCREEN_W = Dimensions.get('window').width;
 
 type SpeechState = 'idle' | 'playing' | 'paused';
 type ViewState = 'story' | 'quiz';
 
-function buildSpeechText(story: Story): string {
-  const lines = [
-    story.title,
-    story.subtitle,
-    story.reference,
-    '',
-    ...story.body,
-    '',
-    'Devotional note.',
-    story.devotionalNote,
+function sanitizeForSpeech(raw: string): string {
+  return raw
+    // En dash (–) in verse/chapter ranges → " to "
+    .replace(/–/g, ' to ')
+    // Em dash (—) → natural comma pause
+    .replace(/—/g, ', ')
+    // Bible verse colon pattern (e.g. "3:16", "22:21") → "chapter 3 verse 16"
+    .replace(/\b(\d+):(\d+)\b/g, 'chapter $1 verse $2')
+    // Parenthetical content → ", content," — drops brackets, keeps a breath pause
+    .replace(/\s*\(([^)]+)\)\s*/g, ', $1, ')
+    // Curly/smart double quotes → nothing (quoted speech flows naturally without markers)
+    .replace(/[""]/g, '')
+    // Curly single quotes / apostrophes → straight apostrophe
+    .replace(/['']/g, "'")
+    // Ellipsis character or three dots → brief pause
+    .replace(/…|\.\.\./g, ', ')
+    // Semicolons → comma (shorter pause than a period)
+    .replace(/;/g, ',')
+    // Digit hyphen digit (remaining ranges after en dash pass) → " to "
+    .replace(/(\d+)-(\d+)/g, '$1 to $2')
+    // Tidy up: multiple commas, trailing commas before period, extra spaces
+    .replace(/,\s*,/g, ',')
+    .replace(/,\s*([.!?])/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildSpeechChunks(story: Story): string[] {
+  const end = (s: string) => {
+    const t = sanitizeForSpeech(s).replace(/[,\s]+$/, '');
+    return /[.!?]$/.test(t) ? t : t + '.';
+  };
+  return [
+    `${end(story.title)}. ${end(story.subtitle)}`,
+    end(story.reference),
+    ...story.body.map(end),
+    `Devotional note. ${end(story.devotionalNote)}`,
   ];
-  return lines.join(' ');
+}
+
+// chunk index → which body paragraph is highlighted (-1 = none)
+function chunkToBodyIndex(chunkIdx: number, bodyLength: number): number {
+  // chunks: [0]=title+sub, [1]=reference, [2..2+N-1]=body, [2+N]=devotional
+  if (chunkIdx >= 2 && chunkIdx < 2 + bodyLength) return chunkIdx - 2;
+  return -1;
 }
 
 export default function StoryReaderScreen() {
@@ -64,6 +95,12 @@ export default function StoryReaderScreen() {
   const [viewState, setViewState] = useState<ViewState>('story');
   const [speechState, setSpeechState] = useState<SpeechState>('idle');
   const [speechRate, setSpeechRate] = useState(0.9);
+  const [activeChunk, setActiveChunk] = useState(-1);
+
+  const activeRef = useRef(false);
+  const chunkIdxRef = useRef(0);
+  const chunksRef = useRef<string[]>([]);
+  const rateRef = useRef(0.9);
 
   // Quiz state
   const [currentQ, setCurrentQ] = useState(0);
@@ -73,22 +110,25 @@ export default function StoryReaderScreen() {
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
-  // Clean up speech when leaving the screen
+  useEffect(() => { rateRef.current = speechRate; }, [speechRate]);
+
+  // Clean up speech when leaving screen
   useEffect(() => {
-    return () => {
-      Speech.stop();
-    };
+    return () => { activeRef.current = false; Speech.stop(); };
   }, []);
 
-  // Reset quiz whenever story changes
+  // Reset TTS + quiz whenever story changes
   useEffect(() => {
+    activeRef.current = false;
+    Speech.stop();
     setViewState('story');
     setSpeechState('idle');
+    setActiveChunk(-1);
+    chunkIdxRef.current = 0;
     setCurrentQ(0);
     setSelected(null);
     setAnswers([]);
     setQuizDone(false);
-    Speech.stop();
   }, [storyId]);
 
   const fadeTransition = useCallback(
@@ -102,55 +142,72 @@ export default function StoryReaderScreen() {
   );
 
   // ── TTS ──────────────────────────────────────────────────────────────────
+  const speakChunk = useCallback((chunks: string[], idx: number) => {
+    if (!activeRef.current || idx >= chunks.length) {
+      activeRef.current = false;
+      setSpeechState('idle');
+      setActiveChunk(-1);
+      return;
+    }
+    chunkIdxRef.current = idx;
+    setActiveChunk(idx);
+    Speech.speak(chunks[idx], {
+      rate: rateRef.current,
+      onDone: () => {
+        if (!activeRef.current) return;
+        setTimeout(() => speakChunk(chunks, idx + 1), 350);
+      },
+      onError: () => {
+        activeRef.current = false;
+        setSpeechState('idle');
+        setActiveChunk(-1);
+      },
+    });
+  }, []);
+
   const handlePlay = () => {
     if (!story) return;
-    if (speechState === 'paused') {
-      // expo-speech has no resume — restart from beginning
-      Speech.stop();
-    }
-    const text = buildSpeechText(story);
-    Speech.speak(text, {
-      rate: speechRate,
-      onStart: () => setSpeechState('playing'),
-      onDone: () => setSpeechState('idle'),
-      onStopped: () => setSpeechState('idle'),
-      onError: () => setSpeechState('idle'),
-    });
+    const chunks = buildSpeechChunks(story);
+    chunksRef.current = chunks;
+    activeRef.current = true;
     setSpeechState('playing');
+    const startIdx = speechState === 'paused' ? chunkIdxRef.current : 0;
+    speakChunk(chunks, startIdx);
   };
 
   const handlePause = () => {
+    activeRef.current = false;
     Speech.stop();
     setSpeechState('paused');
   };
 
   const handleStop = () => {
+    activeRef.current = false;
     Speech.stop();
     setSpeechState('idle');
+    setActiveChunk(-1);
+    chunkIdxRef.current = 0;
   };
 
   const cycleRate = () => {
     const rates = [0.75, 0.9, 1.0, 1.25];
-    const idx = rates.indexOf(speechRate);
-    const next = rates[(idx + 1) % rates.length];
+    const next = rates[(rates.indexOf(speechRate) + 1) % rates.length];
     setSpeechRate(next);
+    rateRef.current = next;
     if (speechState === 'playing') {
+      activeRef.current = false;
       Speech.stop();
-      if (!story) return;
-      Speech.speak(buildSpeechText(story), {
-        rate: next,
-        onStart: () => setSpeechState('playing'),
-        onDone: () => setSpeechState('idle'),
-        onStopped: () => setSpeechState('idle'),
-        onError: () => setSpeechState('idle'),
-      });
+      activeRef.current = true;
+      setTimeout(() => speakChunk(chunksRef.current, chunkIdxRef.current), 100);
     }
   };
 
   const rateLabel = speechRate === 0.75 ? '0.75×' : speechRate === 0.9 ? '0.9×' : speechRate === 1.0 ? '1×' : '1.25×';
+  const activeBodyIdx = story ? chunkToBodyIndex(activeChunk, story.body.length) : -1;
 
   // ── Quiz ─────────────────────────────────────────────────────────────────
   const openQuiz = () => {
+    activeRef.current = false;
     Speech.stop();
     setSpeechState('idle');
     fadeTransition(() => {
@@ -264,11 +321,16 @@ export default function StoryReaderScreen() {
               <View style={s.divider} />
 
               {story.body.map((para, i) => (
-                <Text key={i} style={s.bodyPara}>{para}</Text>
+                <Text
+                  key={i}
+                  style={[s.bodyPara, activeBodyIdx === i && s.bodyParaActive]}
+                >
+                  {para}
+                </Text>
               ))}
 
               {/* Devotional note */}
-              <View style={s.devotionalCard}>
+              <View style={[s.devotionalCard, activeChunk === 2 + story.body.length && s.devotionalCardActive]}>
                 <Text style={s.devotionalLabel}>DEVOTIONAL NOTE</Text>
                 <Text style={s.devotionalText}>{story.devotionalNote}</Text>
               </View>
@@ -302,7 +364,7 @@ export default function StoryReaderScreen() {
                 )}
               </View>
 
-              <Text style={s.ttsLabel}>
+              <Text style={s.ttsLabel} numberOfLines={1}>
                 {speechState === 'playing' ? 'Reading…' : speechState === 'paused' ? 'Paused' : 'Read Aloud'}
               </Text>
             </View>
@@ -466,6 +528,10 @@ const s = StyleSheet.create({
     marginBottom: 20,
     letterSpacing: 0.15,
   },
+  bodyParaActive: {
+    color: C.gold,
+    opacity: 1,
+  },
 
   devotionalCard: {
     backgroundColor: C.goldDim,
@@ -474,6 +540,10 @@ const s = StyleSheet.create({
     borderColor: C.gold + '40',
     padding: 18,
     marginBottom: 28,
+  },
+  devotionalCardActive: {
+    borderColor: C.gold,
+    borderWidth: 2,
   },
   devotionalLabel: {
     fontSize: 9,
@@ -541,10 +611,15 @@ const s = StyleSheet.create({
     backgroundColor: C.goldDim,
     borderColor: C.gold,
   },
+  ttsBtnError: {
+    backgroundColor: C.error,
+    borderColor: C.errorText,
+  },
   ttsBtnIcon: { fontSize: 14, color: C.textSub },
   ttsBtnMainIcon: { fontSize: 18, color: C.gold },
   ttsBtnDisabled: { color: C.textMuted },
-  ttsLabel: { fontSize: 11, color: C.textMuted, width: 55, textAlign: 'right' },
+  ttsLabel: { fontSize: 10, color: C.textMuted, flex: 1, textAlign: 'right' },
+  ttsLabelError: { color: C.errorText },
 
   // ── Quiz ──────────────────────────────────────────────────────────────────
   quizContainer: { flex: 1, paddingHorizontal: 22, paddingTop: 24 },
