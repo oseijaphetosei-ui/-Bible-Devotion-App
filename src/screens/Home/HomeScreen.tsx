@@ -170,6 +170,7 @@ function VerseContent() {
 }
 
 function DevotionContent() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const tags = ['FAITH', 'TRUST', 'DAILY WALK'];
   return (
     <View style={styles.expandedOverlay}>
@@ -185,7 +186,7 @@ function DevotionContent() {
         ))}
       </View>
       <View style={styles.expandedActions}>
-        <TouchableOpacity style={styles.actionBtn}>
+        <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('Devotion', undefined)}>
           <Text style={styles.actionBtnText}>✦  Read Devotion</Text>
         </TouchableOpacity>
       </View>

@@ -17,6 +17,7 @@ import ChatScreen from './src/screens/Chat/ChatScreen';
 import CommunityScreen from './src/screens/Community/CommunityScreen';
 import NotesScreen from './src/screens/Notes/NotesScreen';
 import NoteEditorScreen from './src/screens/Notes/NoteEditorScreen';
+import DevotionScreen from './src/screens/Devotion/DevotionScreen';
 
 import {
   HomeStackParamList,
@@ -39,6 +40,7 @@ function HomeStackScreen() {
       <HomeStack.Screen name="StoryReader" component={StoryReaderScreen} />
       <HomeStack.Screen name="Verse" component={VerseScreen} />
       <HomeStack.Screen name="Goals" component={GoalsScreen} />
+      <HomeStack.Screen name="Devotion" component={DevotionScreen} />
     </HomeStack.Navigator>
   );
 }

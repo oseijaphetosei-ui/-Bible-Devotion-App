@@ -7,6 +7,7 @@ export type HomeStackParamList = {
   StoryReader: { storyId: string };
   Verse: undefined;
   Goals: undefined;
+  Devotion: { topic?: string } | undefined;
 };
 
 export type BibleStackParamList = {
