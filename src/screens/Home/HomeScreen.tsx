@@ -11,7 +11,6 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
-  Dimensions,
   ImageBackground,
   Image,
 } from 'react-native';
@@ -19,8 +18,6 @@ import {
 if (Platform.OS === 'android') {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
 }
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
@@ -29,8 +26,7 @@ import { getTodayVerseEntry } from '../../services/verseService';
 import { loadGoals, calcStreak, isCompletedToday } from '../../services/goalsService';
 import { Goal } from '../../types/goal';
 import { useFocusEffect } from '@react-navigation/native';
-
-const SCREEN_W = Dimensions.get('window').width;
+import { useTheme } from '../../theme';
 
 function sanitizeForSpeech(raw: string): string {
   return raw
@@ -48,19 +44,6 @@ function sanitizeForSpeech(raw: string): string {
     .replace(/\s+/g, ' ')
     .trim();
 }
-
-const C = {
-  bg: '#0D0F1A',
-  card: '#151828',
-  cardBorder: '#1F2240',
-  gold: '#D4AF37',
-  goldDim: '#3A2E10',
-  text: '#F0EFE9',
-  textSub: '#8B8FA8',
-  textMuted: '#555870',
-  progressBg: '#1F2240',
-  accent: '#2A3060',
-};
 
 const getGreeting = () => {
   const h = new Date().getHours();
@@ -80,7 +63,6 @@ function getWeekDays() {
     return { label: ['S', 'M', 'T', 'W', 'T', 'F', 'S'][i], date: d.getDate(), isToday: i === dow };
   });
 }
-
 
 type SectionId = 'verse' | 'devotion' | 'goals';
 
@@ -107,7 +89,6 @@ const SECTIONS: AccordionSection[] = [
     meta: '5 MIN',
     thumbnail: require('../../assets/man-clouds.jpg'),
   },
-
   {
     id: 'goals',
     icon: '🎯',
@@ -122,22 +103,14 @@ function VerseContent() {
   const verse = getTodayVerseEntry();
   const [speaking, setSpeaking] = useState(false);
 
-  useEffect(() => {
-    return () => { Speech.stop(); };
-  }, []);
+  useEffect(() => { return () => { Speech.stop(); }; }, []);
 
   const handleReadAloud = () => {
-    if (speaking) {
-      Speech.stop();
-      setSpeaking(false);
-      return;
-    }
+    if (speaking) { Speech.stop(); setSpeaking(false); return; }
     const text = `${sanitizeForSpeech(verse.label)}. ${sanitizeForSpeech(verse.fallbackText)}`;
     setSpeaking(true);
     Speech.speak(text, {
-      language: 'en',
-      pitch: 1.0,
-      rate: 0.9,
+      language: 'en', pitch: 1.0, rate: 0.9,
       onDone: () => setSpeaking(false),
       onStopped: () => setSpeaking(false),
       onError: () => setSpeaking(false),
@@ -149,9 +122,9 @@ function VerseContent() {
       <Text style={styles.expandedTitle}>{verse.label}</Text>
       <Text style={styles.expandedVerseText}>{verse.fallbackText}</Text>
       <View style={styles.tagRow}>
-        {verse.tags.map(t => (
-          <View key={t} style={styles.tag}>
-            <Text style={styles.tagText}>{t}</Text>
+        {verse.tags.map(tag => (
+          <View key={tag} style={styles.tag}>
+            <Text style={styles.tagText}>{tag}</Text>
           </View>
         ))}
       </View>
@@ -194,15 +167,12 @@ function DevotionContent() {
   );
 }
 
-
 function GoalsContent() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [goals, setGoals] = React.useState<Goal[]>([]);
 
   useFocusEffect(
-    useCallback(() => {
-      loadGoals().then(setGoals);
-    }, [])
+    useCallback(() => { loadGoals().then(setGoals); }, [])
   );
 
   const preview = goals.slice(0, 2);
@@ -219,9 +189,7 @@ function GoalsContent() {
         </View>
       ) : (
         <>
-          <Text style={styles.goalStreak}>
-            {completedCount}/{goals.length} completed today
-          </Text>
+          <Text style={styles.goalStreak}>{completedCount}/{goals.length} completed today</Text>
           {preview.map((goal, i) => {
             const streak = calcStreak(goal.completedDates);
             const pct = Math.min(1, streak / goal.target);
@@ -253,7 +221,6 @@ function renderContent(id: SectionId) {
   switch (id) {
     case 'verse': return <VerseContent />;
     case 'devotion': return <DevotionContent />;
-
     case 'goals': return <GoalsContent />;
   }
 }
@@ -265,6 +232,7 @@ type AccordionItemProps = {
 };
 
 function AccordionItem({ section, isOpen, onToggle }: AccordionItemProps) {
+  const t = useTheme();
   const chevronAnim = useRef(new Animated.Value(isOpen ? 1 : 0)).current;
 
   React.useEffect(() => {
@@ -282,8 +250,9 @@ function AccordionItem({ section, isOpen, onToggle }: AccordionItemProps) {
   });
 
   return (
-    <View style={styles.accordionWrap}>
+    <View style={[styles.accordionWrap, { borderColor: t.cardBorder }]}>
       <ImageBackground source={section.thumbnail} style={styles.accordionCardBg}>
+        {/* dark scrim so text is always readable over the photo */}
         <View style={styles.cardOverlay}>
           <TouchableOpacity
             style={styles.accordionBar}
@@ -310,12 +279,11 @@ function AccordionItem({ section, isOpen, onToggle }: AccordionItemProps) {
 
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const t = useTheme();
   const [openId, setOpenId] = useState<SectionId | null>('verse');
 
   const today = new Date().toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
+    weekday: 'long', month: 'long', day: 'numeric',
   });
   const weekDays = getWeekDays();
 
@@ -330,86 +298,102 @@ export default function HomeScreen() {
   }, []);
 
   return (
-    <LinearGradient colors={['#5C3A10', '#080604']} style={{ flex: 1 }}>
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+    <View style={{ flex: 1, backgroundColor: t.bg }}>
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <StatusBar barStyle={t.statusBar} backgroundColor="transparent" translucent />
 
-      {/* Fixed greeting header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>{getGreeting()}</Text>
-          <Text style={styles.date}>{today}</Text>
-        </View>
-        <TouchableOpacity style={styles.avatar}>
-          <Text style={styles.avatarText}>J</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Fixed streak banner — glass card */}
-      <BlurView intensity={55} tint="dark" style={styles.streakCard}>
-        <View style={styles.streakCardTint} pointerEvents="none" />
-        <View style={styles.streakCardHighlight} pointerEvents="none" />
-        <View style={styles.streakInner}>
-          <View style={styles.streakTopRow}>
-            <Text style={styles.streakEmoji}>🔥</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.streakTitle}>7-Day Streak</Text>
-              <Text style={styles.streakSub}>Keep it going — open today's content below</Text>
-            </View>
-            <View style={styles.streakBadge}>
-              <Text style={styles.streakBadgeText}>7</Text>
-            </View>
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={[styles.greeting, { color: t.text }]}>{getGreeting()}</Text>
+            <Text style={[styles.date, { color: t.textSub }]}>{today}</Text>
           </View>
-
-          <View style={styles.weekRow}>
-            {weekDays.map((d, i) => (
-              <View key={i} style={styles.weekDayCol}>
-                <Text style={styles.weekDayLabel}>{d.label}</Text>
-                <View style={[styles.weekDayCircle, d.isToday && styles.weekDayCircleActive]}>
-                  <Text style={[styles.weekDayNum, d.isToday && styles.weekDayNumActive]}>{d.date}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-
-          <View style={styles.progressRow}>
-            <Text style={styles.progressLabel}>Progress today</Text>
-            <Text style={styles.progressPctGold}>0%</Text>
-          </View>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: '0%' }]} />
-          </View>
-        </View>
-      </BlurView>
-
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Accordion sections */}
-        {SECTIONS.map(section => (
-          <AccordionItem
-            key={section.id}
-            section={section}
-            isOpen={openId === section.id}
-            onToggle={() => toggle(section.id)}
-          />
-        ))}
-
-        {/* Quick nav */}
-        <Text style={[styles.sectionLabel, { marginTop: 8 }]}>EXPLORE</Text>
-        <View style={styles.quickNavRow}>
-          <TouchableOpacity style={styles.quickNavItem} onPress={() => navigation.navigate('Stories')}>
-            <Image source={require('../../assets/group-story-by-fire.jpg')} style={styles.quickNavImage} />
-            <Text style={styles.quickNavLabel}>Stories</Text>
+          <TouchableOpacity style={[styles.avatar, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}>
+            <Text style={[styles.avatarText, { color: t.gold }]}>J</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
-    </SafeAreaView>
-    </LinearGradient>
+
+        {/* Streak banner — no card, content sits directly on background */}
+        <View style={styles.streakCard}>
+          <View style={styles.streakInner}>
+            <View style={styles.streakTopRow}>
+              <Text style={styles.streakEmoji}>🔥</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.streakTitle, { color: t.text }]}>7-Day Streak</Text>
+                <Text style={[styles.streakSub, { color: t.textSub }]}>Keep it going — open today's content below</Text>
+              </View>
+              <View style={[styles.streakBadge, { backgroundColor: t.gold }]}>
+                <Text style={[styles.streakBadgeText, { color: t.bg }]}>7</Text>
+              </View>
+            </View>
+
+            <View style={styles.weekRow}>
+              {weekDays.map((d, i) => (
+                <View key={i} style={styles.weekDayCol}>
+                  <Text style={[styles.weekDayLabel, { color: t.textMuted }]}>{d.label}</Text>
+                  <View style={[
+                    styles.weekDayCircle,
+                    { backgroundColor: t.weekCircleBg, borderColor: t.weekCircleBorder },
+                    d.isToday && { backgroundColor: t.weekCircleActiveBg, borderColor: t.goldBorder },
+                  ]}>
+                    <Text style={[
+                      styles.weekDayNum,
+                      { color: t.textMuted },
+                      d.isToday && { color: t.gold, fontWeight: '700' },
+                    ]}>
+                      {d.date}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.progressRow}>
+              <Text style={[styles.progressLabel, { color: t.textSub }]}>Progress today</Text>
+              <Text style={[styles.progressPctGold, { color: t.gold }]}>0%</Text>
+            </View>
+            <View style={[styles.progressTrack, { backgroundColor: t.progressTrack }]}>
+              <View style={[styles.progressFill, { width: '0%', backgroundColor: t.gold }]} />
+            </View>
+          </View>
+        </View>
+
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Accordion sections */}
+          {SECTIONS.map(section => (
+            <AccordionItem
+              key={section.id}
+              section={section}
+              isOpen={openId === section.id}
+              onToggle={() => toggle(section.id)}
+            />
+          ))}
+
+          {/* Quick nav */}
+          <Text style={[styles.sectionLabel, { color: t.textMuted, marginTop: 8 }]}>EXPLORE</Text>
+          <View style={styles.quickNavRow}>
+            <TouchableOpacity
+              style={[styles.quickNavItem, { backgroundColor: t.card, borderColor: t.cardBorder }]}
+              onPress={() => navigation.navigate('Stories')}
+            >
+              <Image source={require('../../assets/group-story-by-fire.jpg')} style={styles.quickNavImage} />
+              <Text style={[styles.quickNavLabel, { color: t.text }]}>Stories</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
+
+// Accordion text always sits over a photo background — keep those colours fixed white.
+const OVERLAY_TEXT = '#F0EFE9';
+const OVERLAY_SUB  = 'rgba(255,255,255,0.72)';
+const GOLD         = '#D4AF37';
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
@@ -417,281 +401,111 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 18, paddingBottom: 116 },
 
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 18,
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', paddingVertical: 16, paddingHorizontal: 18,
   },
-  greeting: { fontSize: 22, fontWeight: '700', color: C.text },
-  date: { fontSize: 13, color: C.textSub, marginTop: 2 },
+  greeting: { fontSize: 22, fontWeight: '700' },
+  date: { fontSize: 13, marginTop: 2 },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(80, 48, 10, 0.65)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 40, height: 40, borderRadius: 20, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
   },
-  avatarText: { color: C.gold, fontWeight: '700', fontSize: 16 },
+  avatarText: { fontWeight: '700', fontSize: 16 },
 
-  // Glass streak card
+  // Streak card — solid
   streakCard: {
-    marginHorizontal: 18,
-    marginBottom: 12,
-    borderRadius: 20,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.11)',
+    marginHorizontal: 18, marginBottom: 12,
   },
-  streakCardTint: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(72, 38, 8, 0.32)',
-  },
-  streakCardHighlight: {
-    position: 'absolute',
-    top: 0,
-    left: 16,
-    right: 16,
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    borderRadius: 1,
-  },
-  streakInner: {
-    padding: 16,
-    paddingTop: 14,
-    gap: 12,
-  },
-  streakTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
+  streakInner: { padding: 16, paddingTop: 14, gap: 12 },
+  streakTopRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   streakEmoji: { fontSize: 22 },
-  streakTitle: { color: C.text, fontWeight: '700', fontSize: 14 },
-  streakSub: { color: 'rgba(255,255,255,0.55)', fontSize: 12, marginTop: 1 },
+  streakTitle: { fontWeight: '700', fontSize: 14 },
+  streakSub: { fontSize: 12, marginTop: 1 },
   streakBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(212, 175, 55, 0.88)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: 'center', justifyContent: 'center',
   },
-  streakBadgeText: { color: '#0D0F1A', fontWeight: '800', fontSize: 15 },
+  streakBadgeText: { fontWeight: '800', fontSize: 15 },
 
-  weekRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
+  weekRow: { flexDirection: 'row', justifyContent: 'space-between' },
   weekDayCol: { alignItems: 'center', gap: 4 },
-  weekDayLabel: { fontSize: 10, color: 'rgba(255,255,255,0.45)', fontWeight: '600', letterSpacing: 0.5 },
+  weekDayLabel: { fontSize: 10, fontWeight: '600', letterSpacing: 0.5 },
   weekDayCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 32, height: 32, borderRadius: 16,
+    borderWidth: 1, alignItems: 'center', justifyContent: 'center',
   },
-  weekDayCircleActive: {
-    backgroundColor: 'rgba(212,175,55,0.12)',
-    borderWidth: 1.5,
-    borderColor: C.gold,
-  },
-  weekDayNum: { fontSize: 13, color: 'rgba(255,255,255,0.65)', fontWeight: '500' },
-  weekDayNumActive: { color: C.gold, fontWeight: '700' },
+  weekDayNum: { fontSize: 13, fontWeight: '500' },
 
   progressRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: 6,
   },
-  progressLabel: { fontSize: 12, color: 'rgba(255,255,255,0.55)', fontWeight: '500' },
-  progressPctGold: { fontSize: 12, color: C.gold, fontWeight: '700' },
+  progressLabel: { fontSize: 12, fontWeight: '500' },
+  progressPctGold: { fontSize: 12, fontWeight: '700' },
+  progressTrack: { height: 4, borderRadius: 2, overflow: 'hidden', marginBottom: 6 },
+  progressFill: { height: 4, borderRadius: 2 },
 
   sectionLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: C.textMuted,
-    letterSpacing: 1.4,
-    marginBottom: 10,
+    fontSize: 10, fontWeight: '700', letterSpacing: 1.4, marginBottom: 10,
   },
 
-  // Accordion — glass-refined
+  // Accordion — image background with fixed dark scrim for readability
   accordionWrap: {
-    marginBottom: 8,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    marginBottom: 8, borderRadius: 16, overflow: 'hidden', borderWidth: 1,
   },
-  accordionCardBg: {
-    width: '100%',
-  },
+  accordionCardBg: { width: '100%' },
   cardOverlay: {
-    backgroundColor: 'rgba(8, 6, 18, 0.46)',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(6,5,14,0.52)',
   },
   accordionBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 22,
-    paddingHorizontal: 14,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 22, paddingHorizontal: 14,
   },
-  barLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
+  barLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   barIcon: { fontSize: 20 },
-  barTitle: { fontSize: 14, fontWeight: '600', color: C.text },
-  barMeta: { fontSize: 11, color: C.textSub, marginTop: 1 },
-  barRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  barThumb: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-  },
-  chevron: {
-    fontSize: 22,
-    color: C.textSub,
-    lineHeight: 26,
-  },
+  barTitle: { fontSize: 14, fontWeight: '600', color: OVERLAY_TEXT },
+  barMeta: { fontSize: 11, color: OVERLAY_SUB, marginTop: 1 },
+  chevron: { fontSize: 22, color: OVERLAY_SUB, lineHeight: 26 },
 
-  // Expanded image content
-  expandedImage: {
-    width: '100%',
-    minHeight: 200,
-  },
-  expandedOverlay: {
-    padding: 20,
-    minHeight: 200,
-    justifyContent: 'flex-end',
-  },
-  expandedTitle: {
-    color: C.text,
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  expandedVerseText: {
-    color: C.text,
-    fontSize: 15,
-    fontStyle: 'italic',
-    lineHeight: 22,
-    marginBottom: 14,
-  },
-  expandedSubtitle: {
-    color: C.textSub,
-    fontSize: 13,
-    lineHeight: 20,
-    marginBottom: 14,
-  },
-  tagRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 16,
-  },
+  // Expanded overlay content — fixed colours over photo
+  expandedOverlay: { padding: 20, minHeight: 200, justifyContent: 'flex-end' },
+  expandedTitle: { color: OVERLAY_TEXT, fontSize: 20, fontWeight: '700', marginBottom: 8 },
+  expandedVerseText: { color: OVERLAY_TEXT, fontSize: 15, fontStyle: 'italic', lineHeight: 22, marginBottom: 14 },
+  expandedSubtitle: { color: OVERLAY_SUB, fontSize: 13, lineHeight: 20, marginBottom: 14 },
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
   tag: {
-    backgroundColor: 'rgba(212,175,55,0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.35)',
-    borderRadius: 20,
-    paddingHorizontal: 11,
-    paddingVertical: 4,
+    backgroundColor: 'rgba(212,175,55,0.18)', borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.4)', borderRadius: 20,
+    paddingHorizontal: 11, paddingVertical: 4,
   },
-  tagText: { color: C.gold, fontSize: 10, fontWeight: '700', letterSpacing: 0.8 },
-  expandedActions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
+  tagText: { color: GOLD, fontSize: 10, fontWeight: '700', letterSpacing: 0.8 },
+  expandedActions: { flexDirection: 'row', gap: 10 },
   actionBtn: {
-    flex: 1,
-    backgroundColor: C.gold,
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
+    flex: 1, backgroundColor: GOLD, borderRadius: 10,
+    paddingVertical: 12, alignItems: 'center',
   },
   actionBtnText: { color: '#0D0F1A', fontWeight: '700', fontSize: 13 },
-  actionBtnOutline: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: C.gold,
-  },
-  actionBtnOutlineText: { color: C.gold },
+  actionBtnOutline: { backgroundColor: 'transparent', borderWidth: 1, borderColor: GOLD },
+  actionBtnOutlineText: { color: GOLD },
 
-  // Expanded plain content
-  expandedPlain: {
-    padding: 18,
-  },
-  plainLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: C.textMuted,
-    letterSpacing: 1.2,
-    marginBottom: 6,
-  },
-  plainTitle: { fontSize: 18, fontWeight: '700', color: C.text, marginBottom: 4 },
-  plainMeta: { fontSize: 13, color: C.textSub, marginBottom: 14 },
-  progressTrack: {
-    height: 4,
-    backgroundColor: 'rgba(255,255,255,0.09)',
-    borderRadius: 2,
-    overflow: 'hidden',
-    marginBottom: 6,
-  },
-  progressFill: { height: 4, backgroundColor: C.gold, borderRadius: 2 },
-  progressPct: { fontSize: 11, color: C.textSub, marginBottom: 16, textAlign: 'right' },
-  primaryBtn: {
-    paddingVertical: 13,
-    alignItems: 'center',
-  },
-  primaryBtnText: { color: C.text, fontWeight: '700', fontSize: 14 },
-
-  goalRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  goalRowBorder: { borderBottomWidth: 1, borderBottomColor: C.cardBorder },
+  // Goals expanded — also over photo so fixed colours
+  expandedPlain: { padding: 18 },
+  goalRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
+  goalRowBorder: { borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' },
   goalInfo: { flex: 1.2 },
-  goalTitle: { fontSize: 14, color: C.text, fontWeight: '500', marginBottom: 2 },
-  goalStreak: { fontSize: 12, color: C.gold },
+  goalTitle: { fontSize: 14, color: OVERLAY_TEXT, fontWeight: '500', marginBottom: 2 },
+  goalStreak: { fontSize: 12, color: GOLD },
   goalRight: { flex: 1, marginLeft: 12 },
-  goalTarget: { fontSize: 11, color: C.textMuted, textAlign: 'right', marginTop: 4 },
+  goalTarget: { fontSize: 11, color: OVERLAY_SUB, textAlign: 'right', marginTop: 4 },
+  primaryBtn: { paddingVertical: 13, alignItems: 'center' },
+  primaryBtnText: { color: OVERLAY_TEXT, fontWeight: '700', fontSize: 14 },
 
   // Quick nav
-  quickNavRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 8,
-  },
+  quickNavRow: { flexDirection: 'row', gap: 10, marginBottom: 8 },
   quickNavItem: {
-    flex: 1,
-    alignItems: 'center',
-    backgroundColor: 'rgba(18, 14, 8, 0.72)',
-    borderRadius: 14,
-    overflow: 'hidden',
-    paddingBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    flex: 1, alignItems: 'center', borderRadius: 14,
+    overflow: 'hidden', paddingBottom: 12, borderWidth: 1,
   },
   quickNavImage: { width: '100%', height: 90, marginBottom: 10 },
-  quickNavLabel: { fontSize: 13, color: C.text, fontWeight: '600' },
+  quickNavLabel: { fontSize: 13, fontWeight: '600' },
 });

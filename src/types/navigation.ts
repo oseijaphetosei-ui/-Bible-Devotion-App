@@ -11,7 +11,9 @@ export type HomeStackParamList = {
 };
 
 export type BibleStackParamList = {
-  Bible: { bookIndex?: number; chapter?: number } | undefined;
+  BibleSplash: undefined;
+  BibleLibrary: undefined;
+  Bible: { bookIndex?: number; chapter?: number; verseToScroll?: number } | undefined;
 };
 
 export type NotesStackParamList = {

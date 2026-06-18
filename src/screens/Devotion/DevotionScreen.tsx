@@ -14,11 +14,8 @@ import {
   StatusBar,
   ActivityIndicator,
   Animated,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -26,28 +23,11 @@ import { HomeStackParamList } from '../../types/navigation';
 import { fetchDevotion, getTodayFallback } from '../../services/devotionService';
 import { useDevotionReader } from '../../hooks/useDevotionReader';
 import { Devotion, QUICK_TAGS, TRANSLATIONS, BibleTranslation } from '../../types/devotion';
-import {
-  markTodayComplete,
-  getStreakData,
-} from '../../services/devotionStreakService';
+import { markTodayComplete, getStreakData } from '../../services/devotionStreakService';
+import { useTheme } from '../../theme';
 
 type NavProp = NativeStackNavigationProp<HomeStackParamList, 'Devotion'>;
 type RouteP = RouteProp<HomeStackParamList, 'Devotion'>;
-
-// ─── Colors ─────────────────────────────────────────────────────────────────
-
-const C = {
-  gold: '#D4AF37',
-  goldDim: 'rgba(212,175,55,0.12)',
-  goldBorder: 'rgba(212,175,55,0.35)',
-  text: '#F0EFE9',
-  textSub: '#8B8FA8',
-  textMuted: '#555870',
-  glass: 'rgba(16,14,28,0.82)',
-  glassBorder: 'rgba(255,255,255,0.1)',
-  glassHighlight: 'rgba(255,255,255,0.18)',
-  warmTint: 'rgba(72,38,8,0.28)',
-};
 
 // ─── Breathing Timer ─────────────────────────────────────────────────────────
 
@@ -58,7 +38,10 @@ const BREATH_PHASES = [
   { label: 'Hold',   seconds: 4, toScale: 1.0  },
 ];
 
-function BreathingTimer() {
+function BreathingTimer({ gold, goldBg, goldBorder, card, cardBorder, text, textMuted }: {
+  gold: string; goldBg: string; goldBorder: string;
+  card: string; cardBorder: string; text: string; textMuted: string;
+}) {
   const [active, setActive] = useState(false);
   const [phaseIdx, setPhaseIdx] = useState(0);
   const [countdown, setCountdown] = useState(BREATH_PHASES[0].seconds);
@@ -73,29 +56,20 @@ function BreathingTimer() {
     timeRef.current = phase.seconds;
     setPhaseIdx(idx);
     setCountdown(phase.seconds);
-
     Animated.timing(scale, {
-      toValue: phase.toScale,
-      duration: phase.seconds * 1000,
-      useNativeDriver: true,
+      toValue: phase.toScale, duration: phase.seconds * 1000, useNativeDriver: true,
     }).start();
-
     intervalRef.current = setInterval(() => {
       timeRef.current -= 1;
       setCountdown(timeRef.current);
       if (timeRef.current <= 0) {
         clearInterval(intervalRef.current!);
-        const next = (phaseRef.current + 1) % BREATH_PHASES.length;
-        runPhase(next);
+        runPhase((phaseRef.current + 1) % BREATH_PHASES.length);
       }
     }, 1000);
   }, [scale]);
 
-  function start() {
-    setActive(true);
-    runPhase(0);
-  }
-
+  function start() { setActive(true); runPhase(0); }
   function stop() {
     setActive(false);
     clearInterval(intervalRef.current!);
@@ -104,37 +78,35 @@ function BreathingTimer() {
     setPhaseIdx(0);
     setCountdown(BREATH_PHASES[0].seconds);
   }
-
   useEffect(() => () => clearInterval(intervalRef.current!), []);
 
   const phase = BREATH_PHASES[phaseIdx];
 
   return (
-    <View style={s.breathCard}>
-      <View style={s.breathCardHighlight} pointerEvents="none" />
-      <Text style={s.sectionLabel}>PRAYER BREATHING</Text>
-      <Text style={s.breathSubtitle}>Box breathing • 4-4-4-4</Text>
+    <View style={[s.card, { backgroundColor: card, borderColor: cardBorder }]}>
+      <Text style={[s.sectionLabel, { color: textMuted }]}>PRAYER BREATHING</Text>
+      <Text style={[s.breathSubtitle, { color: textMuted }]}>Box breathing · 4-4-4-4</Text>
 
       <View style={s.breathCircleWrap}>
-        {/* Outer ring */}
-        <View style={s.breathRingOuter} />
-        {/* Animated fill */}
-        <Animated.View style={[s.breathCircle, { transform: [{ scale }] }]}>
-          <LinearGradient
-            colors={['rgba(212,175,55,0.3)', 'rgba(212,175,55,0.08)']}
-            style={s.breathGradient}
-          />
-          <Text style={s.breathPhaseLabel}>{active ? phase.label : 'Begin'}</Text>
-          {active && <Text style={s.breathCountdown}>{countdown}</Text>}
+        <View style={[s.breathRingOuter, { borderColor: goldBorder }]} />
+        <Animated.View style={[s.breathCircle, { transform: [{ scale }], backgroundColor: goldBg, borderColor: goldBorder }]}>
+          <Text style={[s.breathPhaseLabel, { color: text }]}>{active ? phase.label : 'Begin'}</Text>
+          {active && <Text style={[s.breathCountdown, { color: gold }]}>{countdown}</Text>}
         </Animated.View>
       </View>
 
       <TouchableOpacity
-        style={[s.breathBtn, active && s.breathBtnStop]}
+        style={[
+          s.breathBtn,
+          { backgroundColor: goldBg, borderColor: goldBorder },
+          active && { backgroundColor: 'rgba(220,38,38,0.08)', borderColor: 'rgba(220,38,38,0.2)' },
+        ]}
         onPress={active ? stop : start}
         activeOpacity={0.8}
       >
-        <Text style={s.breathBtnText}>{active ? 'Stop' : 'Start'}</Text>
+        <Text style={[s.breathBtnText, { color: active ? '#DC2626' : gold }]}>
+          {active ? 'Stop' : 'Start'}
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -144,48 +116,48 @@ function BreathingTimer() {
 
 type WeekDay = { dateStr: string; label: string; dayNum: number; completed: boolean; isToday: boolean };
 
-function StreakBoard({ refreshTrigger }: { refreshTrigger: number }) {
+function StreakBoard({ refreshTrigger, gold, goldBg, goldBorder, text, textMuted, weekCircleBg, weekCircleBorder, weekCircleActiveBg }: {
+  refreshTrigger: number;
+  gold: string; goldBg: string; goldBorder: string;
+  text: string; textMuted: string;
+  weekCircleBg: string; weekCircleBorder: string; weekCircleActiveBg: string;
+}) {
   const [streak, setStreak] = useState(0);
   const [total, setTotal] = useState(0);
   const [weekDays, setWeekDays] = useState<WeekDay[]>([]);
 
   useEffect(() => {
-    getStreakData().then(d => {
-      setStreak(d.streak);
-      setTotal(d.total);
-      setWeekDays(d.weekDays);
-    });
+    getStreakData().then(d => { setStreak(d.streak); setTotal(d.total); setWeekDays(d.weekDays); });
   }, [refreshTrigger]);
 
   return (
-    <View style={s.streakCard}>
-      <View style={s.streakCardHighlight} pointerEvents="none" />
-
+    <View style={s.bareSection}>
       <View style={s.streakTopRow}>
         <View>
-          <Text style={s.sectionLabel}>THIS WEEK</Text>
-          <Text style={s.streakLine}>
+          <Text style={[s.sectionLabel, { color: textMuted }]}>THIS WEEK</Text>
+          <Text style={[s.streakLine, { color: text }]}>
             {streak > 0 ? `🔥 ${streak}-day streak` : 'Start your streak today'}
           </Text>
         </View>
-        <View style={s.streakBadge}>
-          <Text style={s.streakBadgeNum}>{total}</Text>
-          <Text style={s.streakBadgeLbl}>total</Text>
+        <View style={[s.streakBadge, { backgroundColor: goldBg, borderColor: goldBorder }]}>
+          <Text style={[s.streakBadgeNum, { color: gold }]}>{total}</Text>
+          <Text style={[s.streakBadgeLbl, { color: gold }]}>total</Text>
         </View>
       </View>
 
       <View style={s.weekRow}>
         {weekDays.map(day => (
           <View key={day.dateStr} style={s.dayCol}>
-            <Text style={s.dayLabel}>{day.label}</Text>
+            <Text style={[s.dayLabel, { color: textMuted }]}>{day.label}</Text>
             <View style={[
               s.dayCircle,
-              day.isToday && s.dayCircleToday,
-              day.completed && s.dayCircleDone,
+              { backgroundColor: weekCircleBg, borderColor: weekCircleBorder },
+              day.isToday && { backgroundColor: weekCircleActiveBg, borderColor: goldBorder },
+              day.completed && { backgroundColor: goldBg, borderColor: goldBorder },
             ]}>
               {day.completed
-                ? <Text style={s.dayCheck}>✓</Text>
-                : <Text style={[s.dayNum, day.isToday && s.dayNumToday]}>{day.dayNum}</Text>
+                ? <Text style={[s.dayCheck, { color: gold }]}>✓</Text>
+                : <Text style={[s.dayNum, { color: textMuted }, day.isToday && { color: gold }]}>{day.dayNum}</Text>
               }
             </View>
           </View>
@@ -198,21 +170,12 @@ function StreakBoard({ refreshTrigger }: { refreshTrigger: number }) {
 // ─── Reader Controls ─────────────────────────────────────────────────────────
 
 function ReaderControls({
-  fontSz,
-  speaking,
-  copied,
-  onFont,
-  onTTS,
-  onShare,
-  onCopy,
+  fontSz, speaking, copied, gold, goldBg, goldBorder, textMuted,
+  onFont, onTTS, onShare, onCopy,
 }: {
-  fontSz: string;
-  speaking: boolean;
-  copied: boolean;
-  onFont: () => void;
-  onTTS: () => void;
-  onShare: () => void;
-  onCopy: () => void;
+  fontSz: string; speaking: boolean; copied: boolean;
+  gold: string; goldBg: string; goldBorder: string; textMuted: string;
+  onFont: () => void; onTTS: () => void; onShare: () => void; onCopy: () => void;
 }) {
   const items = [
     { icon: 'text', label: fontSz.toUpperCase(), onPress: onFont },
@@ -222,15 +185,14 @@ function ReaderControls({
   ] as const;
 
   return (
-    <BlurView intensity={45} tint="dark" style={s.readerControls}>
-      <View style={s.readerControlsTint} pointerEvents="none" />
+    <View style={[s.readerControls, { backgroundColor: goldBg, borderColor: goldBorder }]}>
       {items.map(item => (
         <TouchableOpacity key={item.label} style={s.readerBtn} onPress={item.onPress} activeOpacity={0.75}>
-          <Ionicons name={item.icon as any} size={18} color={C.gold} />
-          <Text style={s.readerBtnLabel}>{item.label}</Text>
+          <Ionicons name={item.icon as any} size={18} color={gold} />
+          <Text style={[s.readerBtnLabel, { color: textMuted }]}>{item.label}</Text>
         </TouchableOpacity>
       ))}
-    </BlurView>
+    </View>
   );
 }
 
@@ -239,10 +201,11 @@ function ReaderControls({
 export default function DevotionScreen() {
   const navigation = useNavigation<NavProp>();
   const route = useRoute<RouteP>();
+  const t = useTheme();
 
   const initialTopic = route.params?.topic ?? '';
   const [topic, setTopic] = useState(initialTopic);
-  const [translation, setTranslation] = useState<BibleTranslation>('NIV');
+  const [translation, setTranslation] = useState<BibleTranslation>('KJV');
   const [devotion, setDevotion] = useState<Devotion | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -251,11 +214,7 @@ export default function DevotionScreen() {
 
   const reader = useDevotionReader(devotion);
 
-  // Load today's devotion on first mount
-  useEffect(() => {
-    const today = getTodayFallback();
-    setDevotion(today);
-  }, []);
+  useEffect(() => { setDevotion(getTodayFallback()); }, []);
 
   async function generate() {
     if (!topic.trim()) return;
@@ -263,10 +222,9 @@ export default function DevotionScreen() {
     setLoading(true);
     setError(null);
     try {
-      const result = await fetchDevotion(topic.trim(), translation);
-      setDevotion(result);
+      setDevotion(await fetchDevotion(topic.trim(), translation));
     } catch {
-      setError('Could not generate devotion. Using a local reading instead.');
+      setError('Using a local reading instead.');
       setDevotion(getTodayFallback());
     } finally {
       setLoading(false);
@@ -277,7 +235,7 @@ export default function DevotionScreen() {
     if (markedToday) return;
     await markTodayComplete();
     setMarkedToday(true);
-    setStreakTrigger(t => t + 1);
+    setStreakTrigger(n => n + 1);
   }
 
   function saveToJournal() {
@@ -292,16 +250,19 @@ export default function DevotionScreen() {
   }
 
   return (
-    <LinearGradient colors={['#3D2108', '#080604', '#0A0714']} locations={[0, 0.45, 1]} style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: t.bg }}>
       <SafeAreaView style={s.safe} edges={['top']}>
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        <StatusBar barStyle={t.statusBar} backgroundColor="transparent" translucent />
 
         {/* Header */}
-        <View style={s.header}>
-          <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-            <Ionicons name="chevron-back" size={20} color={C.text} />
+        <View style={[s.header, { borderBottomColor: t.divider }]}>
+          <TouchableOpacity
+            style={[s.backBtn, { backgroundColor: t.inputBg, borderColor: t.cardBorder }]}
+            onPress={() => navigation.goBack()} activeOpacity={0.7}
+          >
+            <Ionicons name="chevron-back" size={20} color={t.text} />
           </TouchableOpacity>
-          <Text style={s.headerTitle}>DAILY DEVOTION</Text>
+          <Text style={[s.headerTitle, { color: t.textMuted }]}>DAILY DEVOTION</Text>
           <View style={{ width: 36 }} />
         </View>
 
@@ -312,159 +273,170 @@ export default function DevotionScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {/* ── Topic Input ── */}
-          <View style={s.topicCard}>
-            <View style={s.topicCardHighlight} pointerEvents="none" />
-            <Text style={s.topicCardLabel}>WHAT'S ON YOUR HEART?</Text>
+          <View style={[s.card, { backgroundColor: t.card, borderColor: t.cardBorder }]}>
+            <Text style={[s.topicCardLabel, { color: t.textMuted }]}>WHAT'S ON YOUR HEART?</Text>
 
-            <View style={s.inputRow}>
-              <Ionicons name="search-outline" size={16} color={C.textMuted} style={s.inputIcon} />
+            <View style={[s.inputRow, { backgroundColor: t.inputBg, borderColor: t.inputBorder }]}>
+              <Ionicons name="search-outline" size={16} color={t.textMuted} style={s.inputIcon} />
               <TextInput
-                style={s.topicInput}
+                style={[s.topicInput, { color: t.text }]}
                 value={topic}
                 onChangeText={setTopic}
                 placeholder="peace, anxiety, forgiveness…"
-                placeholderTextColor={C.textMuted}
+                placeholderTextColor={t.textMuted}
                 returnKeyType="go"
                 onSubmitEditing={generate}
               />
               {topic.length > 0 && (
                 <TouchableOpacity onPress={() => setTopic('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Ionicons name="close-circle" size={16} color={C.textMuted} />
+                  <Ionicons name="close-circle" size={16} color={t.textMuted} />
                 </TouchableOpacity>
               )}
             </View>
 
             {/* Quick tags */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tagsScroll} contentContainerStyle={s.tagsRow}>
-              {QUICK_TAGS.map(tag => (
-                <TouchableOpacity
-                  key={tag}
-                  style={[s.tagChip, topic.toLowerCase() === tag.toLowerCase() && s.tagChipActive]}
-                  onPress={() => setTopic(tag)}
-                  activeOpacity={0.75}
-                >
-                  <Text style={[s.tagChipText, topic.toLowerCase() === tag.toLowerCase() && s.tagChipTextActive]}>
-                    {tag}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              {QUICK_TAGS.map(tag => {
+                const isActive = topic.toLowerCase() === tag.toLowerCase();
+                return (
+                  <TouchableOpacity
+                    key={tag}
+                    style={[
+                      s.tagChip,
+                      { borderColor: t.chipBorder, backgroundColor: t.chipBg },
+                      isActive && { borderColor: t.goldBorder, backgroundColor: t.goldBg },
+                    ]}
+                    onPress={() => setTopic(tag)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={[s.tagChipText, { color: t.textMuted }, isActive && { color: t.gold }]}>{tag}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
 
             {/* Translation */}
             <View style={s.translationRow}>
-              <Text style={s.translationLabel}>Translation</Text>
+              <Text style={[s.translationLabel, { color: t.textMuted }]}>Translation</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                {TRANSLATIONS.map(t => (
+                {TRANSLATIONS.map(tr => (
                   <TouchableOpacity
-                    key={t}
-                    style={[s.transBtn, translation === t && s.transBtnActive]}
-                    onPress={() => setTranslation(t)}
+                    key={tr}
+                    style={[
+                      s.transBtn,
+                      { borderColor: t.chipBorder, backgroundColor: t.chipBg },
+                      translation === tr && { borderColor: t.goldBorder, backgroundColor: t.goldBg },
+                    ]}
+                    onPress={() => setTranslation(tr)}
                     activeOpacity={0.75}
                   >
-                    <Text style={[s.transBtnText, translation === t && s.transBtnTextActive]}>{t}</Text>
+                    <Text style={[s.transBtnText, { color: t.textMuted }, translation === tr && { color: t.gold }]}>{tr}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
             </View>
 
             <TouchableOpacity
-              style={[s.generateBtn, (!topic.trim() || loading) && s.generateBtnDisabled]}
+              style={[s.generateBtn, { backgroundColor: t.gold }, (!topic.trim() || loading) && s.generateBtnDisabled]}
               onPress={generate}
               disabled={!topic.trim() || loading}
               activeOpacity={0.8}
             >
               {loading
-                ? <ActivityIndicator color="#080604" size="small" />
-                : <Text style={s.generateBtnText}>✦  Generate Devotion</Text>
+                ? <ActivityIndicator color={t.bg} size="small" />
+                : <Text style={[s.generateBtnText, { color: t.bg }]}>✦  Generate Devotion</Text>
               }
             </TouchableOpacity>
 
-            {error ? <Text style={s.errorNote}>{error}</Text> : null}
+            {error ? <Text style={[s.errorNote, { color: t.textMuted }]}>{error}</Text> : null}
           </View>
 
           {/* ── Devotion Content ── */}
           {devotion && (
             <>
               {/* Scripture card */}
-              <BlurView intensity={55} tint="dark" style={s.scriptureCard}>
-                <View style={s.scriptureCardTint} pointerEvents="none" />
-                <View style={s.scriptureCardHighlight} pointerEvents="none" />
-                <Text style={s.devotionTitle}>{devotion.title}</Text>
-                <View style={s.themeBadge}>
-                  <Text style={s.themeBadgeText}>{devotion.keyTheme}</Text>
+              <View style={[s.scriptureCard, { backgroundColor: t.card, borderColor: t.goldBorder }]}>
+                <Text style={[s.devotionTitle, { color: t.text }]}>{devotion.title}</Text>
+                <View style={[s.themeBadge, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}>
+                  <Text style={[s.themeBadgeText, { color: t.gold }]}>{devotion.keyTheme}</Text>
                 </View>
-                <View style={s.refRow}>
-                  <Text style={s.refText}>{devotion.scriptureReference}</Text>
-                </View>
-                <Text style={s.scriptureBody}>"{devotion.scriptureText}"</Text>
-              </BlurView>
+                <Text style={[s.refText, { color: t.gold }]}>{devotion.scriptureReference}</Text>
+                <Text style={[s.scriptureBody, { color: t.textSub }]}>"{devotion.scriptureText}"</Text>
+              </View>
 
               {/* Reader controls */}
               <ReaderControls
                 fontSz={reader.fontSz}
                 speaking={reader.speaking}
                 copied={reader.copied}
+                gold={t.gold}
+                goldBg={t.goldBg}
+                goldBorder={t.goldBorder}
+                textMuted={t.textMuted}
                 onFont={reader.cycleFontSize}
                 onTTS={reader.toggleTTS}
                 onShare={reader.shareScripture}
                 onCopy={reader.copyScripture}
               />
 
-              {/* Body */}
-              <View style={s.bodyCard}>
-                <View style={s.bodyCardHighlight} pointerEvents="none" />
+              {/* Body — directly on background */}
+              <View style={s.bareSection}>
                 {devotion.devotionalBody.map((para, i) => (
                   <Text
                     key={i}
-                    style={[s.bodyPara, { fontSize: reader.fontSize }, i < devotion.devotionalBody.length - 1 && s.bodyParaGap]}
-                  >
-                    {para}
-                  </Text>
+                    style={[s.bodyPara, { fontSize: reader.fontSize, color: t.text }, i < devotion.devotionalBody.length - 1 && s.bodyParaGap]}
+                  >{para}</Text>
                 ))}
               </View>
 
-              {/* Life Application */}
-              <View style={s.sectionCard}>
-                <View style={s.sectionCardHighlight} pointerEvents="none" />
+              <View style={[s.divider, { backgroundColor: t.divider }]} />
+
+              {/* Life Application — directly on background */}
+              <View style={s.bareSection}>
                 <View style={s.sectionTitleRow}>
                   <Text style={s.sectionIcon}>🌱</Text>
-                  <Text style={s.sectionTitle}>LIFE APPLICATION</Text>
+                  <Text style={[s.sectionTitle, { color: t.textMuted }]}>LIFE APPLICATION</Text>
                 </View>
-                <Text style={[s.sectionBody, { fontSize: reader.fontSize }]}>{devotion.lifeApplication}</Text>
+                <Text style={[s.sectionBody, { fontSize: reader.fontSize, color: t.text }]}>{devotion.lifeApplication}</Text>
               </View>
 
-              {/* Reflection Question */}
-              <View style={[s.sectionCard, s.sectionCardGold]}>
-                <View style={s.sectionCardHighlight} pointerEvents="none" />
+              <View style={[s.divider, { backgroundColor: t.divider }]} />
+
+              {/* Reflection — directly on background */}
+              <View style={s.bareSection}>
                 <View style={s.sectionTitleRow}>
                   <Text style={s.sectionIcon}>💭</Text>
-                  <Text style={[s.sectionTitle, { color: C.gold }]}>REFLECT</Text>
+                  <Text style={[s.sectionTitle, { color: t.gold }]}>REFLECT</Text>
                 </View>
-                <Text style={[s.sectionBody, { fontSize: reader.fontSize, fontStyle: 'italic' }]}>
+                <Text style={[s.sectionBody, { fontSize: reader.fontSize, color: t.textSub, fontStyle: 'italic' }]}>
                   {devotion.reflectionQuestion}
                 </Text>
               </View>
 
-              {/* Guided Prayer */}
-              <View style={[s.sectionCard, s.prayerCard]}>
-                <View style={s.sectionCardHighlight} pointerEvents="none" />
+              <View style={[s.divider, { backgroundColor: t.divider }]} />
+
+              {/* Prayer — directly on background */}
+              <View style={s.bareSection}>
                 <View style={s.sectionTitleRow}>
                   <Text style={s.sectionIcon}>🙏</Text>
-                  <Text style={s.sectionTitle}>GUIDED PRAYER</Text>
+                  <Text style={[s.sectionTitle, { color: t.textMuted }]}>GUIDED PRAYER</Text>
                 </View>
-                <Text style={[s.prayerBody, { fontSize: reader.fontSize }]}>{devotion.guidedPrayer}</Text>
+                <Text style={[s.sectionBody, { fontSize: reader.fontSize, color: t.textSub, fontStyle: 'italic' }]}>
+                  {devotion.guidedPrayer}
+                </Text>
               </View>
 
-              {/* Shareable quote */}
-              <View style={s.quoteCard}>
-                <View style={s.quoteCardHighlight} pointerEvents="none" />
-                <Text style={s.quoteText}>{devotion.shareableQuote}</Text>
-              </View>
+              {/* Quote — inline gold text, no card */}
+              <Text style={[s.quoteText, { color: t.gold }]}>{devotion.shareableQuote}</Text>
 
-              {/* Mark complete + save */}
+              {/* Actions */}
               <View style={s.actionRow}>
                 <TouchableOpacity
-                  style={[s.completeBtn, markedToday && s.completeBtnDone]}
+                  style={[
+                    s.completeBtn,
+                    { borderColor: t.goldBorder, backgroundColor: t.goldBg },
+                    markedToday && { backgroundColor: t.gold, borderColor: t.gold },
+                  ]}
                   onPress={handleMarkComplete}
                   disabled={markedToday}
                   activeOpacity={0.8}
@@ -472,30 +444,40 @@ export default function DevotionScreen() {
                   <Ionicons
                     name={markedToday ? 'checkmark-circle' : 'checkmark-circle-outline'}
                     size={18}
-                    color={markedToday ? '#080604' : C.gold}
+                    color={markedToday ? t.bg : t.gold}
                   />
-                  <Text style={[s.completeBtnText, markedToday && s.completeBtnTextDone]}>
+                  <Text style={[s.completeBtnText, { color: t.gold }, markedToday && { color: t.bg }]}>
                     {markedToday ? 'Completed ✓' : 'Mark Complete'}
                   </Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={s.journalBtn} onPress={saveToJournal} activeOpacity={0.8}>
-                  <Ionicons name="journal-outline" size={18} color={C.text} />
-                  <Text style={s.journalBtnText}>Save to Journal</Text>
+                <TouchableOpacity
+                  style={[s.journalBtn, { borderColor: t.cardBorder, backgroundColor: t.card }]}
+                  onPress={saveToJournal}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="journal-outline" size={18} color={t.textSub} />
+                  <Text style={[s.journalBtnText, { color: t.text }]}>Save to Journal</Text>
                 </TouchableOpacity>
               </View>
             </>
           )}
 
-          {/* ── Streak Board ── */}
-          <StreakBoard refreshTrigger={streakTrigger} />
-
-          {/* ── Breathing Timer ── */}
-          <BreathingTimer />
-
+          {/* Streak + Breathing */}
+          <StreakBoard
+            refreshTrigger={streakTrigger}
+            gold={t.gold} goldBg={t.goldBg} goldBorder={t.goldBorder}
+            text={t.text} textMuted={t.textMuted}
+            weekCircleBg={t.weekCircleBg} weekCircleBorder={t.weekCircleBorder}
+            weekCircleActiveBg={t.weekCircleActiveBg}
+          />
+          <BreathingTimer
+            gold={t.gold} goldBg={t.goldBg} goldBorder={t.goldBorder}
+            card={t.card} cardBorder={t.cardBorder} text={t.text} textMuted={t.textMuted}
+          />
         </ScrollView>
       </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -505,251 +487,154 @@ const s = StyleSheet.create({
   safe: { flex: 1 },
 
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   backBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, alignItems: 'center', justifyContent: 'center',
   },
   headerTitle: {
     flex: 1, textAlign: 'center',
-    fontSize: 11, fontWeight: '700', color: C.textMuted, letterSpacing: 1.8,
+    fontSize: 11, fontWeight: '700', letterSpacing: 1.8,
   },
 
-  scrollContent: { paddingHorizontal: 18, paddingBottom: 130, gap: 16 },
+  scrollContent: { paddingHorizontal: 18, paddingBottom: 130, gap: 14 },
 
-  // ── Topic Card ──
-  topicCard: {
-    backgroundColor: C.glass,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: C.glassBorder,
-    padding: 18,
-    overflow: 'hidden',
-    gap: 14,
+  // Bare content — no card, sits directly on background
+  bareSection: { gap: 10 },
+  divider: { height: StyleSheet.hairlineWidth, marginVertical: 2 },
+
+  // Shared card base
+  card: {
+    borderRadius: 16, borderWidth: 1, padding: 18,
+    gap: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
   },
-  topicCardHighlight: {
-    position: 'absolute', top: 0, left: 20, right: 20, height: 1,
-    backgroundColor: C.glassHighlight, borderRadius: 1,
-  },
-  topicCardLabel: {
-    fontSize: 10, fontWeight: '700', color: C.textMuted, letterSpacing: 1.6,
-  },
+
+  // Topic
+  topicCardLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1.6 },
   inputRow: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 12, borderWidth: 1, borderColor: C.glassBorder,
+    borderRadius: 12, borderWidth: 1,
     paddingHorizontal: 12, paddingVertical: 10,
   },
   inputIcon: { marginRight: 8 },
-  topicInput: { flex: 1, fontSize: 15, color: C.text },
+  topicInput: { flex: 1, fontSize: 15 },
   tagsScroll: { marginHorizontal: -18 },
   tagsRow: { paddingHorizontal: 18, gap: 8 },
   tagChip: {
-    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
-    borderWidth: 1, borderColor: C.glassBorder,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    paddingHorizontal: 14, paddingVertical: 7,
+    borderRadius: 20, borderWidth: 1,
   },
-  tagChipActive: { borderColor: C.goldBorder, backgroundColor: C.goldDim },
-  tagChipText: { fontSize: 13, fontWeight: '600', color: C.textMuted },
-  tagChipTextActive: { color: C.gold },
+  tagChipText: { fontSize: 13, fontWeight: '600' },
   translationRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  translationLabel: { fontSize: 11, fontWeight: '600', color: C.textMuted },
+  translationLabel: { fontSize: 11, fontWeight: '600' },
   transBtn: {
-    paddingHorizontal: 14, paddingVertical: 6, borderRadius: 10,
-    borderWidth: 1, borderColor: C.glassBorder,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    paddingHorizontal: 14, paddingVertical: 6,
+    borderRadius: 10, borderWidth: 1,
   },
-  transBtnActive: { borderColor: C.goldBorder, backgroundColor: C.goldDim },
-  transBtnText: { fontSize: 12, fontWeight: '700', color: C.textMuted, letterSpacing: 0.4 },
-  transBtnTextActive: { color: C.gold },
-  generateBtn: {
-    backgroundColor: C.gold, borderRadius: 14,
-    paddingVertical: 14, alignItems: 'center', justifyContent: 'center',
-  },
-  generateBtnDisabled: { opacity: 0.42 },
-  generateBtnText: { fontSize: 15, fontWeight: '700', color: '#0A0704', letterSpacing: 0.3 },
-  errorNote: { fontSize: 12, color: C.textMuted, textAlign: 'center' },
+  transBtnText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.4 },
+  generateBtn: { borderRadius: 14, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
+  generateBtnDisabled: { opacity: 0.4 },
+  generateBtnText: { fontSize: 15, fontWeight: '700', letterSpacing: 0.3 },
+  errorNote: { fontSize: 12, textAlign: 'center' },
 
-  // ── Scripture Card ──
+  // Scripture card
   scriptureCard: {
-    borderRadius: 20, overflow: 'hidden',
-    borderWidth: 1, borderColor: C.goldBorder,
-    padding: 20, gap: 12,
+    borderRadius: 16, borderWidth: 1, padding: 20, gap: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
   },
-  scriptureCardTint: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(72,38,8,0.35)',
-  },
-  scriptureCardHighlight: {
-    position: 'absolute', top: 0, left: 20, right: 20, height: 1,
-    backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 1,
-  },
-  devotionTitle: {
-    fontSize: 20, fontWeight: '700', color: C.text, lineHeight: 27,
-  },
+  devotionTitle: { fontSize: 20, fontWeight: '700', lineHeight: 27 },
   themeBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: C.goldDim, borderRadius: 6, borderWidth: 1,
-    borderColor: C.goldBorder, paddingHorizontal: 10, paddingVertical: 4,
+    alignSelf: 'flex-start', borderRadius: 6, borderWidth: 1,
+    paddingHorizontal: 10, paddingVertical: 4,
   },
-  themeBadgeText: { fontSize: 10, fontWeight: '800', color: C.gold, letterSpacing: 1.2 },
-  refRow: { flexDirection: 'row', alignItems: 'center' },
-  refText: { fontSize: 13, fontWeight: '700', color: C.gold },
-  scriptureBody: {
-    fontSize: 15, color: C.text, lineHeight: 24, fontStyle: 'italic',
-  },
+  themeBadgeText: { fontSize: 10, fontWeight: '800', letterSpacing: 1.2 },
+  refText: { fontSize: 13, fontWeight: '700' },
+  scriptureBody: { fontSize: 15, lineHeight: 24, fontStyle: 'italic' },
 
-  // ── Reader Controls ──
+  // Reader controls
   readerControls: {
-    flexDirection: 'row', borderRadius: 14, overflow: 'hidden',
-    borderWidth: 1, borderColor: C.glassBorder,
-  },
-  readerControlsTint: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(72,38,8,0.22)',
+    flexDirection: 'row', borderRadius: 14, borderWidth: 1,
   },
   readerBtn: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
     paddingVertical: 12, gap: 4,
   },
-  readerBtnLabel: { fontSize: 10, fontWeight: '600', color: C.textMuted, letterSpacing: 0.4 },
+  readerBtnLabel: { fontSize: 10, fontWeight: '600', letterSpacing: 0.4 },
 
-  // ── Body Card ──
-  bodyCard: {
-    backgroundColor: C.glass, borderRadius: 20,
-    borderWidth: 1, borderColor: C.glassBorder,
-    padding: 20, overflow: 'hidden',
-  },
-  bodyCardHighlight: {
-    position: 'absolute', top: 0, left: 20, right: 20, height: 1,
-    backgroundColor: C.glassHighlight, borderRadius: 1,
-  },
-  bodyPara: { color: C.text, lineHeight: 26 },
-  bodyParaGap: { marginBottom: 16 },
+  // Body
+  bodyPara: { lineHeight: 26 },
+  bodyParaGap: { marginBottom: 14 },
 
-  // ── Section Cards ──
-  sectionCard: {
-    backgroundColor: C.glass, borderRadius: 18,
-    borderWidth: 1, borderColor: C.glassBorder,
-    padding: 18, overflow: 'hidden', gap: 10,
-  },
-  sectionCardGold: { borderColor: C.goldBorder },
-  sectionCardHighlight: {
-    position: 'absolute', top: 0, left: 16, right: 16, height: 1,
-    backgroundColor: C.glassHighlight, borderRadius: 1,
-  },
+  // Sections
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionIcon: { fontSize: 16 },
-  sectionTitle: { fontSize: 10, fontWeight: '800', color: C.textMuted, letterSpacing: 1.6 },
-  sectionBody: { color: C.text, lineHeight: 24 },
+  sectionTitle: { fontSize: 10, fontWeight: '800', letterSpacing: 1.6 },
+  sectionBody: { lineHeight: 24 },
 
-  prayerCard: { backgroundColor: 'rgba(24,16,6,0.9)' },
-  prayerBody: { color: C.textSub, lineHeight: 26, fontStyle: 'italic' },
-
-  // ── Quote Card ──
+  // Quote
   quoteCard: {
-    backgroundColor: C.goldDim, borderRadius: 16,
-    borderWidth: 1, borderColor: C.goldBorder,
-    padding: 18, overflow: 'hidden',
+    borderRadius: 16, borderWidth: 1, padding: 18,
     alignItems: 'center',
   },
-  quoteCardHighlight: {
-    position: 'absolute', top: 0, left: 16, right: 16, height: 1,
-    backgroundColor: 'rgba(212,175,55,0.4)', borderRadius: 1,
-  },
-  quoteText: { fontSize: 14, color: C.gold, lineHeight: 22, textAlign: 'center', fontStyle: 'italic' },
+  quoteText: { fontSize: 14, lineHeight: 22, textAlign: 'center', fontStyle: 'italic' },
 
-  // ── Action Row ──
+  // Action row
   actionRow: { flexDirection: 'row', gap: 10 },
   completeBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    borderWidth: 1, borderColor: C.goldBorder, borderRadius: 14,
-    paddingVertical: 13, backgroundColor: C.goldDim,
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', gap: 8, borderWidth: 1,
+    borderRadius: 14, paddingVertical: 13,
   },
-  completeBtnDone: { backgroundColor: C.gold, borderColor: C.gold },
-  completeBtnText: { fontSize: 14, fontWeight: '700', color: C.gold },
-  completeBtnTextDone: { color: '#080604' },
+  completeBtnText: { fontSize: 14, fontWeight: '700' },
   journalBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    borderWidth: 1, borderColor: C.glassBorder, borderRadius: 14,
-    paddingVertical: 13, backgroundColor: C.glass,
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', gap: 8, borderWidth: 1,
+    borderRadius: 14, paddingVertical: 13,
   },
-  journalBtnText: { fontSize: 14, fontWeight: '600', color: C.text },
+  journalBtnText: { fontSize: 14, fontWeight: '600' },
 
-  // ── Streak Card ──
-  streakCard: {
-    backgroundColor: C.glass, borderRadius: 20,
-    borderWidth: 1, borderColor: C.glassBorder,
-    padding: 18, overflow: 'hidden', gap: 14,
-  },
-  streakCardHighlight: {
-    position: 'absolute', top: 0, left: 20, right: 20, height: 1,
-    backgroundColor: C.glassHighlight, borderRadius: 1,
-  },
-  sectionLabel: { fontSize: 10, fontWeight: '700', color: C.textMuted, letterSpacing: 1.6 },
+  // Streak
   streakTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  streakLine: { fontSize: 14, fontWeight: '600', color: C.text, marginTop: 4 },
+  sectionLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1.6 },
+  streakLine: { fontSize: 14, fontWeight: '600', marginTop: 4 },
   streakBadge: {
-    alignItems: 'center',
-    backgroundColor: C.goldDim, borderRadius: 10,
-    borderWidth: 1, borderColor: C.goldBorder,
+    alignItems: 'center', borderRadius: 10, borderWidth: 1,
     paddingHorizontal: 14, paddingVertical: 6,
   },
-  streakBadgeNum: { fontSize: 20, fontWeight: '800', color: C.gold },
-  streakBadgeLbl: { fontSize: 9, fontWeight: '600', color: C.gold, letterSpacing: 0.8 },
+  streakBadgeNum: { fontSize: 20, fontWeight: '800' },
+  streakBadgeLbl: { fontSize: 9, fontWeight: '600', letterSpacing: 0.8 },
   weekRow: { flexDirection: 'row', justifyContent: 'space-between' },
   dayCol: { alignItems: 'center', gap: 6 },
-  dayLabel: { fontSize: 10, fontWeight: '600', color: C.textMuted },
+  dayLabel: { fontSize: 10, fontWeight: '600' },
   dayCircle: {
     width: 34, height: 34, borderRadius: 17,
-    borderWidth: 1, borderColor: C.glassBorder,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, alignItems: 'center', justifyContent: 'center',
   },
-  dayCircleToday: { borderColor: C.goldBorder, backgroundColor: C.goldDim },
-  dayCircleDone: { backgroundColor: 'rgba(212,175,55,0.25)', borderColor: C.goldBorder },
-  dayNum: { fontSize: 12, fontWeight: '600', color: C.textMuted },
-  dayNumToday: { color: C.gold },
-  dayCheck: { fontSize: 14, color: C.gold },
+  dayNum: { fontSize: 12, fontWeight: '600' },
+  dayCheck: { fontSize: 14 },
 
-  // ── Breathing Timer ──
-  breathCard: {
-    backgroundColor: C.glass, borderRadius: 20,
-    borderWidth: 1, borderColor: C.glassBorder,
-    padding: 20, overflow: 'hidden',
-    alignItems: 'center', gap: 6,
-  },
-  breathCardHighlight: {
-    position: 'absolute', top: 0, left: 20, right: 20, height: 1,
-    backgroundColor: C.glassHighlight, borderRadius: 1,
-  },
-  breathSubtitle: { fontSize: 12, color: C.textMuted, marginTop: 2, marginBottom: 16 },
-  breathCircleWrap: { width: 140, height: 140, alignItems: 'center', justifyContent: 'center', marginVertical: 8 },
+  // Breathing
+  breathSubtitle: { fontSize: 12, marginTop: 2, marginBottom: 8 },
+  breathCircleWrap: { width: 140, height: 140, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginVertical: 8 },
   breathRingOuter: {
-    position: 'absolute',
-    width: 140, height: 140, borderRadius: 70,
-    borderWidth: 1, borderColor: 'rgba(212,175,55,0.2)',
+    position: 'absolute', width: 140, height: 140, borderRadius: 70, borderWidth: 1,
   },
   breathCircle: {
     width: 90, height: 90, borderRadius: 45,
-    overflow: 'hidden',
-    borderWidth: 1, borderColor: C.goldBorder,
-    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, alignItems: 'center', justifyContent: 'center',
   },
-  breathGradient: { ...StyleSheet.absoluteFillObject },
-  breathPhaseLabel: { fontSize: 13, fontWeight: '700', color: C.text },
-  breathCountdown: { fontSize: 24, fontWeight: '800', color: C.gold, marginTop: -2 },
+  breathPhaseLabel: { fontSize: 13, fontWeight: '700' },
+  breathCountdown: { fontSize: 24, fontWeight: '800', marginTop: -2 },
   breathBtn: {
-    marginTop: 8,
+    alignSelf: 'center', marginTop: 8,
     paddingHorizontal: 36, paddingVertical: 11,
-    backgroundColor: C.goldDim, borderRadius: 12,
-    borderWidth: 1, borderColor: C.goldBorder,
+    borderRadius: 12, borderWidth: 1,
   },
-  breathBtnStop: { backgroundColor: 'rgba(200,60,60,0.15)', borderColor: 'rgba(200,60,60,0.35)' },
-  breathBtnText: { fontSize: 14, fontWeight: '700', color: C.gold },
+  breathBtnText: { fontSize: 14, fontWeight: '700' },
 });

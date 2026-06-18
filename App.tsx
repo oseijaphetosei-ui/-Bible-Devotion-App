@@ -9,6 +9,8 @@ import { BlurView } from 'expo-blur';
 
 import HomeScreen from './src/screens/Home/HomeScreen';
 import BibleScreen from './src/screens/Bible/BibleScreen';
+import BibleSplashScreen from './src/screens/Bible/BibleSplashScreen';
+import BibleLibraryScreen from './src/screens/Bible/BibleLibraryScreen';
 import StoriesScreen from './src/screens/Stories/StoriesScreen';
 import StoryReaderScreen from './src/screens/Stories/StoryReaderScreen';
 import VerseScreen from './src/screens/Verse/VerseScreen';
@@ -48,6 +50,8 @@ function HomeStackScreen() {
 function BibleStackScreen() {
   return (
     <BibleStack.Navigator id="bible" screenOptions={{ headerShown: false }}>
+      <BibleStack.Screen name="BibleSplash" component={BibleSplashScreen} />
+      <BibleStack.Screen name="BibleLibrary" component={BibleLibraryScreen} />
       <BibleStack.Screen name="Bible" component={BibleScreen} />
     </BibleStack.Navigator>
   );

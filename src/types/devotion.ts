@@ -1,4 +1,4 @@
-export type BibleTranslation = 'NIV' | 'ESV' | 'KJV' | 'NASB';
+export type BibleTranslation = 'KJV' | 'Asante Twi' | 'Akuapem Twi';
 
 export type Devotion = {
   title: string;
@@ -27,4 +27,4 @@ export const FONT_SIZE_MAP: Record<FontSize, number> = {
 };
 
 export const QUICK_TAGS = ['Hope', 'Peace', 'Faith', 'Grace', 'Wisdom', 'Anxiety', 'Strength', 'Forgiveness'];
-export const TRANSLATIONS: BibleTranslation[] = ['NIV', 'ESV', 'KJV', 'NASB'];
+export const TRANSLATIONS: BibleTranslation[] = ['KJV', 'Asante Twi', 'Akuapem Twi'];

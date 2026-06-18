@@ -10,23 +10,15 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { NotesStackParamList } from '../../types/navigation';
 import { Note, getNotes, searchNotes, toggleFavorite } from '../../services/notesService';
+import { useTheme } from '../../theme';
 
 type NavProp = NativeStackNavigationProp<NotesStackParamList>;
-
-const C = {
-  gold: '#D4AF37',
-  text: '#F0EFE9',
-  textSub: '#8B8FA8',
-  textMuted: '#555870',
-};
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', {
@@ -35,39 +27,39 @@ function formatDate(iso: string) {
 }
 
 function NoteCard({
-  note,
-  onPress,
-  onFavorite,
+  note, onPress, onFavorite,
+  cardBg, cardBorder, text, textSub, textMuted, gold, goldBg, goldBorder,
 }: {
-  note: Note;
-  onPress: () => void;
-  onFavorite: () => void;
+  note: Note; onPress: () => void; onFavorite: () => void;
+  cardBg: string; cardBorder: string; text: string; textSub: string;
+  textMuted: string; gold: string; goldBg: string; goldBorder: string;
 }) {
   return (
-    <TouchableOpacity style={s.card} onPress={onPress} activeOpacity={0.82}>
-      {/* top highlight */}
-      <View style={s.cardHighlight} pointerEvents="none" />
-
+    <TouchableOpacity
+      style={[s.card, { backgroundColor: cardBg, borderColor: cardBorder }]}
+      onPress={onPress}
+      activeOpacity={0.82}
+    >
       {note.bibleReference ? (
         <View style={s.refRow}>
           <Text style={s.refIcon}>📖</Text>
-          <Text style={s.refText}>{note.bibleReference}</Text>
-          <View style={s.verseTag}>
-            <Text style={s.verseTagText}>VERSE</Text>
+          <Text style={[s.refText, { color: gold }]}>{note.bibleReference}</Text>
+          <View style={[s.verseTag, { backgroundColor: goldBg, borderColor: goldBorder }]}>
+            <Text style={[s.verseTagText, { color: gold }]}>VERSE</Text>
           </View>
         </View>
       ) : null}
 
-      <Text style={s.cardTitle} numberOfLines={1}>{note.title}</Text>
-      <Text style={s.cardPreview} numberOfLines={2}>{note.content}</Text>
+      <Text style={[s.cardTitle, { color: text }]} numberOfLines={1}>{note.title}</Text>
+      <Text style={[s.cardPreview, { color: textSub }]} numberOfLines={2}>{note.content}</Text>
 
       <View style={s.cardFooter}>
-        <Text style={s.cardDate}>{formatDate(note.updatedAt)}</Text>
+        <Text style={[s.cardDate, { color: textMuted }]}>{formatDate(note.updatedAt)}</Text>
         <TouchableOpacity onPress={onFavorite} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Ionicons
             name={note.favorite ? 'star' : 'star-outline'}
             size={16}
-            color={note.favorite ? C.gold : C.textMuted}
+            color={note.favorite ? gold : textMuted}
           />
         </TouchableOpacity>
       </View>
@@ -77,6 +69,7 @@ function NoteCard({
 
 export default function NotesScreen() {
   const navigation = useNavigation<NavProp>();
+  const t = useTheme();
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
@@ -89,7 +82,7 @@ export default function NotesScreen() {
       setError(null);
       const data = await getNotes();
       setNotes(data);
-    } catch (e: any) {
+    } catch {
       setError('Could not load notes. Check your connection.');
     } finally {
       setLoading(false);
@@ -104,7 +97,7 @@ export default function NotesScreen() {
     try {
       const results = await searchNotes(text);
       setNotes(results);
-    } catch { /* keep current list */ }
+    } catch { /* keep current */ }
   }, [load]);
 
   const handleFavorite = useCallback(async (note: Note) => {
@@ -115,51 +108,54 @@ export default function NotesScreen() {
   const displayed = filter === 'favorites' ? notes.filter(n => n.favorite) : notes;
 
   return (
-    <LinearGradient colors={['#5C3A10', '#080604']} style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: t.bg }}>
       <SafeAreaView style={s.safe} edges={['top']}>
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        <StatusBar barStyle={t.statusBar} backgroundColor="transparent" translucent />
 
         {/* Header */}
         <View style={s.header}>
-          <Text style={s.headerTitle}>MY NOTES</Text>
+          <Text style={[s.headerTitle, { color: t.textMuted }]}>MY NOTES</Text>
           <TouchableOpacity
-            style={s.addBtn}
+            style={[s.addBtn, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}
             onPress={() => navigation.navigate('NoteEditor', undefined)}
             activeOpacity={0.8}
           >
-            <Ionicons name="add" size={22} color={C.gold} />
+            <Ionicons name="add" size={22} color={t.gold} />
           </TouchableOpacity>
         </View>
 
-        {/* Search bar — glass */}
-        <BlurView intensity={50} tint="dark" style={s.searchWrap}>
-          <View style={s.searchTint} pointerEvents="none" />
-          <Ionicons name="search-outline" size={16} color={C.textMuted} style={s.searchIcon} />
+        {/* Search bar */}
+        <View style={[s.searchWrap, { backgroundColor: t.inputBg, borderColor: t.inputBorder }]}>
+          <Ionicons name="search-outline" size={16} color={t.textMuted} style={s.searchIcon} />
           <TextInput
-            style={s.searchInput}
+            style={[s.searchInput, { color: t.text }]}
             placeholder="Search notes, verses, keywords…"
-            placeholderTextColor={C.textMuted}
+            placeholderTextColor={t.textMuted}
             value={query}
             onChangeText={handleSearch}
             returnKeyType="search"
           />
           {query.length > 0 && (
             <TouchableOpacity onPress={() => handleSearch('')}>
-              <Ionicons name="close-circle" size={16} color={C.textMuted} />
+              <Ionicons name="close-circle" size={16} color={t.textMuted} />
             </TouchableOpacity>
           )}
-        </BlurView>
+        </View>
 
         {/* Filter tabs */}
         <View style={s.filterRow}>
           {(['all', 'favorites'] as const).map(f => (
             <TouchableOpacity
               key={f}
-              style={[s.filterTab, filter === f && s.filterTabActive]}
+              style={[
+                s.filterTab,
+                { borderColor: t.chipBorder, backgroundColor: t.chipBg },
+                filter === f && { borderColor: t.goldBorder, backgroundColor: t.goldBg },
+              ]}
               onPress={() => setFilter(f)}
               activeOpacity={0.75}
             >
-              <Text style={[s.filterTabText, filter === f && s.filterTabTextActive]}>
+              <Text style={[s.filterTabText, { color: t.textMuted }, filter === f && { color: t.gold }]}>
                 {f === 'all' ? 'All Notes' : '★ Favorites'}
               </Text>
             </TouchableOpacity>
@@ -169,22 +165,25 @@ export default function NotesScreen() {
         {/* Content */}
         {loading ? (
           <View style={s.center}>
-            <ActivityIndicator color={C.gold} size="large" />
+            <ActivityIndicator color={t.gold} size="large" />
           </View>
         ) : error ? (
           <View style={s.center}>
-            <Text style={s.errorText}>{error}</Text>
-            <TouchableOpacity style={s.retryBtn} onPress={load}>
-              <Text style={s.retryText}>Retry</Text>
+            <Text style={[s.errorText, { color: t.textSub }]}>{error}</Text>
+            <TouchableOpacity
+              style={[s.retryBtn, { backgroundColor: t.retryBg, borderColor: t.goldBorder }]}
+              onPress={load}
+            >
+              <Text style={[s.retryText, { color: t.gold }]}>Retry</Text>
             </TouchableOpacity>
           </View>
         ) : displayed.length === 0 ? (
           <View style={s.center}>
             <Text style={s.emptyIcon}>📝</Text>
-            <Text style={s.emptyTitle}>
+            <Text style={[s.emptyTitle, { color: t.text }]}>
               {filter === 'favorites' ? 'No favourites yet' : 'No notes yet'}
             </Text>
-            <Text style={s.emptySub}>
+            <Text style={[s.emptySub, { color: t.textSub }]}>
               {filter === 'favorites'
                 ? 'Star a note to save it here'
                 : 'Tap + to write your first reflection'}
@@ -199,6 +198,14 @@ export default function NotesScreen() {
             renderItem={({ item }) => (
               <NoteCard
                 note={item}
+                cardBg={t.card}
+                cardBorder={t.cardBorder}
+                text={t.text}
+                textSub={t.textSub}
+                textMuted={t.textMuted}
+                gold={t.gold}
+                goldBg={t.goldBg}
+                goldBorder={t.goldBorder}
                 onPress={() => navigation.navigate('NoteEditor', { noteId: item.id })}
                 onFavorite={() => handleFavorite(item)}
               />
@@ -206,7 +213,7 @@ export default function NotesScreen() {
           />
         )}
       </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -220,142 +227,58 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
-  headerTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: C.textMuted,
-    letterSpacing: 1.6,
-  },
+  headerTitle: { fontSize: 12, fontWeight: '700', letterSpacing: 1.6 },
   addBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(212,175,55,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 36, height: 36, borderRadius: 18,
+    borderWidth: 1, alignItems: 'center', justifyContent: 'center',
   },
 
-  // Glass search bar
   searchWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 18,
-    marginBottom: 12,
-    borderRadius: 14,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  searchTint: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(72,38,8,0.25)',
+    flexDirection: 'row', alignItems: 'center',
+    marginHorizontal: 18, marginBottom: 12,
+    borderRadius: 14, borderWidth: 1,
+    paddingHorizontal: 12, paddingVertical: 10,
   },
   searchIcon: { marginRight: 8 },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: C.text,
-  },
+  searchInput: { flex: 1, fontSize: 14 },
 
-  // Filter tabs
-  filterRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 18,
-    gap: 8,
-    marginBottom: 16,
-  },
+  filterRow: { flexDirection: 'row', paddingHorizontal: 18, gap: 8, marginBottom: 16 },
   filterTab: {
-    paddingHorizontal: 16,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    paddingHorizontal: 16, paddingVertical: 7,
+    borderRadius: 20, borderWidth: 1,
   },
-  filterTabActive: {
-    borderColor: 'rgba(212,175,55,0.5)',
-    backgroundColor: 'rgba(212,175,55,0.1)',
-  },
-  filterTabText: { fontSize: 12, fontWeight: '600', color: C.textMuted },
-  filterTabTextActive: { color: C.gold },
+  filterTabText: { fontSize: 12, fontWeight: '600' },
 
   list: { paddingHorizontal: 18, paddingBottom: 120 },
 
-  // Note card — glass
   card: {
-    backgroundColor: 'rgba(16,14,28,0.82)',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    padding: 16,
-    marginBottom: 12,
-    overflow: 'hidden',
+    borderRadius: 14, borderWidth: 1,
+    padding: 16, marginBottom: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
   },
-  cardHighlight: {
-    position: 'absolute',
-    top: 0,
-    left: 16,
-    right: 16,
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderRadius: 1,
-  },
-  refRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
-  },
+  refRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
   refIcon: { fontSize: 13 },
-  refText: { fontSize: 13, fontWeight: '700', color: C.gold, flex: 1 },
+  refText: { fontSize: 13, fontWeight: '700', flex: 1 },
   verseTag: {
-    backgroundColor: 'rgba(212,175,55,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.3)',
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    borderWidth: 1, borderRadius: 4,
+    paddingHorizontal: 6, paddingVertical: 2,
   },
-  verseTagText: { fontSize: 8, fontWeight: '800', color: C.gold, letterSpacing: 0.8 },
+  verseTagText: { fontSize: 8, fontWeight: '800', letterSpacing: 0.8 },
 
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: C.text,
-    marginBottom: 6,
-  },
-  cardPreview: {
-    fontSize: 13,
-    color: C.textSub,
-    lineHeight: 19,
-    marginBottom: 12,
-    fontStyle: 'italic',
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  cardDate: { fontSize: 11, color: C.textMuted },
+  cardTitle: { fontSize: 15, fontWeight: '700', marginBottom: 6 },
+  cardPreview: { fontSize: 13, lineHeight: 19, marginBottom: 12, fontStyle: 'italic' },
+  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  cardDate: { fontSize: 11 },
 
-  // States
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingBottom: 80 },
   emptyIcon: { fontSize: 48 },
-  emptyTitle: { fontSize: 17, fontWeight: '700', color: C.text },
-  emptySub: { fontSize: 13, color: C.textSub, textAlign: 'center', paddingHorizontal: 40 },
-  errorText: { fontSize: 14, color: C.textSub, textAlign: 'center' },
+  emptyTitle: { fontSize: 17, fontWeight: '700' },
+  emptySub: { fontSize: 13, textAlign: 'center', paddingHorizontal: 40 },
+  errorText: { fontSize: 14, textAlign: 'center' },
   retryBtn: {
-    marginTop: 8,
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    backgroundColor: 'rgba(212,175,55,0.15)',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.3)',
+    marginTop: 8, paddingHorizontal: 24, paddingVertical: 10,
+    borderRadius: 10, borderWidth: 1,
   },
-  retryText: { color: C.gold, fontWeight: '600' },
+  retryText: { fontWeight: '600' },
 });
