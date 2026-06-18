@@ -13,12 +13,17 @@ export type BibleStackParamList = {
   Bible: { bookIndex?: number; chapter?: number } | undefined;
 };
 
+export type NotesStackParamList = {
+  Notes: undefined;
+  NoteEditor: { noteId?: string } | undefined;
+};
+
 export type RootTabParamList = {
   ChatTab: undefined;
   CommunityTab: undefined;
   HomeTab: NavigatorScreenParams<HomeStackParamList> | undefined;
   BibleTab: NavigatorScreenParams<BibleStackParamList> | undefined;
-  NotesTab: undefined;
+  NotesTab: NavigatorScreenParams<NotesStackParamList> | undefined;
 };
 
 // Alias used by all existing screen components — points to the home stack

@@ -3,3 +3,4 @@ node_modules
 # Secret API keys — never commit these
 src/config/openaiConfig.ts
 src/config/bibleConfig.ts
+src/config/firebaseConfig.ts

@@ -16,15 +16,18 @@ import GoalsScreen from './src/screens/Goals/GoalsScreen';
 import ChatScreen from './src/screens/Chat/ChatScreen';
 import CommunityScreen from './src/screens/Community/CommunityScreen';
 import NotesScreen from './src/screens/Notes/NotesScreen';
+import NoteEditorScreen from './src/screens/Notes/NoteEditorScreen';
 
 import {
   HomeStackParamList,
   BibleStackParamList,
+  NotesStackParamList,
   RootTabParamList,
 } from './src/types/navigation';
 
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
 const BibleStack = createNativeStackNavigator<BibleStackParamList>();
+const NotesStack = createNativeStackNavigator<NotesStackParamList>();
 const Tab = createBottomTabNavigator<RootTabParamList>();
 
 function HomeStackScreen() {
@@ -45,6 +48,15 @@ function BibleStackScreen() {
     <BibleStack.Navigator id="bible" screenOptions={{ headerShown: false }}>
       <BibleStack.Screen name="Bible" component={BibleScreen} />
     </BibleStack.Navigator>
+  );
+}
+
+function NotesStackScreen() {
+  return (
+    <NotesStack.Navigator id="notes" screenOptions={{ headerShown: false }}>
+      <NotesStack.Screen name="Notes" component={NotesScreen} />
+      <NotesStack.Screen name="NoteEditor" component={NoteEditorScreen} />
+    </NotesStack.Navigator>
   );
 }
 
@@ -138,7 +150,7 @@ export default function App() {
           <Tab.Screen name="CommunityTab" component={CommunityScreen} />
           <Tab.Screen name="HomeTab"      component={HomeStackScreen} />
           <Tab.Screen name="BibleTab"     component={BibleStackScreen} />
-          <Tab.Screen name="NotesTab"     component={NotesScreen} />
+          <Tab.Screen name="NotesTab"     component={NotesStackScreen} />
         </Tab.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
