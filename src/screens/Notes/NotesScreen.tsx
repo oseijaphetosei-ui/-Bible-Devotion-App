@@ -7,7 +7,10 @@ import {
   StyleSheet,
   StatusBar,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
+
+const HEADER_H = 72;
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -16,7 +19,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { NotesStackParamList } from '../../types/navigation';
 import { Note, getNotes, searchNotes, toggleFavorite } from '../../services/notesService';
 import { useTheme } from '../../theme';
-import GlassSearchBar from '../../components/GlassSearchBar';
+import PremiumSearchBar from '../../components/PremiumSearchBar';
+import ProfileAvatar from '../../components/ProfileAvatar';
 
 type NavProp = NativeStackNavigationProp<NotesStackParamList>;
 
@@ -76,6 +80,15 @@ export default function NotesScreen() {
   const [filter, setFilter] = useState<'all' | 'favorites'>('all');
   const [error, setError]   = useState<string | null>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const headerAnim = useRef(new Animated.Value(1)).current;
+
+  const onSearchActiveChange = useCallback((active: boolean) => {
+    Animated.timing(headerAnim, {
+      toValue: active ? 0 : 1,
+      duration: 250,
+      useNativeDriver: false,
+    }).start();
+  }, [headerAnim]);
 
   const load = useCallback(async () => {
     try {
@@ -116,25 +129,34 @@ export default function NotesScreen() {
       <SafeAreaView style={s.safe} edges={['top']}>
         <StatusBar barStyle={t.statusBar} backgroundColor="transparent" translucent />
 
-        {/* Header */}
-        <View style={s.header}>
-          <Text style={[s.headerTitle, { color: t.textMuted }]}>MY NOTES</Text>
-          <TouchableOpacity
-            style={[s.addBtn, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}
-            onPress={() => navigation.navigate('NoteEditor', undefined)}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="add" size={22} color={t.gold} />
-          </TouchableOpacity>
-        </View>
+        {/* Header — collapses when search is active */}
+        <Animated.View
+          style={{
+            height: headerAnim.interpolate({ inputRange: [0, 1], outputRange: [0, HEADER_H] }),
+            opacity: headerAnim,
+            overflow: 'hidden',
+          }}
+        >
+          <View style={s.header}>
+            <ProfileAvatar />
+            <Text style={[s.headerTitle, { color: t.text }]}>MY NOTES</Text>
+            <TouchableOpacity
+              style={[s.addBtn, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}
+              onPress={() => navigation.navigate('NoteEditor', undefined)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="add" size={22} color={t.gold} />
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
 
         {/* Search bar */}
-        <GlassSearchBar
+        <PremiumSearchBar
           value={query}
           onChangeText={handleSearch}
           placeholder="Search notes, verses, keywords…"
-          onCancelled={load}
-          style={{ marginHorizontal: 18, marginBottom: 12 }}
+          onActiveChange={onSearchActiveChange}
+          style={{ marginBottom: 4 }}
         />
 
         {/* Filter tabs */}
@@ -222,11 +244,11 @@ const s = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
+    gap: 14,
   },
-  headerTitle: { fontSize: 12, fontWeight: '700', letterSpacing: 1.6 },
+  headerTitle: { fontSize: 26, fontWeight: '700', letterSpacing: -0.3, flex: 1 },
   addBtn: {
     width: 36, height: 36, borderRadius: 18,
     borderWidth: 1, alignItems: 'center', justifyContent: 'center',

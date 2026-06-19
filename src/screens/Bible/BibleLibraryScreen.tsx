@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, memo } from 'react';
+import React, { useState, useMemo, useCallback, memo, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   StatusBar,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,7 +17,10 @@ import { BibleStackParamList } from '../../types/navigation';
 import { BOOKS } from '../../constants/books';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
-import GlassSearchBar from '../../components/GlassSearchBar';
+import PremiumSearchBar from '../../components/PremiumSearchBar';
+import ProfileAvatar from '../../components/ProfileAvatar';
+
+const HEADER_H = 72;
 
 type NavProp = NativeStackNavigationProp<BibleStackParamList, 'BibleLibrary'>;
 
@@ -304,6 +308,15 @@ export default function BibleLibraryScreen() {
   const [query, setQuery] = useState('');
   const results = useMemo(() => query.trim() ? parseSearch(query) : [], [query]);
 
+  const headerAnim = useRef(new Animated.Value(1)).current;
+  const onSearchActiveChange = useCallback((active: boolean) => {
+    Animated.timing(headerAnim, {
+      toValue: active ? 0 : 1,
+      duration: 250,
+      useNativeDriver: false,
+    }).start();
+  }, [headerAnim]);
+
   const handleResultPress = useCallback(
     (result: SearchResult) => {
       setQuery('');
@@ -328,25 +341,28 @@ export default function BibleLibraryScreen() {
       <StatusBar barStyle={t.statusBar} backgroundColor="transparent" translucent />
       <SafeAreaView style={s.safe} edges={['top']}>
 
-        {/* Header */}
-        <View style={s.header}>
-          <View>
-            <Text style={[s.headerTitle, { color: t.text }]}>Bible Library</Text>
-            <Text style={[s.headerSub, { color: t.textMuted }]}>66 Books of Scripture</Text>
+        {/* Header — collapses when search is active */}
+        <Animated.View
+          style={{
+            height: headerAnim.interpolate({ inputRange: [0, 1], outputRange: [0, HEADER_H] }),
+            opacity: headerAnim,
+            overflow: 'hidden',
+          }}
+        >
+          <View style={s.header}>
+            <ProfileAvatar />
+            <Text style={[s.headerTitle, { color: t.text }]}>Bible</Text>
           </View>
-          <View style={[s.bookIconWrap, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}>
-            <Ionicons name="book" size={22} color={t.gold} />
-          </View>
-        </View>
+        </Animated.View>
 
         {/* Search bar */}
-        <GlassSearchBar
+        <PremiumSearchBar
           value={query}
           onChangeText={setQuery}
-          placeholder="Search · John 3:16 · Gen 1 · Psalm"
-          returnKeyType="search"
+          placeholder="Search the Bible…"
+          onActiveChange={onSearchActiveChange}
           autoCapitalize="none"
-          style={{ marginHorizontal: 16, marginBottom: 16 }}
+          style={{ marginBottom: 8 }}
         />
 
         {/* Search results */}
@@ -408,21 +424,12 @@ const s = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 16,
+    gap: 14,
   },
-  headerTitle: { fontSize: 26, fontWeight: '700', letterSpacing: 0.2 },
-  headerSub: { fontSize: 12, letterSpacing: 0.4, marginTop: 2 },
-  bookIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  headerTitle: { fontSize: 26, fontWeight: '700', letterSpacing: -0.3 },
 
   resultsScroll: { flex: 1, paddingTop: 4 },
 

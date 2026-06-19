@@ -24,8 +24,15 @@ export type NotesStackParamList = {
   NoteEditor: { noteId?: string } | undefined;
 };
 
+export type ChatStackParamList = {
+  ChatList: undefined;
+  DirectMessage: { chatId: string; otherUserId: string; otherName: string };
+  GroupChat: { chatId: string; groupName: string };
+  NewChat: undefined;
+};
+
 export type RootTabParamList = {
-  ChatTab: undefined;
+  ChatTab: NavigatorScreenParams<ChatStackParamList> | undefined;
   CommunityTab: undefined;
   HomeTab: NavigatorScreenParams<HomeStackParamList> | undefined;
   BibleTab: NavigatorScreenParams<BibleStackParamList> | undefined;

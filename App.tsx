@@ -27,7 +27,10 @@ import StoriesScreen from './src/screens/Stories/StoriesScreen';
 import StoryReaderScreen from './src/screens/Stories/StoryReaderScreen';
 import VerseScreen from './src/screens/Verse/VerseScreen';
 import GoalsScreen from './src/screens/Goals/GoalsScreen';
-import ChatScreen from './src/screens/Chat/ChatScreen';
+import ChatListScreen from './src/screens/Chat/ChatListScreen';
+import DirectMessageScreen from './src/screens/Chat/DirectMessageScreen';
+import GroupChatScreen from './src/screens/Chat/GroupChatScreen';
+import NewChatScreen from './src/screens/Chat/NewChatScreen';
 import CommunityScreen from './src/screens/Community/CommunityScreen';
 import NotesScreen from './src/screens/Notes/NotesScreen';
 import NoteEditorScreen from './src/screens/Notes/NoteEditorScreen';
@@ -38,11 +41,13 @@ import {
   HomeStackParamList,
   BibleStackParamList,
   NotesStackParamList,
+  ChatStackParamList,
   RootTabParamList,
 } from './src/types/navigation';
 
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
 const BibleStack = createNativeStackNavigator<BibleStackParamList>();
+const ChatStack  = createNativeStackNavigator<ChatStackParamList>();
 const NotesStack = createNativeStackNavigator<NotesStackParamList>();
 const Tab = createBottomTabNavigator<RootTabParamList>();
 
@@ -69,6 +74,17 @@ function BibleStackScreen() {
       <BibleStack.Screen name="Bible" component={BibleScreen} />
       <BibleStack.Screen name="ScriptureChat" component={ScriptureChatScreen} />
     </BibleStack.Navigator>
+  );
+}
+
+function ChatStackScreen() {
+  return (
+    <ChatStack.Navigator id="chat" screenOptions={{ headerShown: false }}>
+      <ChatStack.Screen name="ChatList"        component={ChatListScreen} />
+      <ChatStack.Screen name="DirectMessage"   component={DirectMessageScreen} />
+      <ChatStack.Screen name="GroupChat"       component={GroupChatScreen} />
+      <ChatStack.Screen name="NewChat"         component={NewChatScreen} />
+    </ChatStack.Navigator>
   );
 }
 
@@ -666,7 +682,7 @@ export default function App() {
             screenOptions={{ headerShown: false }}
             initialRouteName="HomeTab"
           >
-            <Tab.Screen name="ChatTab"      component={ChatScreen} />
+            <Tab.Screen name="ChatTab"      component={ChatStackScreen} />
             <Tab.Screen name="CommunityTab" component={CommunityScreen} />
             <Tab.Screen name="HomeTab"      component={HomeStackScreen} />
             <Tab.Screen name="BibleTab"     component={BibleStackScreen} />

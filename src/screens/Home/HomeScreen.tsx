@@ -24,6 +24,7 @@ import { loadGoals, calcStreak, isCompletedToday } from '../../services/goalsSer
 import { Goal } from '../../types/goal';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../theme';
+import ProfileAvatar from '../../components/ProfileAvatar';
 
 function sanitizeForSpeech(raw: string): string {
   return raw
@@ -410,13 +411,11 @@ export default function HomeScreen() {
 
         {/* Header */}
         <View style={styles.header}>
-          <View>
+          <ProfileAvatar />
+          <View style={styles.greetingBlock}>
             <Text style={[styles.greeting, { color: t.text }]}>{getGreeting()}</Text>
             <Text style={[styles.date, { color: t.textSub }]}>{today}</Text>
           </View>
-          <TouchableOpacity style={[styles.avatar, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}>
-            <Text style={[styles.avatarText, { color: t.gold }]}>J</Text>
-          </TouchableOpacity>
         </View>
 
         {/* Streak banner — no card, content sits directly on background */}
@@ -538,16 +537,12 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 18, paddingBottom: 116 },
 
   header: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', paddingVertical: 16, paddingHorizontal: 18,
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 16, paddingHorizontal: 18, gap: 14,
   },
+  greetingBlock: { flex: 1 },
   greeting: { fontSize: 22, fontWeight: '700' },
   date: { fontSize: 13, marginTop: 2 },
-  avatar: {
-    width: 40, height: 40, borderRadius: 20, borderWidth: 1,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  avatarText: { fontWeight: '700', fontSize: 16 },
 
   // Streak card — solid
   streakCard: {
