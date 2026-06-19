@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -114,9 +114,9 @@ export default function GoalsScreen() {
     setGoals(await toggleTodayComplete(id));
   };
 
-  const completedCount = goals.filter(isCompletedToday).length;
+  const completedCount = useMemo(() => goals.filter(isCompletedToday).length, [goals]);
 
-  const renderGoal = ({ item }: { item: Goal }) => {
+  const renderGoal = useCallback(({ item }: { item: Goal }) => {
     const streak = calcStreak(item.completedDates);
     const done = isCompletedToday(item);
     const pct = Math.min(1, streak / item.target);
@@ -158,7 +158,7 @@ export default function GoalsScreen() {
         </TouchableOpacity>
       </View>
     );
-  };
+  }, [openEdit, handleDelete, handleToggle]);
 
   return (
     <LinearGradient colors={['#5C3A10', '#080604']} style={{ flex: 1 }}>
@@ -203,6 +203,9 @@ export default function GoalsScreen() {
             keyExtractor={g => g.id}
             contentContainerStyle={s.list}
             renderItem={renderGoal}
+            windowSize={11}
+            maxToRenderPerBatch={10}
+            removeClippedSubviews
           />
         )}
 

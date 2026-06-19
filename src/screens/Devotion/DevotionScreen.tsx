@@ -9,7 +9,6 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   StyleSheet,
   StatusBar,
   ActivityIndicator,
@@ -23,6 +22,7 @@ import { HomeStackParamList } from '../../types/navigation';
 import { fetchDevotion, getTodayFallback } from '../../services/devotionService';
 import { useDevotionReader } from '../../hooks/useDevotionReader';
 import { Devotion, QUICK_TAGS, TRANSLATIONS, BibleTranslation } from '../../types/devotion';
+import GlassSearchBar from '../../components/GlassSearchBar';
 import { markTodayComplete, getStreakData } from '../../services/devotionStreakService';
 import { useTheme } from '../../theme';
 
@@ -276,23 +276,14 @@ export default function DevotionScreen() {
           <View style={[s.card, { backgroundColor: t.card, borderColor: t.cardBorder }]}>
             <Text style={[s.topicCardLabel, { color: t.textMuted }]}>WHAT'S ON YOUR HEART?</Text>
 
-            <View style={[s.inputRow, { backgroundColor: t.inputBg, borderColor: t.inputBorder }]}>
-              <Ionicons name="search-outline" size={16} color={t.textMuted} style={s.inputIcon} />
-              <TextInput
-                style={[s.topicInput, { color: t.text }]}
-                value={topic}
-                onChangeText={setTopic}
-                placeholder="peace, anxiety, forgiveness…"
-                placeholderTextColor={t.textMuted}
-                returnKeyType="go"
-                onSubmitEditing={generate}
-              />
-              {topic.length > 0 && (
-                <TouchableOpacity onPress={() => setTopic('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Ionicons name="close-circle" size={16} color={t.textMuted} />
-                </TouchableOpacity>
-              )}
-            </View>
+            <GlassSearchBar
+              value={topic}
+              onChangeText={setTopic}
+              placeholder="peace, anxiety, forgiveness…"
+              returnKeyType="go"
+              onSubmitEditing={generate}
+              showCancel={false}
+            />
 
             {/* Quick tags */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tagsScroll} contentContainerStyle={s.tagsRow}>
@@ -379,6 +370,29 @@ export default function DevotionScreen() {
                 onCopy={reader.copyScripture}
               />
 
+              {/* Talk to the Scripture — visible right after scripture card */}
+              <TouchableOpacity
+                style={[s.talkBtn, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}
+                onPress={() => {
+                  const context = [
+                    `Title: ${devotion.title}`,
+                    `Key Theme: ${devotion.keyTheme}`,
+                    `Scripture: ${devotion.scriptureText}`,
+                    `Devotional:\n${devotion.devotionalBody.join('\n\n')}`,
+                    `Life Application: ${devotion.lifeApplication}`,
+                  ].join('\n\n');
+                  navigation.navigate('ScriptureChat', {
+                    reference: devotion.scriptureReference,
+                    contextType: 'devotion',
+                    context,
+                  });
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="chatbubbles-outline" size={18} color={t.gold} />
+                <Text style={[s.talkBtnText, { color: t.gold }]}>Talk to the Scripture</Text>
+              </TouchableOpacity>
+
               {/* Body — directly on background */}
               <View style={s.bareSection}>
                 {devotion.devotionalBody.map((para, i) => (
@@ -460,6 +474,7 @@ export default function DevotionScreen() {
                   <Text style={[s.journalBtnText, { color: t.text }]}>Save to Journal</Text>
                 </TouchableOpacity>
               </View>
+
             </>
           )}
 
@@ -516,13 +531,6 @@ const s = StyleSheet.create({
 
   // Topic
   topicCardLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1.6 },
-  inputRow: {
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: 12, borderWidth: 1,
-    paddingHorizontal: 12, paddingVertical: 10,
-  },
-  inputIcon: { marginRight: 8 },
-  topicInput: { flex: 1, fontSize: 15 },
   tagsScroll: { marginHorizontal: -18 },
   tagsRow: { paddingHorizontal: 18, gap: 8 },
   tagChip: {
@@ -598,6 +606,13 @@ const s = StyleSheet.create({
     borderRadius: 14, paddingVertical: 13,
   },
   journalBtnText: { fontSize: 14, fontWeight: '600' },
+
+  talkBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, borderWidth: 1, borderRadius: 14,
+    paddingVertical: 14, marginTop: 10,
+  },
+  talkBtnText: { fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },
 
   // Streak
   streakTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

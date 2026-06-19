@@ -104,6 +104,72 @@ app.post('/api/devotion/generate', async (req, res) => {
   }
 });
 
+// ─── Scripture Chat endpoint ──────────────────────────────────────────────────
+
+const SCRIPTURE_CHAT_SYSTEM = `You are a knowledgeable and spiritually sensitive Bible teacher and companion.
+Help users understand, reflect on, and apply Bible passages to their lives.
+
+Guidelines:
+- Ground every response in Scripture; cite verses when relevant
+- Maintain a warm, encouraging, pastoral tone
+- Avoid denominational debates or controversial theological positions
+- Distinguish interpretation from the direct biblical text
+- Encourage personal reflection and application
+- Keep responses 150–350 words unless greater depth is explicitly requested
+- Use these bold section headers when the response naturally benefits from structure: **Understanding**, **Application**, **Reflection**, **Prayer**, **Related Scriptures**
+- Begin naturally — no unnecessary preamble like "Great question!"`;
+
+app.post('/api/scripture-chat', async (req, res) => {
+  const { reference, context, messages } = req.body;
+
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: 'messages array required' });
+  }
+
+  if (!GEMINI_API_KEY) {
+    return res.status(503).json({ error: 'Gemini API key not configured' });
+  }
+
+  // Prepend scripture context to the very first user turn
+  const contextHeader = `Scripture Reference: ${reference}\n\nPassage / Context:\n${context}\n\n---\n`;
+
+  const geminiContents = messages.map((msg, i) => ({
+    role: msg.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: i === 0 ? contextHeader + msg.content : msg.content }],
+  }));
+
+  try {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+
+    const geminiRes = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: SCRIPTURE_CHAT_SYSTEM }] },
+        contents: geminiContents,
+        generationConfig: {
+          temperature: 0.72,
+          topP: 0.9,
+          maxOutputTokens: 700,
+        },
+      }),
+    });
+
+    if (!geminiRes.ok) {
+      const err = await geminiRes.text();
+      console.error('Gemini scripture-chat error:', err);
+      return res.status(502).json({ error: 'Gemini API error' });
+    }
+
+    const data = await geminiRes.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    res.json({ content: text.trim() });
+  } catch (err) {
+    console.error('Scripture chat server error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
 app.listen(PORT, () => console.log(`Devotion proxy running on port ${PORT}`));

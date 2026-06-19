@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback, useEffect } from 'react';
+import React, { useRef, useState, useCallback, useEffect, useMemo, memo } from 'react';
 import * as Speech from 'expo-speech';
 import {
   View,
@@ -8,18 +8,14 @@ import {
   TouchableOpacity,
   StatusBar,
   Animated,
-  LayoutAnimation,
-  Platform,
-  UIManager,
+  Easing,
+  LayoutChangeEvent,
   ImageBackground,
   Image,
 } from 'react-native';
-
-if (Platform.OS === 'android') {
-  UIManager.setLayoutAnimationEnabledExperimental?.(true);
-}
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../../types/navigation';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getTodayVerseEntry } from '../../services/verseService';
@@ -98,7 +94,7 @@ const SECTIONS: AccordionSection[] = [
   },
 ];
 
-function VerseContent() {
+const VerseContent = memo(function VerseContent() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const verse = getTodayVerseEntry();
   const [speaking, setSpeaking] = useState(false);
@@ -138,11 +134,23 @@ function VerseContent() {
           </Text>
         </TouchableOpacity>
       </View>
+      <TouchableOpacity
+        style={styles.talkBtn}
+        activeOpacity={0.85}
+        onPress={() => navigation.navigate('ScriptureChat', {
+          reference: verse.label,
+          contextType: 'verse',
+          context: `${verse.label}\n\n"${verse.fallbackText}"`,
+        })}
+      >
+        <Ionicons name="chatbubbles-outline" size={16} color="#fff" />
+        <Text style={styles.talkBtnText}>Talk to the Scripture</Text>
+      </TouchableOpacity>
     </View>
   );
-}
+});
 
-function DevotionContent() {
+const DevotionContent = memo(function DevotionContent() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const tags = ['FAITH', 'TRUST', 'DAILY WALK'];
   return (
@@ -165,9 +173,9 @@ function DevotionContent() {
       </View>
     </View>
   );
-}
+});
 
-function GoalsContent() {
+const GoalsContent = memo(function GoalsContent() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [goals, setGoals] = React.useState<Goal[]>([]);
 
@@ -176,7 +184,7 @@ function GoalsContent() {
   );
 
   const preview = goals.slice(0, 2);
-  const completedCount = goals.filter(isCompletedToday).length;
+  const completedCount = useMemo(() => goals.filter(isCompletedToday).length, [goals]);
 
   return (
     <View style={styles.expandedPlain}>
@@ -215,7 +223,7 @@ function GoalsContent() {
       )}
     </View>
   );
-}
+});
 
 function renderContent(id: SectionId) {
   switch (id) {
@@ -231,28 +239,76 @@ type AccordionItemProps = {
   onToggle: () => void;
 };
 
-function AccordionItem({ section, isOpen, onToggle }: AccordionItemProps) {
+const EASE = Easing.bezier(0.4, 0.0, 0.2, 1.0);
+const DURATION = 300;
+
+const AccordionItem = memo(function AccordionItem({ section, isOpen, onToggle }: AccordionItemProps) {
   const t = useTheme();
-  const chevronAnim = useRef(new Animated.Value(isOpen ? 1 : 0)).current;
 
-  React.useEffect(() => {
-    Animated.spring(chevronAnim, {
-      toValue: isOpen ? 1 : 0,
-      useNativeDriver: true,
-      tension: 45,
-      friction: 14,
+  const animHeight  = useRef(new Animated.Value(0)).current;
+  const animOpacity = useRef(new Animated.Value(0)).current;
+  const animChevron = useRef(new Animated.Value(isOpen ? 1 : 0)).current;
+
+  const bodyHeight = useRef(0);
+  const isOpenRef  = useRef(isOpen);
+  const [measured, setMeasured] = useState(false);
+
+  useEffect(() => { isOpenRef.current = isOpen; }, [isOpen]);
+
+  // Ghost view is absolutely positioned + invisible so it measures content
+  // height without being inside the height:0 clip container (where onLayout
+  // would not fire). Removed from the tree once we have the measurement.
+  const onGhostLayout = useCallback((e: LayoutChangeEvent) => {
+    const h = e.nativeEvent.layout.height;
+    if (h <= 0) return;
+    bodyHeight.current = h;
+    // Snap animated values to correct initial state — no visible flash
+    animHeight.setValue(isOpenRef.current ? h : 0);
+    animOpacity.setValue(isOpenRef.current ? 1 : 0);
+    setMeasured(true);
+  }, []);
+
+  useEffect(() => {
+    if (!measured || bodyHeight.current === 0) return;
+
+    // JS thread: height clip
+    Animated.timing(animHeight, {
+      toValue: isOpen ? bodyHeight.current : 0,
+      duration: DURATION,
+      easing: EASE,
+      useNativeDriver: false,
     }).start();
-  }, [isOpen]);
+    // native thread: opacity + chevron rotation
+    Animated.parallel([
+      Animated.timing(animOpacity, {
+        toValue: isOpen ? 1 : 0,
+        duration: isOpen ? DURATION - 40 : DURATION - 100,
+        delay: isOpen ? 40 : 0,
+        easing: EASE,
+        useNativeDriver: true,
+      }),
+      Animated.timing(animChevron, {
+        toValue: isOpen ? 1 : 0,
+        duration: DURATION,
+        easing: EASE,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [isOpen, measured]);
 
-  const chevronRotate = chevronAnim.interpolate({
+  const chevronRotate = animChevron.interpolate({
     inputRange: [0, 1],
-    outputRange: ['90deg', '-90deg'],
+    outputRange: ['0deg', '90deg'],
   });
 
   return (
-    <View style={[styles.accordionWrap, { borderColor: t.cardBorder }]}>
+    <View
+      style={[
+        styles.accordionWrap,
+        { borderColor: isOpen ? 'rgba(201,169,107,0.50)' : t.cardBorder },
+      ]}
+    >
       <ImageBackground source={section.thumbnail} style={styles.accordionCardBg}>
-        {/* dark scrim so text is always readable over the photo */}
         <View style={styles.cardOverlay}>
           <TouchableOpacity
             style={styles.accordionBar}
@@ -266,16 +322,30 @@ function AccordionItem({ section, isOpen, onToggle }: AccordionItemProps) {
                 <Text style={styles.barMeta}>{section.meta}</Text>
               </View>
             </View>
-            <Animated.Text style={[styles.chevron, { transform: [{ rotate: chevronRotate }] }]}>
-              ›
-            </Animated.Text>
+            <Animated.View style={{ transform: [{ rotate: chevronRotate }] }}>
+              <Text style={styles.chevron}>›</Text>
+            </Animated.View>
           </TouchableOpacity>
-          {isOpen && renderContent(section.id)}
+
+          {/* Ghost measurement view: absolutely positioned + invisible so it
+              lays out at natural content height regardless of the clip container */}
+          {!measured && (
+            <View style={styles.measureGhost} onLayout={onGhostLayout} pointerEvents="none">
+              {renderContent(section.id)}
+            </View>
+          )}
+
+          {/* Animated clip container */}
+          <Animated.View style={{ height: animHeight, overflow: 'hidden' }}>
+            <Animated.View style={{ opacity: animOpacity }}>
+              {renderContent(section.id)}
+            </Animated.View>
+          </Animated.View>
         </View>
       </ImageBackground>
     </View>
   );
-}
+});
 
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -288,12 +358,6 @@ export default function HomeScreen() {
   const weekDays = getWeekDays();
 
   const toggle = useCallback((id: SectionId) => {
-    LayoutAnimation.configureNext({
-      duration: 360,
-      create: { type: 'easeInEaseOut', property: 'opacity' },
-      update: { type: 'easeInEaseOut' },
-      delete: { type: 'easeInEaseOut', property: 'opacity' },
-    });
     setOpenId(prev => (prev === id ? null : id));
   }, []);
 
@@ -383,6 +447,23 @@ export default function HomeScreen() {
               <Image source={require('../../assets/group-story-by-fire.jpg')} style={styles.quickNavImage} />
               <Text style={[styles.quickNavLabel, { color: t.text }]}>Stories</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.quickNavItem, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}
+              onPress={() => {
+                const verse = getTodayVerseEntry();
+                navigation.navigate('ScriptureChat', {
+                  reference: verse.label,
+                  contextType: 'verse',
+                  context: `${verse.label}\n\n"${verse.fallbackText}"`,
+                });
+              }}
+            >
+              <View style={styles.quickNavIconWrap}>
+                <Ionicons name="chatbubbles-outline" size={32} color={t.gold} />
+              </View>
+              <Text style={[styles.quickNavLabel, { color: t.gold }]}>Talk to Scripture</Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -449,6 +530,14 @@ const styles = StyleSheet.create({
     fontSize: 10, fontWeight: '700', letterSpacing: 1.4, marginBottom: 10,
   },
 
+  measureGhost: {
+    position: 'absolute',
+    opacity: 0,
+    top: 0,
+    left: 0,
+    right: 0,
+  },
+
   // Accordion — image background with fixed dark scrim for readability
   accordionWrap: {
     marginBottom: 8, borderRadius: 16, overflow: 'hidden', borderWidth: 1,
@@ -508,4 +597,14 @@ const styles = StyleSheet.create({
   },
   quickNavImage: { width: '100%', height: 90, marginBottom: 10 },
   quickNavLabel: { fontSize: 13, fontWeight: '600' },
+  quickNavIconWrap: {
+    width: '100%', height: 90, alignItems: 'center', justifyContent: 'center', marginBottom: 10,
+  },
+
+  talkBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, marginTop: 12, paddingVertical: 13, borderRadius: 14,
+    backgroundColor: 'rgba(212,175,55,0.85)',
+  },
+  talkBtnText: { fontSize: 14, fontWeight: '700', color: '#fff', letterSpacing: 0.2 },
 });

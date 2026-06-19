@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, memo } from 'react';
 import {
   View,
   Text,
   SectionList,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   StyleSheet,
   StatusBar,
 } from 'react-native';
@@ -17,6 +16,7 @@ import { BibleStackParamList } from '../../types/navigation';
 import { BOOKS } from '../../constants/books';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
+import GlassSearchBar from '../../components/GlassSearchBar';
 
 type NavProp = NativeStackNavigationProp<BibleStackParamList, 'BibleLibrary'>;
 
@@ -207,7 +207,7 @@ function parseSearch(raw: string): SearchResult[] {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function TestamentHeader({ title, subtitle, t }: { title: string; subtitle: string; t: AppTheme }) {
+const TestamentHeader = memo(function TestamentHeader({ title, subtitle, t }: { title: string; subtitle: string; t: AppTheme }) {
   return (
     <View style={[sh.sectionHeader, { backgroundColor: t.bg }]}>
       <View style={[sh.sectionBar, { backgroundColor: t.gold }]} />
@@ -217,9 +217,9 @@ function TestamentHeader({ title, subtitle, t }: { title: string; subtitle: stri
       </View>
     </View>
   );
-}
+});
 
-function BookRow({
+const BookRow = memo(function BookRow({
   book,
   onPress,
   t,
@@ -253,9 +253,9 @@ function BookRow({
       <Ionicons name="chevron-forward" size={16} color={t.textMuted} />
     </TouchableOpacity>
   );
-}
+});
 
-function ResultRow({
+const ResultRow = memo(function ResultRow({
   result,
   query,
   onPress,
@@ -294,7 +294,7 @@ function ResultRow({
       <Ionicons name="arrow-forward" size={14} color={t.gold} />
     </TouchableOpacity>
   );
-}
+});
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
@@ -302,11 +302,7 @@ export default function BibleLibraryScreen() {
   const navigation = useNavigation<NavProp>();
   const t = useTheme();
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
-
-  useEffect(() => {
-    setResults(query.trim() ? parseSearch(query) : []);
-  }, [query]);
+  const results = useMemo(() => query.trim() ? parseSearch(query) : [], [query]);
 
   const handleResultPress = useCallback(
     (result: SearchResult) => {
@@ -344,24 +340,14 @@ export default function BibleLibraryScreen() {
         </View>
 
         {/* Search bar */}
-        <View style={[s.searchWrap, { backgroundColor: t.card, borderColor: t.cardBorder }]}>
-          <Ionicons name="search-outline" size={18} color={t.textMuted} style={s.searchIcon} />
-          <TextInput
-            style={[s.searchInput, { color: t.text }]}
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Search · John 3:16 · Gen 1 · Psalm"
-            placeholderTextColor={t.textMuted}
-            returnKeyType="search"
-            autoCorrect={false}
-            autoCapitalize="none"
-          />
-          {query.length > 0 && (
-            <TouchableOpacity onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="close-circle" size={18} color={t.textMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
+        <GlassSearchBar
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search · John 3:16 · Gen 1 · Psalm"
+          returnKeyType="search"
+          autoCapitalize="none"
+          style={{ marginHorizontal: 16, marginBottom: 16 }}
+        />
 
         {/* Search results */}
         {query.trim() ? (
@@ -398,6 +384,8 @@ export default function BibleLibraryScreen() {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={s.listContent}
             stickySectionHeadersEnabled={false}
+            windowSize={11}
+            maxToRenderPerBatch={10}
             renderSectionHeader={({ section }) => (
               <TestamentHeader title={section.title} subtitle={section.subtitle} t={t} />
             )}
@@ -435,23 +423,6 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  searchWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-  },
-  searchIcon: { marginRight: 10 },
-  searchInput: { flex: 1, fontSize: 15, padding: 0 },
 
   resultsScroll: { flex: 1, paddingTop: 4 },
 

@@ -1,11 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, memo } from 'react';
 import {
   View,
   Text,
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  TextInput,
   StatusBar,
   ActivityIndicator,
 } from 'react-native';
@@ -17,6 +16,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { NotesStackParamList } from '../../types/navigation';
 import { Note, getNotes, searchNotes, toggleFavorite } from '../../services/notesService';
 import { useTheme } from '../../theme';
+import GlassSearchBar from '../../components/GlassSearchBar';
 
 type NavProp = NativeStackNavigationProp<NotesStackParamList>;
 
@@ -26,7 +26,7 @@ function formatDate(iso: string) {
   });
 }
 
-function NoteCard({
+const NoteCard = memo(function NoteCard({
   note, onPress, onFavorite,
   cardBg, cardBorder, text, textSub, textMuted, gold, goldBg, goldBorder,
 }: {
@@ -65,16 +65,17 @@ function NoteCard({
       </View>
     </TouchableOpacity>
   );
-}
+});
 
 export default function NotesScreen() {
   const navigation = useNavigation<NavProp>();
   const t = useTheme();
-  const [notes, setNotes] = useState<Note[]>([]);
+  const [notes, setNotes]   = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState('');
+  const [query, setQuery]   = useState('');
   const [filter, setFilter] = useState<'all' | 'favorites'>('all');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]   = useState<string | null>(null);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -91,13 +92,16 @@ export default function NotesScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const handleSearch = useCallback(async (text: string) => {
+  const handleSearch = useCallback((text: string) => {
     setQuery(text);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     if (!text.trim()) { load(); return; }
-    try {
-      const results = await searchNotes(text);
-      setNotes(results);
-    } catch { /* keep current */ }
+    searchTimerRef.current = setTimeout(async () => {
+      try {
+        const results = await searchNotes(text);
+        setNotes(results);
+      } catch { /* keep current */ }
+    }, 300);
   }, [load]);
 
   const handleFavorite = useCallback(async (note: Note) => {
@@ -125,22 +129,13 @@ export default function NotesScreen() {
         </View>
 
         {/* Search bar */}
-        <View style={[s.searchWrap, { backgroundColor: t.inputBg, borderColor: t.inputBorder }]}>
-          <Ionicons name="search-outline" size={16} color={t.textMuted} style={s.searchIcon} />
-          <TextInput
-            style={[s.searchInput, { color: t.text }]}
-            placeholder="Search notes, verses, keywords…"
-            placeholderTextColor={t.textMuted}
-            value={query}
-            onChangeText={handleSearch}
-            returnKeyType="search"
-          />
-          {query.length > 0 && (
-            <TouchableOpacity onPress={() => handleSearch('')}>
-              <Ionicons name="close-circle" size={16} color={t.textMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
+        <GlassSearchBar
+          value={query}
+          onChangeText={handleSearch}
+          placeholder="Search notes, verses, keywords…"
+          onCancelled={load}
+          style={{ marginHorizontal: 18, marginBottom: 12 }}
+        />
 
         {/* Filter tabs */}
         <View style={s.filterRow}>
@@ -195,6 +190,10 @@ export default function NotesScreen() {
             keyExtractor={n => n.id}
             contentContainerStyle={s.list}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            windowSize={11}
+            maxToRenderPerBatch={10}
+            removeClippedSubviews
             renderItem={({ item }) => (
               <NoteCard
                 note={item}
@@ -232,15 +231,6 @@ const s = StyleSheet.create({
     width: 36, height: 36, borderRadius: 18,
     borderWidth: 1, alignItems: 'center', justifyContent: 'center',
   },
-
-  searchWrap: {
-    flexDirection: 'row', alignItems: 'center',
-    marginHorizontal: 18, marginBottom: 12,
-    borderRadius: 14, borderWidth: 1,
-    paddingHorizontal: 12, paddingVertical: 10,
-  },
-  searchIcon: { marginRight: 8 },
-  searchInput: { flex: 1, fontSize: 14 },
 
   filterRow: { flexDirection: 'row', paddingHorizontal: 18, gap: 8, marginBottom: 16 },
   filterTab: {

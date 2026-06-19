@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, memo } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,7 @@ import { useTheme } from '../../theme';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
-function StoryCard({ story, onPress, gold }: { story: Story; onPress: () => void; gold: string }) {
+const StoryCard = memo(function StoryCard({ story, onPress, gold }: { story: Story; onPress: () => void; gold: string }) {
   const tagColor = CATEGORY_TEXT_COLORS[story.category];
 
   return (
@@ -40,17 +40,17 @@ function StoryCard({ story, onPress, gold }: { story: Story; onPress: () => void
       </View>
     </TouchableOpacity>
   );
-}
+});
 
 export default function StoriesScreen() {
   const navigation = useNavigation<NavProp>();
   const t = useTheme();
   const [activeCategory, setActiveCategory] = useState<StoryCategory | 'All'>('All');
 
-  const filtered =
-    activeCategory === 'All'
-      ? STORIES
-      : STORIES.filter((s) => s.category === activeCategory);
+  const filtered = useMemo(
+    () => activeCategory === 'All' ? STORIES : STORIES.filter(s => s.category === activeCategory),
+    [activeCategory]
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
@@ -108,7 +108,7 @@ export default function StoriesScreen() {
           initialNumToRender={52}
           maxToRenderPerBatch={52}
           windowSize={21}
-          removeClippedSubviews={false}
+          removeClippedSubviews
           getItemLayout={(_data, index) => ({
             length: CARD_ROW_H,
             offset: LIST_PADDING_TOP + Math.floor(index / 2) * CARD_ROW_H,

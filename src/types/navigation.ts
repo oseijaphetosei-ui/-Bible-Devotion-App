@@ -1,4 +1,5 @@
 import { NavigatorScreenParams } from '@react-navigation/native';
+import type { ScriptureChatNavParams } from './scriptureChat';
 
 export type HomeStackParamList = {
   Home: undefined;
@@ -8,12 +9,14 @@ export type HomeStackParamList = {
   Verse: undefined;
   Goals: undefined;
   Devotion: { topic?: string } | undefined;
+  ScriptureChat: ScriptureChatNavParams;
 };
 
 export type BibleStackParamList = {
   BibleSplash: undefined;
   BibleLibrary: undefined;
   Bible: { bookIndex?: number; chapter?: number; verseToScroll?: number } | undefined;
+  ScriptureChat: ScriptureChatNavParams;
 };
 
 export type NotesStackParamList = {

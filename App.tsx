@@ -1,5 +1,16 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Animated,
+  Easing,
+  PanResponder,
+  AccessibilityInfo,
+  useColorScheme,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator, BottomTabBarProps } from '@react-navigation/bottom-tabs';
@@ -20,6 +31,7 @@ import CommunityScreen from './src/screens/Community/CommunityScreen';
 import NotesScreen from './src/screens/Notes/NotesScreen';
 import NoteEditorScreen from './src/screens/Notes/NoteEditorScreen';
 import DevotionScreen from './src/screens/Devotion/DevotionScreen';
+import ScriptureChatScreen from './src/screens/ScriptureChat/ScriptureChatScreen';
 
 import {
   HomeStackParamList,
@@ -43,6 +55,7 @@ function HomeStackScreen() {
       <HomeStack.Screen name="Verse" component={VerseScreen} />
       <HomeStack.Screen name="Goals" component={GoalsScreen} />
       <HomeStack.Screen name="Devotion" component={DevotionScreen} />
+      <HomeStack.Screen name="ScriptureChat" component={ScriptureChatScreen} />
     </HomeStack.Navigator>
   );
 }
@@ -53,6 +66,7 @@ function BibleStackScreen() {
       <BibleStack.Screen name="BibleSplash" component={BibleSplashScreen} />
       <BibleStack.Screen name="BibleLibrary" component={BibleLibraryScreen} />
       <BibleStack.Screen name="Bible" component={BibleScreen} />
+      <BibleStack.Screen name="ScriptureChat" component={ScriptureChatScreen} />
     </BibleStack.Navigator>
   );
 }
@@ -66,6 +80,90 @@ function NotesStackScreen() {
   );
 }
 
+// ─── App-level launch splash ──────────────────────────────────────────────────
+
+const GOLD        = '#C9A96B';
+const LENS_W      = 72;   // fixed width throughout
+const LENS_H_REST = 44;   // capsule resting in bar
+const LENS_H_LIFT = 54;   // slight bulge when pressed/gliding
+const LENS_H_MAX  = 82;   // maximum height — only on strong upward pull
+const LENS_R_REST = 22;   // resting capsule corners
+const LENS_R_LIFT = 27;   // slightly rounder when lifted
+const LENS_R_DRAG = 32;   // hybrid capsule-circle during horizontal travel
+const LENS_R_MAX  = 41;   // full circle — only when user pulls up
+const LIFT_Y      = 5;    // pixels above center when lens is lifted
+
+async function playChime() {
+  // Uncomment when src/assets/chime.mp3 is available:
+  // import { Audio } from 'expo-av';
+  // try {
+  //   await Audio.setAudioModeAsync({ playsInSilentModeIOS: false });
+  //   const { sound } = await Audio.Sound.createAsync(require('./src/assets/chime.mp3'), { volume: 0.45 });
+  //   await sound.playAsync();
+  //   sound.setOnPlaybackStatusUpdate((s) => { if (s.isLoaded && s.didJustFinish) sound.unloadAsync(); });
+  // } catch {}
+}
+
+function AppSplashScreen({ onDone }: { onDone: () => void }) {
+  const isDark = useColorScheme() === 'dark';
+  const bg        = isDark ? '#1F1C19' : '#FAF6EE';
+  const textColor = isDark ? '#F3EDE3' : '#2F2A24';
+  const mutedColor = isDark ? '#8A8178' : '#9A8E83';
+
+  const contentOpacity = useRef(new Animated.Value(0)).current;
+  const scale          = useRef(new Animated.Value(0.9)).current;
+  const overlayOpacity = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    let cancelled = false;
+    AccessibilityInfo.isReduceMotionEnabled().then((reduced) => {
+      if (cancelled) return;
+      const fadeOut = () =>
+        Animated.timing(overlayOpacity, {
+          toValue: 0, duration: reduced ? 150 : 480, useNativeDriver: true,
+        }).start(onDone);
+
+      if (reduced) { contentOpacity.setValue(1); scale.setValue(1); setTimeout(fadeOut, 600); return; }
+      playChime();
+      Animated.parallel([
+        Animated.timing(contentOpacity, { toValue: 1, duration: 880, useNativeDriver: true }),
+        Animated.spring(scale, { toValue: 1, tension: 52, friction: 11, useNativeDriver: true }),
+      ]).start(() => setTimeout(fadeOut, 950));
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  return (
+    <Animated.View style={[sp.overlay, { backgroundColor: bg, opacity: overlayOpacity }]}>
+      <Animated.View style={[sp.content, { opacity: contentOpacity, transform: [{ scale }] }]}>
+        <View style={sp.iconWrap}>
+          <Ionicons name="book" size={52} color={GOLD} />
+        </View>
+        <Text style={[sp.title, { color: textColor }]}>Daily Devotion</Text>
+        <View style={sp.divider} />
+        <Text style={[sp.sub, { color: mutedColor }]}>Scripture · Prayer · Reflection</Text>
+      </Animated.View>
+    </Animated.View>
+  );
+}
+
+const sp = StyleSheet.create({
+  overlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', zIndex: 999, elevation: 999 },
+  content: { alignItems: 'center', gap: 14 },
+  iconWrap: {
+    width: 100, height: 100, borderRadius: 28,
+    backgroundColor: 'rgba(201,169,107,0.12)', borderWidth: 1.5,
+    borderColor: 'rgba(201,169,107,0.28)', alignItems: 'center', justifyContent: 'center',
+    marginBottom: 8, shadowColor: GOLD, shadowOpacity: 0.18, shadowRadius: 22,
+    shadowOffset: { width: 0, height: 5 }, elevation: 8,
+  },
+  title:   { fontSize: 28, fontWeight: '700', letterSpacing: 0.4 },
+  divider: { width: 36, height: 1.5, borderRadius: 1, backgroundColor: 'rgba(201,169,107,0.40)', marginVertical: 2 },
+  sub:     { fontSize: 13, letterSpacing: 0.9 },
+});
+
+// ─── Tab configuration ────────────────────────────────────────────────────────
+
 type TabConfig = {
   key: keyof RootTabParamList;
   label: string;
@@ -74,75 +172,421 @@ type TabConfig = {
 };
 
 const TABS: TabConfig[] = [
-  { key: 'ChatTab',      label: 'Chat',      icon: 'chatbubble-outline',  iconActive: 'chatbubble' },
-  { key: 'CommunityTab', label: 'Community', icon: 'people-outline',      iconActive: 'people'     },
-  { key: 'HomeTab',      label: 'Home',      icon: 'heart-outline',       iconActive: 'heart'      },
-  { key: 'BibleTab',     label: 'Bible',     icon: 'book-outline',        iconActive: 'book'       },
-  { key: 'NotesTab',     label: 'Notes',     icon: 'pencil-outline',      iconActive: 'pencil'     },
+  { key: 'ChatTab',      label: 'Chat',      icon: 'chatbubble-outline', iconActive: 'chatbubble' },
+  { key: 'CommunityTab', label: 'Community', icon: 'people-outline',     iconActive: 'people'     },
+  { key: 'HomeTab',      label: 'Home',      icon: 'heart-outline',      iconActive: 'heart'      },
+  { key: 'BibleTab',     label: 'Bible',     icon: 'book-outline',       iconActive: 'book'       },
+  { key: 'NotesTab',     label: 'Notes',     icon: 'pencil-outline',     iconActive: 'pencil'     },
 ];
+
+// ─── Memoized tab item — avoids re-rendering every item on every swipe tick ──
+
+type TabItemProps = {
+  tab: TabConfig;
+  isFocused: boolean;
+  onPress: () => void;
+  activeIconColor: string;
+  inactiveIconColor: string;
+  activeLabelColor: string;
+  inactiveLabelColor: string;
+};
+
+const TabItem = memo(function TabItem({
+  tab, isFocused, onPress,
+  activeIconColor, inactiveIconColor, activeLabelColor, inactiveLabelColor,
+}: TabItemProps) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.75}
+      style={styles.tabItem}
+    >
+      <Ionicons
+        name={isFocused ? tab.iconActive : tab.icon}
+        size={21}
+        color={isFocused ? activeIconColor : inactiveIconColor}
+      />
+      <Text
+        style={[
+          styles.tabLabel,
+          { color: isFocused ? activeLabelColor : inactiveLabelColor },
+          isFocused && styles.tabLabelActive,
+        ]}
+      >
+        {tab.label}
+      </Text>
+    </TouchableOpacity>
+  );
+});
+
+// ─── Liquid Glass Tab Bar ─────────────────────────────────────────────────────
 
 function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const { bottom } = useSafeAreaInsets();
+  const isDark = useColorScheme() === 'dark';
 
-  // Zero-height spacer: React Navigation sees 0px tab bar height → screens fill
-  // 100% of the display, so content scrolls all the way behind the floating glass.
+  const activeIconColor    = GOLD;
+  const inactiveIconColor  = isDark ? 'rgba(243,237,227,0.42)' : 'rgba(47,42,36,0.38)';
+  const activeLabelColor   = isDark ? '#F3EDE3' : '#2F2A24';
+  const inactiveLabelColor = isDark ? 'rgba(243,237,227,0.40)' : 'rgba(47,42,36,0.35)';
+  const blurTint           = isDark ? ('dark' as const) : ('light' as const);
+  const warmTintBg         = isDark ? 'rgba(31,28,25,0.36)' : 'rgba(250,246,238,0.42)';
+  const glassBorder        = isDark ? 'rgba(201,169,107,0.15)' : 'rgba(201,169,107,0.24)';
+  const topHighlightBg     = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(201,169,107,0.20)';
+  const pillShadowColor    = isDark ? '#1F1C19' : '#C9A96B';
+  const lensGlassBg        = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(201,169,107,0.10)';
+  const lensGlassBorder    = isDark ? 'rgba(255,255,255,0.22)' : 'rgba(201,169,107,0.32)';
+
+  const tabCount = TABS.length;
+
+  // ── Animated values — all JS thread (setValue called during gesture) ──────
+  const indicatorX    = useRef(new Animated.Value(0)).current;
+  const indicatorBase = useRef(0);
+  const lensScaleX    = useRef(new Animated.Value(1)).current;
+  const lensScaleY    = useRef(new Animated.Value(1)).current;
+  const iridescentOp  = useRef(new Animated.Value(0)).current;
+  const barActiveAnim = useRef(new Animated.Value(0)).current;
+  const lensOffsetX   = useRef(new Animated.Value(0)).current;
+  const lensH         = useRef(new Animated.Value(LENS_H_REST)).current;
+  const lensR         = useRef(new Animated.Value(LENS_R_REST)).current;
+  const lensTopA      = useRef(new Animated.Value(0)).current;
+  const lensX = useRef(Animated.add(indicatorX, lensOffsetX)).current;
+
+  // ── Stable refs (safe inside once-created PanResponder closure) ───────────
+  const tabWidthRef      = useRef(0);
+  const tabRowHeightRef  = useRef(0);
+  const stateIdxRef      = useRef(state.index);
+  const swipeIdxRef      = useRef<number | null>(null);
+  const navRef           = useRef(navigation);
+  const animatingToRef   = useRef<number | null>(null);
+
+  // ── Render state ──────────────────────────────────────────────────────────
+  const [swipeIndex, setSwipeIndex] = useState<number | null>(null);
+  const [tabWidth,   setTabWidth]   = useState(0);
+
+  useEffect(() => { stateIdxRef.current = state.index; }, [state.index]);
+  useEffect(() => { navRef.current = navigation; },      [navigation]);
+
+  // When the active route changes (programmatic nav or external deep-link) and
+  // no gesture/tap-animation is in flight, spring the lens to the new position.
+  useEffect(() => {
+    if (swipeIdxRef.current !== null) return;
+    if (animatingToRef.current !== null) return;
+    const tw = tabWidthRef.current;
+    if (tw === 0) return;
+    const restTop = (tabRowHeightRef.current - LENS_H_REST) / 2;
+    Animated.spring(indicatorX, {
+      toValue: state.index * tw,
+      tension: 100, friction: 22, useNativeDriver: true,
+    }).start();
+    // native-thread scale settle
+    Animated.parallel([
+      Animated.spring(lensScaleX, { toValue: 1, tension: 200, friction: 20, useNativeDriver: true }),
+      Animated.spring(lensScaleY, { toValue: 1, tension: 200, friction: 20, useNativeDriver: true }),
+    ]).start();
+    // JS-thread shape settle
+    Animated.parallel([
+      Animated.spring(lensH,        { toValue: LENS_H_REST, tension: 120, friction: 18, useNativeDriver: false }),
+      Animated.spring(lensR,        { toValue: LENS_R_REST, tension: 120, friction: 18, useNativeDriver: false }),
+      Animated.spring(lensTopA,     { toValue: restTop,     tension: 120, friction: 18, useNativeDriver: false }),
+      Animated.timing(iridescentOp, { toValue: 0, duration: 300, useNativeDriver: false }),
+    ]).start();
+  }, [state.index]);
+
+  // ── Measure tab row ───────────────────────────────────────────────────────
+  const onTabRowLayout = useCallback((e: any) => {
+    const { width, height } = e.nativeEvent.layout;
+    const tw = (width - 12) / tabCount; // 12 = paddingHorizontal 6 × 2
+    tabWidthRef.current     = tw;
+    tabRowHeightRef.current = height;
+    setTabWidth(tw);
+    indicatorX.setValue(stateIdxRef.current * tw);
+    lensOffsetX.setValue(tw / 2 - LENS_W / 2);
+    lensTopA.setValue((height - LENS_H_REST) / 2);
+  }, [tabCount]);
+
+  // ── PanResponder ──────────────────────────────────────────────────────────
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder:  (_, g) =>
+        Math.abs(g.dx) > 4 && Math.abs(g.dx) > Math.abs(g.dy),
+
+      onPanResponderGrant: () => {
+        animatingToRef.current = null;
+        indicatorX.stopAnimation(v => { indicatorBase.current = v; });
+        Animated.timing(barActiveAnim, { toValue: 1, duration: 160, useNativeDriver: true }).start();
+        // Lift — quick timing so movement tracking starts immediately
+        const liftTop = (tabRowHeightRef.current - LENS_H_LIFT) / 2 - LIFT_Y;
+        const liftCfg = { duration: 90, easing: Easing.out(Easing.quad), useNativeDriver: false } as const;
+        Animated.parallel([
+          Animated.timing(lensH,    { toValue: LENS_H_LIFT, ...liftCfg }),
+          Animated.timing(lensR,    { toValue: LENS_R_LIFT, ...liftCfg }),
+          Animated.timing(lensTopA, { toValue: liftTop,     ...liftCfg }),
+        ]).start();
+      },
+
+      onPanResponderMove: (_, g) => {
+        const tw  = tabWidthRef.current;
+        const max = (tabCount - 1) * tw;
+        const px  = Math.max(0, Math.min(max, indicatorBase.current + g.dx));
+        indicatorX.setValue(px);
+
+        const nearest = Math.max(0, Math.min(tabCount - 1, Math.round(px / tw)));
+        if (nearest !== swipeIdxRef.current) {
+          swipeIdxRef.current = nearest;
+          setSwipeIndex(nearest);
+        }
+
+        // How far between tabs (0 = over a tab, 1 = midpoint)
+        const frac       = ((px % tw) + tw) % tw;
+        const horizPhase = Math.sin((frac / tw) * Math.PI);
+
+        // Upward pull: negative dy → circularise and expand
+        const upPull     = Math.max(0, -g.dy);
+        const pullFactor = Math.min(1, upPull / 70);
+
+        // Horizontal velocity stretch (scaleX only — keeps height/radius independent)
+        const velStretch = Math.min(0.18, Math.abs(g.vx) * 0.07);
+        lensScaleX.setValue(1 + velStretch);
+
+        // Slight squish on downward push
+        const downPress = Math.max(0, g.dy);
+        lensScaleY.setValue(Math.max(0.93, 1 - Math.min(0.07, downPress / 140)));
+
+        // Shape: capsule at rest → hybrid during travel → circle only on upward pull
+        const baseR  = LENS_R_LIFT + (LENS_R_DRAG - LENS_R_LIFT) * horizPhase;
+        lensR.setValue(baseR + (LENS_R_MAX - baseR) * pullFactor);
+
+        // Height: lifted capsule → grows only on upward pull
+        lensH.setValue(LENS_H_LIFT + (LENS_H_MAX - LENS_H_LIFT) * pullFactor);
+
+        // Top: base lift position, rises further with upward pull
+        const baseLiftTop  = (tabRowHeightRef.current - LENS_H_LIFT) / 2 - LIFT_Y;
+        const additionalUp = pullFactor * (LENS_H_MAX - LENS_H_LIFT) / 2 + upPull * 0.55;
+        lensTopA.setValue(baseLiftTop - additionalUp);
+
+        // Rainbow: corners between tabs + brightens on upward pull
+        iridescentOp.setValue(Math.max(horizPhase * 0.65, pullFactor * 0.88));
+      },
+
+      onPanResponderRelease: (_, g) => {
+        const tw       = tabWidthRef.current;
+        const max      = (tabCount - 1) * tw;
+        const finalPx  = Math.max(0, Math.min(max, indicatorBase.current + g.dx));
+        const finalIdx = Math.max(0, Math.min(tabCount - 1, Math.round(finalPx / tw)));
+
+        swipeIdxRef.current = null;
+        setSwipeIndex(null);
+        Animated.timing(barActiveAnim, { toValue: 0, duration: 400, useNativeDriver: true }).start();
+
+        Animated.spring(indicatorX, {
+          toValue: finalIdx * tw,
+          tension: 80, friction: 26, useNativeDriver: true,
+        }).start(({ finished }) => {
+          if (finished && finalIdx !== stateIdxRef.current) {
+            navRef.current?.navigate(TABS[finalIdx].key as any);
+          }
+        });
+
+        const restTop = (tabRowHeightRef.current - LENS_H_REST) / 2;
+        Animated.parallel([
+          Animated.spring(lensScaleX, { toValue: 1, tension: 120, friction: 18, useNativeDriver: true }),
+          Animated.spring(lensScaleY, { toValue: 1, tension: 120, friction: 18, useNativeDriver: true }),
+        ]).start();
+        Animated.parallel([
+          Animated.spring(lensH,        { toValue: LENS_H_REST, tension: 120, friction: 18, useNativeDriver: false }),
+          Animated.spring(lensR,        { toValue: LENS_R_REST, tension: 120, friction: 18, useNativeDriver: false }),
+          Animated.spring(lensTopA,     { toValue: restTop,     tension: 120, friction: 18, useNativeDriver: false }),
+          Animated.timing(iridescentOp, { toValue: 0, duration: 450, useNativeDriver: false }),
+        ]).start();
+      },
+
+      onPanResponderTerminate: () => {
+        swipeIdxRef.current    = null;
+        animatingToRef.current = null;
+        setSwipeIndex(null);
+        Animated.timing(barActiveAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start();
+        Animated.spring(indicatorX, {
+          toValue: stateIdxRef.current * tabWidthRef.current,
+          tension: 80, friction: 26, useNativeDriver: true,
+        }).start();
+        const restTop = (tabRowHeightRef.current - LENS_H_REST) / 2;
+        Animated.parallel([
+          Animated.spring(lensScaleX, { toValue: 1, tension: 120, friction: 18, useNativeDriver: true }),
+          Animated.spring(lensScaleY, { toValue: 1, tension: 120, friction: 18, useNativeDriver: true }),
+        ]).start();
+        Animated.parallel([
+          Animated.spring(lensH,        { toValue: LENS_H_REST, tension: 120, friction: 18, useNativeDriver: false }),
+          Animated.spring(lensR,        { toValue: LENS_R_REST, tension: 120, friction: 18, useNativeDriver: false }),
+          Animated.spring(lensTopA,     { toValue: restTop,     tension: 120, friction: 18, useNativeDriver: false }),
+          Animated.timing(iridescentOp, { toValue: 0, duration: 300, useNativeDriver: false }),
+        ]).start();
+      },
+    })
+  ).current;
+
+  // ── Tap handler — lens glides to tapped tab, then navigates ──────────────
+  const onTabPress = useCallback((tabIdx: number) => {
+    if (swipeIdxRef.current !== null || animatingToRef.current !== null) return;
+
+    const tw = tabWidthRef.current;
+    if (tw === 0) {
+      navRef.current?.navigate(TABS[tabIdx].key as any);
+      return;
+    }
+
+    const event = navRef.current?.emit({
+      type: 'tabPress',
+      target: state.routes[tabIdx].key,
+      canPreventDefault: true,
+    });
+    if (event?.defaultPrevented) return;
+    if (tabIdx === stateIdxRef.current) return;
+
+    animatingToRef.current = tabIdx;
+    setSwipeIndex(tabIdx);
+
+    const liftTop = (tabRowHeightRef.current - LENS_H_LIFT) / 2 - LIFT_Y;
+    const restTop = (tabRowHeightRef.current - LENS_H_REST) / 2;
+
+    Animated.timing(barActiveAnim, { toValue: 1, duration: 150, useNativeDriver: true }).start();
+
+    // Phase 1 — lift: 90 ms timing so glide starts without waiting for spring settle
+    const liftCfg = { duration: 90, easing: Easing.out(Easing.quad), useNativeDriver: false } as const;
+    Animated.parallel([
+      Animated.timing(lensH,        { toValue: LENS_H_LIFT, ...liftCfg }),
+      Animated.timing(lensR,        { toValue: LENS_R_DRAG, ...liftCfg }),
+      Animated.timing(lensTopA,     { toValue: liftTop,     ...liftCfg }),
+      Animated.timing(iridescentOp, { toValue: 0.45, duration: 90, useNativeDriver: false }),
+    ]).start(() => {
+      // Phase 2 — glide: tighter spring so travel feels crisp
+      Animated.spring(indicatorX, {
+        toValue: tabIdx * tw,
+        tension: 160, friction: 22,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (!finished) return;
+        // Phase 3 — settle: snappy return to resting capsule
+        Animated.timing(barActiveAnim, { toValue: 0, duration: 250, useNativeDriver: true }).start();
+        // native-thread scale settle
+        Animated.parallel([
+          Animated.spring(lensScaleX, { toValue: 1, tension: 200, friction: 20, useNativeDriver: true }),
+          Animated.spring(lensScaleY, { toValue: 1, tension: 200, friction: 20, useNativeDriver: true }),
+        ]).start();
+        // JS-thread shape settle
+        Animated.parallel([
+          Animated.spring(lensH,        { toValue: LENS_H_REST, tension: 200, friction: 20, useNativeDriver: false }),
+          Animated.spring(lensR,        { toValue: LENS_R_REST, tension: 200, friction: 20, useNativeDriver: false }),
+          Animated.spring(lensTopA,     { toValue: restTop,     tension: 200, friction: 20, useNativeDriver: false }),
+          Animated.timing(iridescentOp, { toValue: 0, duration: 250, useNativeDriver: false }),
+        ]).start();
+        animatingToRef.current = null;
+        setSwipeIndex(null);
+        navRef.current?.navigate(TABS[tabIdx].key as any);
+      });
+    });
+  }, [state.routes]);
+
+  const visualIndex = swipeIndex !== null ? swipeIndex : state.index;
+
+  // Bar "comes alive" overlay — white glow that fades in during drag.
+  const barLiftOp = barActiveAnim.interpolate({
+    inputRange: [0, 1], outputRange: [0, 0.065],
+  });
+
+
   return (
     <View style={styles.spacer}>
-      <View style={[styles.tabBarOuter, { paddingBottom: Math.max(bottom - 20, 2) }]}>
-        {/* Shadow halo — no overflow:hidden so the glow bleeds outward */}
-        <View style={styles.pillShadow}>
-          {/* BlurView clips to pill shape; blurs live content behind it */}
-          <BlurView intensity={85} tint="dark" style={styles.glass}>
-            {/* Warm amber tint — picks up the page's brown gradient */}
-            <View style={styles.warmTint} pointerEvents="none" />
-            {/* 1 px top-edge highlight simulating light refracting off glass */}
-            <View style={styles.topHighlight} pointerEvents="none" />
-            {/* Soft reflection streak near the top-centre */}
+      <View style={[styles.tabBarOuter, { paddingBottom: Math.max(bottom - 22, 2) }]}>
+        <View style={[styles.pillShadow, { shadowColor: pillShadowColor }]}>
+          <BlurView
+            intensity={isDark ? 82 : 68}
+            tint={blurTint}
+            style={[styles.glass, { borderColor: glassBorder }]}
+          >
+            <View style={[styles.warmTint, { backgroundColor: warmTintBg }]} pointerEvents="none" />
+            <View style={[styles.topHighlight, { backgroundColor: topHighlightBg }]} pointerEvents="none" />
             <View style={styles.reflectionStreak} pointerEvents="none" />
 
-            {/* Tab row */}
-            <View style={styles.tabRow}>
-              {TABS.map((tab, index) => {
-                const isFocused = state.index === index;
-                const onPress = () => {
-                  const event = navigation.emit({
-                    type: 'tabPress',
-                    target: state.routes[index].key,
-                    canPreventDefault: true,
-                  });
-                  if (!isFocused && !event.defaultPrevented) {
-                    navigation.navigate(tab.key);
-                  }
-                };
-
-                return (
-                  <TouchableOpacity
-                    key={tab.key}
-                    onPress={onPress}
-                    activeOpacity={0.75}
-                    style={styles.tabItem}
-                  >
-                    {isFocused && <View style={styles.activeHighlight} />}
-                    <Ionicons
-                      name={isFocused ? tab.iconActive : tab.icon}
-                      size={22}
-                      color={isFocused ? '#D4AF37' : 'rgba(255,255,255,0.42)'}
-                    />
-                    <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>
-                      {tab.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+            {/* Tab row — receives all swipe gestures */}
+            <View
+              style={styles.tabRow}
+              onLayout={onTabRowLayout}
+              {...panResponder.panHandlers}
+            >
+              {TABS.map((tab, index) => (
+                <TabItem
+                  key={tab.key}
+                  tab={tab}
+                  isFocused={visualIndex === index}
+                  onPress={() => onTabPress(index)}
+                  activeIconColor={activeIconColor}
+                  inactiveIconColor={inactiveIconColor}
+                  activeLabelColor={activeLabelColor}
+                  inactiveLabelColor={inactiveLabelColor}
+                />
+              ))}
             </View>
+
+            {/* Subtle white glow during drag — bar "comes alive" */}
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                StyleSheet.absoluteFillObject,
+                { backgroundColor: '#ffffff', opacity: barLiftOp, borderRadius: RADIUS },
+              ]}
+            />
           </BlurView>
+
+          {/* ── Liquid Glass Lens ─────────────────────────────────────────────── */}
+          {tabWidth > 0 && (
+            // Layer 1 — native thread: finger-tracking translation only
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.lensTranslation, { transform: [{ translateX: lensX }] }]}
+            >
+              {/* Layer 2 — JS thread: height + borderRadius only (lift/settle) */}
+              <Animated.View style={[styles.lensShape, { top: lensTopA, height: lensH }]}>
+                {/* Layer 3 — native thread: velocity scale morphing */}
+                <Animated.View
+                  style={[StyleSheet.absoluteFillObject, { transform: [{ scaleX: lensScaleX }, { scaleY: lensScaleY }] }]}
+                >
+                  {/* Rainbow corners */}
+                  <Animated.View style={[styles.lensRainbow, { opacity: iridescentOp, borderRadius: lensR }]}>
+                    <LinearGradient
+                      colors={['rgba(255,100,120,0.72)', 'transparent', 'rgba(100,160,255,0.72)']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={StyleSheet.absoluteFillObject}
+                    />
+                    <LinearGradient
+                      colors={['rgba(55,220,140,0.60)', 'transparent', 'rgba(255,190,55,0.60)']}
+                      start={{ x: 1, y: 0 }}
+                      end={{ x: 0, y: 1 }}
+                      style={StyleSheet.absoluteFillObject}
+                    />
+                  </Animated.View>
+                  {/* Frosted glass body */}
+                  <Animated.View
+                    style={[styles.lensGlass, { backgroundColor: lensGlassBg, borderColor: lensGlassBorder, borderRadius: lensR }]}
+                  />
+                  {/* Depth shadow */}
+                  <View style={styles.lensDepth} />
+                </Animated.View>
+              </Animated.View>
+            </Animated.View>
+          )}
         </View>
       </View>
     </View>
   );
 }
 
+// ─── Root ─────────────────────────────────────────────────────────────────────
+
 export default function App() {
+  const [splashDone, setSplashDone] = useState(false);
   return (
     <SafeAreaProvider>
       <NavigationContainer>
@@ -159,74 +603,59 @@ export default function App() {
           <Tab.Screen name="NotesTab"     component={NotesStackScreen} />
         </Tab.Navigator>
       </NavigationContainer>
+      {!splashDone && <AppSplashScreen onDone={() => setSplashDone(true)} />}
     </SafeAreaProvider>
   );
 }
 
-const RADIUS = 32;
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const RADIUS = 30;
 
 const styles = StyleSheet.create({
-  // Zero-height spacer so React Navigation gives screens full 100% height
-  spacer: {
-    height: 0,
-    overflow: 'visible',
-  },
+  spacer: { height: 0, overflow: 'visible' },
 
-  // Absolutely positioned container anchored to the bottom of the spacer
   tabBarOuter: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 18,
-    paddingTop: 6,
+    bottom: 0, left: 0, right: 0,
+    paddingHorizontal: 16,
+    paddingTop: 4,
   },
 
   pillShadow: {
     borderRadius: RADIUS,
-    shadowColor: '#3A1F00',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.75,
-    shadowRadius: 28,
-    elevation: 20,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.48,
+    shadowRadius: 20,
+    elevation: 18,
   },
 
   glass: {
     borderRadius: RADIUS,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.13)',
   },
 
-  warmTint: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(72, 38, 8, 0.28)',
-  },
+  warmTint: { ...StyleSheet.absoluteFillObject },
 
   topHighlight: {
     position: 'absolute',
-    top: 0,
-    left: 24,
-    right: 24,
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.28)',
-    borderRadius: 1,
+    top: 0, left: 24, right: 24,
+    height: 1, borderRadius: 1,
   },
 
   reflectionStreak: {
     position: 'absolute',
-    top: 0,
-    left: '28%',
-    width: '36%',
-    height: 34,
-    backgroundColor: 'rgba(255,255,255,0.045)',
+    top: 0, left: '28%',
+    width: '36%', height: 28,
+    backgroundColor: 'rgba(255,255,255,0.022)',
     borderBottomLeftRadius: 50,
     borderBottomRightRadius: 50,
   },
 
   tabRow: {
     flexDirection: 'row',
-    paddingVertical: 9,
+    paddingVertical: 7,
     paddingHorizontal: 6,
     alignItems: 'center',
   },
@@ -235,28 +664,63 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
+    paddingVertical: 7,
     paddingHorizontal: 4,
-    gap: 4,
-  },
-
-  activeHighlight: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 26,
-    backgroundColor: 'rgba(255,255,255,0.11)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    gap: 3,
   },
 
   tabLabel: {
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: '500',
-    color: 'rgba(255,255,255,0.38)',
     letterSpacing: 0.15,
   },
 
-  tabLabelActive: {
-    color: '#FFFFFF',
-    fontWeight: '600',
+  tabLabelActive: { fontWeight: '600' },
+
+  // ── Lens ──────────────────────────────────────────────────────────────────
+
+  // Layer 1: native-thread translation (position only, no height/borderRadius)
+  lensTranslation: {
+    position: 'absolute',
+    left: 6,
+    top: 0,
+    bottom: 0,
+    width: LENS_W,
+  },
+
+  // Layer 2: JS-thread shape (height + top animated)
+  lensShape: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+  },
+
+  lensOuter: {
+    position: 'absolute',
+    left: 6,
+    width: LENS_W,
+    // height and top are animated inline
+  },
+
+  lensRainbow: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+    // borderRadius animated inline
+  },
+
+  lensGlass: {
+    ...StyleSheet.absoluteFillObject,
+    borderWidth: 1,
+    // borderRadius animated inline
+  },
+
+  lensDepth: {
+    position: 'absolute',
+    bottom: 5,
+    left: '30%',
+    right: '30%',
+    height: 3,
+    borderRadius: 3,
+    backgroundColor: 'rgba(0,0,0,0.06)',
   },
 });
