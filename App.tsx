@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import {
   View,
   Text,
+  Image,
   TouchableOpacity,
   StyleSheet,
   Animated,
@@ -104,62 +105,126 @@ async function playChime() {
   // } catch {}
 }
 
-function AppSplashScreen({ onDone }: { onDone: () => void }) {
-  const isDark = useColorScheme() === 'dark';
-  const bg        = isDark ? '#1F1C19' : '#FAF6EE';
-  const textColor = isDark ? '#F3EDE3' : '#2F2A24';
-  const mutedColor = isDark ? '#8A8178' : '#9A8E83';
-
-  const contentOpacity = useRef(new Animated.Value(0)).current;
-  const scale          = useRef(new Animated.Value(0.9)).current;
+function AppSplashScreen({ onWillFade, onDone }: { onWillFade: () => void; onDone: () => void }) {
+  // All native-driver: opacity + transform only
+  const logoOpacity    = useRef(new Animated.Value(0)).current;
+  const logoScale      = useRef(new Animated.Value(0.7)).current;
+  const logoTranslateY = useRef(new Animated.Value(0)).current;
+  const bgOpacity      = useRef(new Animated.Value(0)).current;
+  const nameOpacity    = useRef(new Animated.Value(0)).current;
+  const nameTranslateY = useRef(new Animated.Value(15)).current;
   const overlayOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     let cancelled = false;
+
+    const startFadeOut = () => {
+      onWillFade(); // mount NavigationContainer before fade starts
+      Animated.timing(overlayOpacity, {
+        toValue: 0, duration: 500, useNativeDriver: true,
+      }).start(({ finished }) => { if (finished && !cancelled) onDone(); });
+    };
+
+    const runSequence = () => {
+      // Phase 1 (~1.0s) — logo bulges in: spring 0.7→1.15 + opacity fade
+      Animated.parallel([
+        Animated.timing(logoOpacity, { toValue: 1, duration: 600, useNativeDriver: true }),
+        Animated.spring(logoScale,   { toValue: 1.15, tension: 38, friction: 8, useNativeDriver: true }),
+      ]).start(({ finished: f1 }) => {
+        if (!f1 || cancelled) return;
+
+        // Phase 2 (~0.9s) — logo settles downward (0.7s) while background fades in (0.9s)
+        Animated.parallel([
+          Animated.timing(logoScale,      { toValue: 1.0, duration: 700, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+          Animated.timing(logoTranslateY, { toValue: 8,   duration: 700, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+          Animated.timing(bgOpacity,      { toValue: 1,   duration: 900, useNativeDriver: true }),
+        ]).start(({ finished: f2 }) => {
+          if (!f2 || cancelled) return;
+
+          // Phase 3 (~0.9s) — app name slides up and fades in
+          Animated.parallel([
+            Animated.timing(nameOpacity,    { toValue: 1, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+            Animated.timing(nameTranslateY, { toValue: 0, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+          ]).start(({ finished: f3 }) => {
+            if (!f3 || cancelled) return;
+            // Hold 1.7s then fade out (0.5s) = 5s total
+            setTimeout(() => { if (!cancelled) startFadeOut(); }, 1700);
+          });
+        });
+      });
+    };
+
     AccessibilityInfo.isReduceMotionEnabled().then((reduced) => {
       if (cancelled) return;
-      const fadeOut = () =>
-        Animated.timing(overlayOpacity, {
-          toValue: 0, duration: reduced ? 150 : 480, useNativeDriver: true,
-        }).start(onDone);
-
-      if (reduced) { contentOpacity.setValue(1); scale.setValue(1); setTimeout(fadeOut, 600); return; }
+      if (reduced) {
+        logoOpacity.setValue(1); logoScale.setValue(1); bgOpacity.setValue(1);
+        nameOpacity.setValue(1); nameTranslateY.setValue(0);
+        setTimeout(() => { if (!cancelled) { onWillFade(); setTimeout(() => { if (!cancelled) onDone(); }, 150); } }, 500);
+        return;
+      }
       playChime();
-      Animated.parallel([
-        Animated.timing(contentOpacity, { toValue: 1, duration: 880, useNativeDriver: true }),
-        Animated.spring(scale, { toValue: 1, tension: 52, friction: 11, useNativeDriver: true }),
-      ]).start(() => setTimeout(fadeOut, 950));
+      runSequence();
     });
     return () => { cancelled = true; };
   }, []);
 
   return (
-    <Animated.View style={[sp.overlay, { backgroundColor: bg, opacity: overlayOpacity }]}>
-      <Animated.View style={[sp.content, { opacity: contentOpacity, transform: [{ scale }] }]}>
-        <View style={sp.iconWrap}>
-          <Ionicons name="book" size={52} color={GOLD} />
-        </View>
-        <Text style={[sp.title, { color: textColor }]}>Daily Devotion</Text>
-        <View style={sp.divider} />
-        <Text style={[sp.sub, { color: mutedColor }]}>Scripture · Prayer · Reflection</Text>
+    <Animated.View style={[sp.overlay, { opacity: overlayOpacity }]}>
+      {/* Solid dark base — opaque from frame 0 regardless of image load state */}
+      <View style={sp.solidBg} />
+
+      {/* Photo background — fades in during Phase 2 */}
+      <Animated.View style={[StyleSheet.absoluteFillObject, { opacity: bgOpacity }]}>
+        <Image
+          source={require('./src/assets/intro-background.jpg')}
+          style={{ width: '100%', height: '100%' }}
+          resizeMode="cover"
+          fadeDuration={0}
+        />
       </Animated.View>
+
+      {/* Dark scrim so text stays readable over the photo */}
+      <View style={sp.scrim} />
+
+      {/* Centered content column */}
+      <View style={sp.center}>
+        {/* Logo — bulges then settles downward */}
+        <Animated.View style={{ opacity: logoOpacity, transform: [{ scale: logoScale }, { translateY: logoTranslateY }] }}>
+          <View style={sp.iconWrap}>
+            <Ionicons name="book" size={52} color={GOLD} />
+          </View>
+        </Animated.View>
+
+        <View style={sp.gap} />
+
+        {/* App name — appears last, slides upward */}
+        <Animated.View style={[sp.nameBlock, { opacity: nameOpacity, transform: [{ translateY: nameTranslateY }] }]}>
+          <Text style={sp.title}>Daily Devotion</Text>
+          <View style={sp.divider} />
+          <Text style={sp.sub}>Scripture · Prayer · Reflection</Text>
+        </Animated.View>
+      </View>
     </Animated.View>
   );
 }
 
 const sp = StyleSheet.create({
-  overlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', zIndex: 999, elevation: 999 },
-  content: { alignItems: 'center', gap: 14 },
+  overlay:  { ...StyleSheet.absoluteFillObject, zIndex: 999, elevation: 999 },
+  solidBg:  { ...StyleSheet.absoluteFillObject, backgroundColor: '#08071A' },
+  scrim:    { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(8,7,18,0.50)' },
+  center:   { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  gap:      { height: 32 },
   iconWrap: {
     width: 100, height: 100, borderRadius: 28,
-    backgroundColor: 'rgba(201,169,107,0.12)', borderWidth: 1.5,
-    borderColor: 'rgba(201,169,107,0.28)', alignItems: 'center', justifyContent: 'center',
-    marginBottom: 8, shadowColor: GOLD, shadowOpacity: 0.18, shadowRadius: 22,
-    shadowOffset: { width: 0, height: 5 }, elevation: 8,
+    backgroundColor: 'rgba(201,169,107,0.15)', borderWidth: 1.5,
+    borderColor: 'rgba(201,169,107,0.40)', alignItems: 'center', justifyContent: 'center',
+    shadowColor: GOLD, shadowOpacity: 0.25, shadowRadius: 26,
+    shadowOffset: { width: 0, height: 6 }, elevation: 10,
   },
-  title:   { fontSize: 28, fontWeight: '700', letterSpacing: 0.4 },
-  divider: { width: 36, height: 1.5, borderRadius: 1, backgroundColor: 'rgba(201,169,107,0.40)', marginVertical: 2 },
-  sub:     { fontSize: 13, letterSpacing: 0.9 },
+  nameBlock: { alignItems: 'center', gap: 8 },
+  title:     { fontSize: 28, fontWeight: '700', letterSpacing: 0.4, color: '#F3EDE3' },
+  divider:   { width: 36, height: 1.5, borderRadius: 1, backgroundColor: 'rgba(201,169,107,0.50)' },
+  sub:       { fontSize: 13, letterSpacing: 0.9, color: 'rgba(255,255,255,0.58)' },
 });
 
 // ─── Tab configuration ────────────────────────────────────────────────────────
@@ -586,24 +651,35 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [splashDone, setSplashDone] = useState(false);
+  // navMounted: NavigationContainer is added to the tree only when splash begins fading,
+  // so HomeScreen never renders or flashes before the intro animation completes.
+  const [navMounted,    setNavMounted]    = useState(false);
+  const [splashRemoved, setSplashRemoved] = useState(false);
+
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
-        <Tab.Navigator
-          id="tabs"
-          tabBar={(props) => <CustomTabBar {...props} />}
-          screenOptions={{ headerShown: false }}
-          initialRouteName="HomeTab"
-        >
-          <Tab.Screen name="ChatTab"      component={ChatScreen} />
-          <Tab.Screen name="CommunityTab" component={CommunityScreen} />
-          <Tab.Screen name="HomeTab"      component={HomeStackScreen} />
-          <Tab.Screen name="BibleTab"     component={BibleStackScreen} />
-          <Tab.Screen name="NotesTab"     component={NotesStackScreen} />
-        </Tab.Navigator>
-      </NavigationContainer>
-      {!splashDone && <AppSplashScreen onDone={() => setSplashDone(true)} />}
+      {navMounted && (
+        <NavigationContainer>
+          <Tab.Navigator
+            id="tabs"
+            tabBar={(props) => <CustomTabBar {...props} />}
+            screenOptions={{ headerShown: false }}
+            initialRouteName="HomeTab"
+          >
+            <Tab.Screen name="ChatTab"      component={ChatScreen} />
+            <Tab.Screen name="CommunityTab" component={CommunityScreen} />
+            <Tab.Screen name="HomeTab"      component={HomeStackScreen} />
+            <Tab.Screen name="BibleTab"     component={BibleStackScreen} />
+            <Tab.Screen name="NotesTab"     component={NotesStackScreen} />
+          </Tab.Navigator>
+        </NavigationContainer>
+      )}
+      {!splashRemoved && (
+        <AppSplashScreen
+          onWillFade={() => setNavMounted(true)}
+          onDone={() => setSplashRemoved(true)}
+        />
+      )}
     </SafeAreaProvider>
   );
 }

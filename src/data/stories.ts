@@ -19,33 +19,19 @@ export type Story = {
   quiz: QuizQuestion[];
 };
 
-const IMG = {
-  fire:        require('../assets/group-story-by-fire.jpg'),
-  sky:         require('../assets/open-bible-and-sky-background.jpg'),
-  table:       require('../assets/open-bible-on-table-in-dusk.jpg'),
-  dusk:        require('../assets/man-pray-in-dusk.jpg'),
-  prayer:      require('../assets/prayer-hand-on-bible(card-icon).jpg'),
-  prayerBg:    require('../assets/group-prayer-hand(background).jpg'),
-  bible:       require('../assets/holy-bible-card-icon.jpg'),
-  prayerIcon:  require('../assets/prayer-hand-for-icon.jpg'),
-  sophia:      require('../assets/-sophia-NaWKMlp3tVs-unsplash.jpg'),
-  faithful:    require('../assets/God-is-faithful.jpg'),
-  jesusSpelt:  require('../assets/Jesus-spelt.jpg'),
-  jesus:       require('../assets/Jesus.jpg'),
-  apostles:    require('../assets/apostles.jpg'),
-  bold:        require('../assets/bold.jpg'),
-  dove:        require('../assets/dove.jpg'),
-  faithSpelt:  require('../assets/faith-spelled.jpg'),
-  handsClouds: require('../assets/hands-cluds.jpg'),
-  risen:       require("../assets/he's-risen.jpg"),
-  kingBaptism: require('../assets/king-baptism.jpg'),
-  manClouds:   require('../assets/man-clouds.jpg'),
-  openBi:      require('../assets/open-bi.jpg'),
-  morningBible:require('../assets/open-bible-in-the-morning.jpg'),
-  openedDen:   require('../assets/opened-den.jpg'),
-  stones:      require('../assets/stones.jpg'),
-  waterWay:    require('../assets/water-way.jpg'),
-  writingBible:require('../assets/writing-in-bible.jpg'),
+const STORY_BG = {
+  creation:     require('../STORIES-BACKGROUNDS/hands-cluds.jpg'),
+  deliverance:  require('../STORIES-BACKGROUNDS/water-way.jpg'),
+  warriors:     require('../STORIES-BACKGROUNDS/holy-bible-card-icon.jpg'),
+  prophets:     require('../STORIES-BACKGROUNDS/open-bible-and-sky-background.jpg'),
+  miracles:     require('../STORIES-BACKGROUNDS/faith-spelled.jpg'),
+  jonah:        require('../STORIES-BACKGROUNDS/open-bible-on-table-in-dusk.jpg'),
+  jesus:        require('../STORIES-BACKGROUNDS/Jesus-spelt.jpg'),
+  paul:         require('../STORIES-BACKGROUNDS/group-prayer-hand(background).jpg'),
+  church:       require('../STORIES-BACKGROUNDS/apostles.jpg'),
+  revelation:   require('../STORIES-BACKGROUNDS/prayer-hand-on-bible(card-icon).jpg'),
+  endTimes:     require('../STORIES-BACKGROUNDS/open-bible-in-the-morning.jpg'),
+  newJerusalem: require('../STORIES-BACKGROUNDS/prayer-hand-for-icon.jpg'),
 };
 
 export const STORIES: Story[] = [
@@ -59,7 +45,7 @@ export const STORIES: Story[] = [
     reference: 'Genesis 1–2',
     category: 'Old Testament',
     readTime: 5,
-    image: IMG.handsClouds,
+    image: STORY_BG.creation,
     body: [
       'Before time had form or measure, God alone existed. Then He spoke, and from nothing came everything. "In the beginning God created the heaven and the earth. And the earth was without form, and void; and darkness was upon the face of the deep. And the Spirit of God moved upon the face of the waters" (Genesis 1:1–2). Over six days the world took shape: light and darkness, sky and sea, dry land and vegetation, the sun and moon and stars, and every creature of sea, air, and land.',
       'On the sixth day came the crowning act: "Let us make man in our image, after our likeness" (Genesis 1:26). God formed Adam from the dust of the ground and "breathed into his nostrils the breath of life; and man became a living soul" (Genesis 2:7). He placed him in the Garden of Eden, then formed Eve from his rib. When Adam saw her he rejoiced: "This is now bone of my bones, and flesh of my flesh" (Genesis 2:23). On the seventh day God rested, blessed that day, and made it holy.',
@@ -80,7 +66,7 @@ export const STORIES: Story[] = [
     reference: 'Genesis 3',
     category: 'Old Testament',
     readTime: 5,
-    image: IMG.table,
+    image: STORY_BG.creation,
     body: [
       'In the perfect garden of Eden, one commandment stood: "Of the tree of the knowledge of good and evil, thou shalt not eat of it: for in the day that thou eatest thereof thou shalt surely die" (Genesis 2:17). The serpent came to Eve with a question designed to plant doubt: "Yea, hath God said, Ye shall not eat of every tree of the garden?" (Genesis 3:1). The creature twisted God\'s words: "Ye shall not surely die: For God doth know that in the day ye eat thereof, then your eyes shall be opened, and ye shall be as gods" (Genesis 3:4–5).',
       'Eve looked at the fruit, found it desirable, and ate. She gave it to Adam. Their eyes were opened — but not to glory. They saw only their nakedness and were filled with shame. They hid from God among the trees. When God came and called "Where art thou?" (Genesis 3:9), Adam confessed he was afraid. The blame moved quickly — Adam blamed Eve, Eve blamed the serpent. God pronounced judgment on each one.',
@@ -101,7 +87,7 @@ export const STORIES: Story[] = [
     reference: 'Genesis 37, 39–45',
     category: 'Old Testament',
     readTime: 7,
-    image: IMG.sophia,
+    image: STORY_BG.deliverance,
     body: [
       'Jacob loved Joseph more than all his other sons and made him a coat of many colours. When Joseph shared dreams in which his brothers\' sheaves bowed down to his, jealousy became murderous. His brothers stripped his coat, threw him into a pit, and sold him to Ishmaelite traders for twenty pieces of silver. They dipped the coat in goat\'s blood and brought it to their father Jacob, who tore his clothes and mourned for days.',
       'In Egypt, Joseph served faithfully — yet was falsely accused and thrown into prison. "But the LORD was with Joseph, and shewed him mercy, and gave him favour in the sight of the keeper of the prison" (Genesis 39:21). God gave him the gift of interpreting dreams. When Pharaoh was troubled by visions of seven fat cows devoured by seven lean ones, no advisor could explain them. Joseph was brought from prison, interpreted the dreams as seven years of abundance followed by seven years of famine, and advised Pharaoh to store grain. Pharaoh appointed him second in command over all Egypt.',
@@ -122,7 +108,7 @@ export const STORIES: Story[] = [
     reference: 'Exodus 3, 12, 14',
     category: 'Old Testament',
     readTime: 7,
-    image: IMG.waterWay,
+    image: STORY_BG.deliverance,
     body: [
       'For four hundred years the children of Israel had been slaves in Egypt. God heard their crying and remembered His covenant. In the wilderness of Midian, Moses saw a burning bush that was not consumed. "I AM THAT I AM," God declared from the flame, and told Moses to go to Pharaoh with the words: "I AM hath sent me unto you" (Exodus 3:14). Moses returned to Egypt. Ten devastating plagues fell upon the land — water turned to blood, frogs, lice, darkness — and still Pharaoh refused.',
       'The final plague was the most terrible: every firstborn in Egypt would die. God gave Israel a sign of protection. Each household was to slaughter a lamb without blemish and put its blood on the doorposts. "When I see the blood, I will pass over you" (Exodus 12:13). At midnight death swept through Egypt. In every home marked with blood, it passed over. Pharaoh released Israel.',
@@ -143,7 +129,7 @@ export const STORIES: Story[] = [
     reference: 'Numbers 22:21–39',
     category: 'Old Testament',
     readTime: 5,
-    image: IMG.manClouds,
+    image: STORY_BG.prophets,
     body: [
       'Israel was approaching the Promised Land, and the neighbouring king Balak was terrified. Unable to defeat Israel militarily, he hired a prophet named Balaam to curse them, offering significant wealth as payment. God warned Balaam clearly and repeatedly. But Balaam was attracted by the rewards and set out on his donkey. What followed was one of the strangest encounters in all of Scripture — and one that Balaam never could have anticipated from an animal that had served him faithfully for years.',
       'On the road, an angel of the LORD appeared with a drawn sword. The donkey saw the angel. Balaam did not. Three times the angel blocked the way — on the open road, in a narrow path between walls, and finally where there was no room to turn. Three times the donkey responded: swerving off the road, pressing against a wall, and eventually lying down. Three times Balaam, enraged and blind to what was actually happening, beat the animal. Then God opened the donkey\'s mouth. "What have I done to you to make you beat me these three times?" Balaam answered it — apparently finding conversation with his donkey unremarkable in that moment. The donkey appealed to years of faithful service. Had it ever behaved this way before? The answer was obvious.',
@@ -164,7 +150,7 @@ export const STORIES: Story[] = [
     reference: 'Judges 3:12–30',
     category: 'Old Testament',
     readTime: 5,
-    image: IMG.bold,
+    image: STORY_BG.warriors,
     body: [
       'The book of Judges follows a repeating cycle: Israel turns from God, a foreign nation oppresses them, the people cry out, and God raises a deliverer. One of the most unusual was a man named Ehud. At the time Israel had been under the thumb of the Moabites and their king Eglon for eighteen years, paying regular tribute — a constant reminder that they were not free. Ehud was left-handed. That detail seems small, but it was central to everything. Most soldiers carried weapons on their left side to draw them with the right. Ehud strapped a double-edged sword about eighteen inches long to his right thigh, beneath his clothing. No guard would think to search there.',
       'Ehud delivered Israel\'s tribute to King Eglon. After the payment was presented, he appeared to leave — then turned back. He returned alone and requested a private audience: "I have a secret message for you, O king" (Judges 3:19). Eglon dismissed his attendants. The room fell silent. Only the king and Ehud remained. As Eglon leaned forward to hear the message, Ehud reached down, drew the hidden sword, and struck. The attack was so sudden the king had no chance to respond. Ehud left the sword in place, locked the doors, and escaped while the servants assumed the king was resting inside.',
@@ -185,7 +171,7 @@ export const STORIES: Story[] = [
     reference: 'Judges 4:17–22',
     category: 'Old Testament',
     readTime: 5,
-    image: IMG.faithful,
+    image: STORY_BG.warriors,
     body: [
       'Sisera was the commander of a powerful Canaanite army that had terrorised Israel for years with hundreds of iron chariots. When God raised up the prophetess and judge Deborah, she instructed Israel\'s commander Barak to attack. The battle turned decisively against Sisera. His army collapsed, his soldiers scattered, and Sisera himself abandoned his chariot and fled on foot — the most feared military commander in the region running alone through the wilderness. Deborah had already prophesied that the honour of the victory would not go to Barak: "The LORD shall sell Sisera into the hand of a woman" (Judges 4:9).',
       'Exhausted and desperate, Sisera arrived at the tent of a woman named Jael. Her family maintained peaceful relations with the Canaanites, and he believed he had found a safe refuge. Jael welcomed him warmly, offered him milk, covered him with a blanket, and assured him he was safe. The feared general relaxed. He gave her a simple instruction — if anyone comes asking whether there is a man here, say no — and fell into a deep sleep. He had survived the battle. He thought the danger had passed.',
@@ -206,7 +192,7 @@ export const STORIES: Story[] = [
     reference: 'Judges 11',
     category: 'Old Testament',
     readTime: 5,
-    image: IMG.dusk,
+    image: STORY_BG.miracles,
     body: [
       'Jephthah had a difficult beginning. Born to a prostitute, he was driven out by his half-brothers who refused to share the inheritance with him. Rejected by his own family, he fled to the land of Tob where he gathered followers and built a reputation as a capable warrior. When the Ammonites invaded and threatened Israel, the elders of Gilead came to the man they had once cast out with an offer: lead the army and become their ruler. Jephthah agreed, and first attempted diplomacy — sending detailed historical arguments to the Ammonite king about why the disputed land belonged to Israel. The king ignored him entirely.',
       'Before battle, Jephthah made a vow. He promised God that if He granted victory, whatever first came out of the doors of his house to greet him on his return would be offered as a burnt offering. The vow was made spontaneously. God had not requested it. Jephthah was not responding to a divine command — he was attempting to bargain, as if God\'s help required a price. Israel defeated the Ammonites across twenty cities. Jephthah returned home as a hero. Then the doors opened. His daughter came out — his only child — dancing with tambourines to celebrate. The moment he saw her, he tore his clothes. His own words had trapped him.',
@@ -227,7 +213,7 @@ export const STORIES: Story[] = [
     reference: '1 Samuel 14',
     category: 'Old Testament',
     readTime: 5,
-    image: IMG.bold,
+    image: STORY_BG.warriors,
     body: [
       'Israel was facing a massive Philistine force with superior numbers and better weapons. Fear had spread through the entire camp — Israelites were hiding in caves, in cisterns, in thornbushes and pits. Even King Saul hesitated. Into this paralysis came his son Jonathan with an idea he shared with only one person, his armour-bearer: "Come, let us go over unto the Philistines\' garrison that is on the other side" (1 Samuel 14:1). No army, no battle plan, no cleared path. Only a conviction that carried the whole story: "It may be that the LORD will work for us: for there is no restraint to the LORD to save by many or by few" (1 Samuel 14:6).',
       'Jonathan proposed a sign. If the Philistines called them to come up, that would be God\'s confirmation they were giving the outpost into Israel\'s hands. The enemy soldiers spotted them and called out mockingly: "Come up to us and we will shew you a thing" (1 Samuel 14:12). Jonathan told his armour-bearer: that is the sign — climb after me. The armour-bearer had already committed himself completely: "Do all that is in thine heart: turn thee; behold, I am with thee according to thy heart" (1 Samuel 14:7). So they climbed the rocky slope, two men against an outpost.',
@@ -248,7 +234,7 @@ export const STORIES: Story[] = [
     reference: '1 Samuel 17',
     category: 'Old Testament',
     readTime: 6,
-    image: IMG.stones,
+    image: STORY_BG.warriors,
     body: [
       'For forty days, Goliath of Gath — over nine feet tall, clad in bronze armour — walked out from the Philistine lines and roared his challenge: "I defy the armies of Israel this day; give me a man, that we may fight together" (1 Samuel 17:10). Every soldier in Saul\'s army trembled. Into this standoff came David, a shepherd boy delivering food to his brothers. He heard the challenge and his response astonished everyone: "Who is this uncircumcised Philistine, that he should defy the armies of the living God?" (1 Samuel 17:26).',
       'Saul tried to dress David in armour, but he set it aside and went to a brook where he chose five smooth stones. Goliath looked at the approaching boy with contempt. David answered with words that have echoed through centuries: "Thou comest to me with a sword, and with a spear, and with a shield: but I come to thee in the name of the LORD of hosts, the God of the armies of Israel, whom thou hast defied" (1 Samuel 17:45).',
@@ -269,7 +255,7 @@ export const STORIES: Story[] = [
     reference: '1 Kings 22',
     category: 'Old Testament',
     readTime: 5,
-    image: IMG.kingBaptism,
+    image: STORY_BG.prophets,
     body: [
       'King Ahab wanted to go to war to reclaim the city of Ramoth-Gilead. He consulted approximately four hundred prophets — every one predicted the same enthusiastic outcome: "Go up, for the Lord will give it into the hand of the king" (1 Kings 22:6). The unanimous approval suited Ahab perfectly. But his ally, King Jehoshaphat of Judah, was uneasy. Four hundred voices saying exactly the same thing felt less like confirmation and more like performance. He asked whether there was another prophet of the LORD they could consult. Ahab\'s response revealed his character: there was one — Micaiah son of Imlah — but Ahab hated him. "He never prophesies good concerning me, but always evil" (1 Kings 22:8).',
       'A messenger briefed Micaiah on the way: all four hundred prophets had predicted victory — would Micaiah agree? The pressure was extraordinary. One man about to contradict four hundred, speaking against a king who already despised him. Micaiah\'s answer was direct: "As the LORD lives, what the LORD says to me, that I will speak" (1 Kings 22:14). Standing before the kings, he described a vision. He had seen God on His heavenly throne, surrounded by heavenly beings, asking who would entice Ahab to go to his death. A spirit volunteered to be a lying spirit in the mouths of all Ahab\'s prophets. God permitted it. The verdict was clear: four hundred voices had spoken a lie. Ahab would die if he went.',
@@ -290,7 +276,7 @@ export const STORIES: Story[] = [
     reference: '2 Kings 4:8–37',
     category: 'Old Testament',
     readTime: 5,
-    image: IMG.faithSpelt,
+    image: STORY_BG.miracles,
     body: [
       'In the town of Shunem lived a prominent woman who noticed that the prophet Elisha regularly passed through the area. She and her husband built a small room for him — a bed, a table, a chair, and a lamp — so he could rest whenever he came. Their hospitality asked for nothing in return. Elisha wanted to show gratitude and sent his servant to ask what she might desire — a word to the king, perhaps, or to a military commander? She replied with quiet contentment: she was well provided for and needed nothing. Then Gehazi pointed out what should have been obvious: she had no son and her husband was old. Elisha called her back and declared: "About this time next year, you shall embrace a son" (2 Kings 4:16). She told him not to deceive her. But the promise held. The following year, the child was born.',
       'Years passed. The boy grew, and one morning went out to his father in the fields complaining that his head hurt. He was carried home and laid in his mother\'s lap. By midday he was dead. The miracle child was gone. What the Shunammite woman did next reveals her entirely. She did not collapse. She carried the boy upstairs and laid him on Elisha\'s bed. She told her husband she was going to find the prophet and left before he could ask too many questions. When Gehazi met her on the road and asked if all was well, she answered: "All is well" (2 Kings 4:26). She said nothing about the child. But when she reached Elisha himself, she fell at his feet and the grief poured out: "Did I ask my lord for a son? Did I not say, Do not deceive me?" (2 Kings 4:28).',
@@ -311,7 +297,7 @@ export const STORIES: Story[] = [
     reference: '2 Kings 6:8–23',
     category: 'Old Testament',
     readTime: 5,
-    image: IMG.sky,
+    image: STORY_BG.prophets,
     body: [
       'The king of Aram was furious. Every military plan he made somehow failed. Every ambush was avoided. Every secret movement was anticipated by Israel before it could be executed. He called his officers together, convinced there was a traitor among them. His advisors gave a startling reply: "None of us, my lord the king. But Elisha the prophet who is in Israel tells the king of Israel the very words you speak in your bedroom" (2 Kings 6:12). The king\'s response was immediate: capture Elisha. He sent horses and chariots and a great army to surround the city of Dothan at night. By morning, Elisha\'s city was completely encircled.',
       'Elisha\'s servant rose early and saw the enemy forces. He panicked. "Alas, my master! What shall we do?" Elisha\'s response was calm: "Do not be afraid, for those who are with us are more than those who are with them" (2 Kings 6:16). The servant looked around in confusion — there were only two of them. Then Elisha prayed a brief prayer: "LORD, please open his eyes that he may see." God opened the servant\'s eyes. The hills surrounding Elisha were filled with horses and chariots of fire — a heavenly army the enemy never suspected was there. The Arameans were not in control. God was.',
@@ -332,7 +318,7 @@ export const STORIES: Story[] = [
     reference: '2 Kings 7',
     category: 'Old Testament',
     readTime: 5,
-    image: IMG.fire,
+    image: STORY_BG.miracles,
     body: [
       'The city of Samaria was under siege. The Aramean army had surrounded it completely, cutting off all food supplies. As weeks stretched into months the famine became catastrophic — ordinary items sold for outrageous prices, families struggled simply to survive, and hope inside the city walls was dying. Outside those same walls sat four men with even less. They were lepers, forced by their disease to live apart from the city, barred from entering even as the population starved within. One day they looked at each other and asked a straightforward question: "Why sit we here until we die?" (2 Kings 7:3). If they stayed they would starve. If they entered the city they would still starve. The only remaining option was to surrender to the enemy camp — maybe the Arameans would spare them, maybe not. Either way they had nothing to lose.',
       'As twilight fell, the four men began walking toward the Aramean camp. When they arrived, the camp was completely deserted. No guards, no soldiers, no commanders. Tents stood exactly as they had been left. Food sat on tables. Animals were still tied. Weapons remained untouched. The entire army had vanished. What the lepers did not know was that God had caused the Arameans to hear the sound of a vast approaching army — horses, chariots, a great force. Convinced Israel had hired foreign kings to attack them, the soldiers had fled into the night in total panic, abandoning everything they owned. No army existed. God had made them hear one.',
@@ -353,7 +339,7 @@ export const STORIES: Story[] = [
     reference: 'Daniel 6',
     category: 'Old Testament',
     readTime: 6,
-    image: IMG.openedDen,
+    image: STORY_BG.prophets,
     body: [
       'Daniel had served faithfully through the reigns of multiple kings in Babylon. Under King Darius he distinguished himself so greatly that the king planned to set him over the whole kingdom. Jealous officials searched desperately for a charge against him and found nothing — "forasmuch as he was faithful, neither was there any error or fault found in him" (Daniel 6:4). So they targeted his faith. They persuaded Darius to decree that for thirty days no one could pray to any god or man except the king, on pain of being thrown to the lions.',
       'Daniel heard about the decree — and went home and prayed exactly as he always had. He knelt by his open window facing Jerusalem "three times a day, and prayed, and gave thanks before his God, as he did aforetime" (Daniel 6:10). His enemies caught him and reported him. Darius was deeply distressed but the law could not be changed. He said to Daniel with surprising hope: "Thy God whom thou servest continually, he will deliver thee" (Daniel 6:16). That night Darius could not sleep.',
@@ -374,7 +360,7 @@ export const STORIES: Story[] = [
     reference: 'Jonah 1–4',
     category: 'Old Testament',
     readTime: 6,
-    image: IMG.manClouds,
+    image: STORY_BG.jonah,
     body: [
       '"Arise, go to Nineveh, that great city, and cry against it; for their wickedness is come up before me" (Jonah 1:2). Jonah\'s response was to book passage on a ship heading in the opposite direction. God sent a great wind and a mighty tempest that threatened to break the ship apart. Every sailor cried to his own god while Jonah slept below deck. They cast lots; the lot fell on Jonah. He confessed he was fleeing the God who made sea and land. "Cast me forth into the sea," he told them. They threw him overboard and the storm ceased immediately.',
       'God had prepared a great fish that swallowed Jonah whole. Three days and three nights in its belly. There in the darkness, Jonah prayed: "Out of the belly of hell cried I, and thou heardest my voice" (Jonah 2:2). He repented and declared "Salvation is of the LORD" (Jonah 2:9). The fish vomited him onto dry land. God called him a second time — and this time Jonah went. He preached through Nineveh and the entire city, from the king to the poorest citizen, repented in fasting and sackcloth.',
@@ -398,7 +384,7 @@ export const STORIES: Story[] = [
     reference: 'Matthew 2:1–12',
     category: 'New Testament',
     readTime: 6,
-    image: IMG.jesus,
+    image: STORY_BG.jesus,
     body: [
       'Not long after Jesus was born in Bethlehem, mysterious travellers arrived in Jerusalem. They were Magi — scholars, astronomers, and advisors from the East, likely from regions around Persia or Babylon. These were not kings, as many Christmas traditions suggest, but highly educated men who studied the stars and interpreted significant events. They entered Jerusalem asking a startling question: "Where is he that is born King of the Jews? for we have seen his star in the east, and are come to worship him" (Matthew 2:2). The question spread through the city. King Herod — a man famous for his paranoia and brutality, who had executed members of his own family for fear of rivals — was deeply troubled.',
       'Herod gathered the chief priests and teachers of the law and demanded to know where the Messiah was expected to be born. They pointed to Bethlehem, citing the prophecy of Micah. Herod then secretly met with the Magi, found out the exact time the star had appeared, and sent them on their way with a hidden agenda: "Go and search diligently for the young child; and when ye have found him, bring me word again, that I may come and worship him also" (Matthew 2:8). He had no intention of worshipping anyone.',
@@ -419,7 +405,7 @@ export const STORIES: Story[] = [
     reference: 'Matthew 2:13–15',
     category: 'New Testament',
     readTime: 5,
-    image: IMG.sophia,
+    image: STORY_BG.jesus,
     body: [
       'The night the Magi departed another way, Bethlehem was quiet. Mary and Joseph had no idea that danger was already moving toward them. Far away in Jerusalem, King Herod was waiting for the wise men to return. When they did not, his suspicion turned to fury. But before Herod could act, God moved first. As Joseph slept, an angel appeared to him in a dream: "Arise, and take the young child and his mother, and flee into Egypt, and be thou there until I bring thee word: for Herod will seek the young child to destroy him" (Matthew 2:13). The child\'s life was in immediate danger.',
       'Joseph did not argue. He did not wait until morning. He did not ask for more information. The Bible says he rose that very night — and they were gone before sunrise, slipping away under darkness while Bethlehem slept. The gifts the Magi had brought — gold, frankincense, and myrrh — were valuable goods that could be sold or traded along the way, perhaps the very provision God had arranged in advance for this sudden journey. Egypt was outside Herod\'s jurisdiction, and it had been a place of refuge and significance throughout Israel\'s history. Now the Messiah would find shelter there.',
@@ -440,7 +426,7 @@ export const STORIES: Story[] = [
     reference: 'Matthew 8:5–13',
     category: 'New Testament',
     readTime: 5,
-    image: IMG.apostles,
+    image: STORY_BG.jesus,
     body: [
       'When Jesus entered Capernaum, a Roman centurion approached Him. A centurion commanded roughly one hundred soldiers and represented the foreign occupation that most Jews despised. Yet this officer came not with demands or arrogance but with humility. His servant was paralysed and suffering terribly. Instead of ordering Jesus to act, he simply pleaded for mercy. Jesus immediately offered to come and heal the servant. What happened next astonished everyone listening.',
       'The centurion replied: "Lord, I am not worthy that thou shouldest come under my roof: but speak the word only, and my servant shall be healed" (Matthew 8:8). The crowd must have fallen silent. How could this man be so certain? He explained his reasoning with military clarity: "For I am a man under authority, having soldiers under me: and I say to this man, Go, and he goeth; and to another, Come, and he cometh; and to my servant, Do this, and he doeth it" (Matthew 8:9). He understood something many religious people missed. Jesus did not merely perform miracles — He commanded creation itself. Just as soldiers obeyed military orders without question, sickness obeyed Christ.',
@@ -461,7 +447,7 @@ export const STORIES: Story[] = [
     reference: 'Mark 5:1–20',
     category: 'New Testament',
     readTime: 6,
-    image: IMG.prayerBg,
+    image: STORY_BG.jesus,
     body: [
       'Across the Sea of Galilee lived a man nobody wanted near them. He lived among tombs. He screamed through the night. He cut himself with stones. People had tried to chain him — and he had broken every chain. The entire region knew of him and feared him. He was completely isolated: too dangerous for society, yet suffering profoundly in his isolation. When Jesus stepped ashore, this was the man who came running toward Him.',
       'Instead of attacking, the man fell before Jesus. A voice cried out: "What have I to do with thee, Jesus, thou Son of the most high God? I adjure thee by God, that thou torment me not" (Mark 5:7). This is one of the most striking moments in the Gospels — the demons recognised Jesus immediately and with absolute certainty. Many people debated who He was. The evil spirits did not. Jesus asked for a name. The reply came: "My name is Legion: for we are many" (Mark 5:9). A Roman legion could contain thousands of soldiers. The name communicated the scale of what this man was carrying.',
@@ -482,7 +468,7 @@ export const STORIES: Story[] = [
     reference: 'Luke 18:1–8',
     category: 'New Testament',
     readTime: 4,
-    image: IMG.prayerIcon,
+    image: STORY_BG.jesus,
     body: [
       'Jesus told this parable with a clear stated purpose: to show "that men ought always to pray, and not to faint" (Luke 18:1). In a certain city there was a judge who "feared not God, neither regarded man" (Luke 18:2). He was not corrupt in the dramatic sense — he simply did not care. In that same city was a widow who had been wronged and came to him repeatedly with one request: justice against her adversary. In ancient society, widows often had little legal protection and no powerful advocate to speak for them. She had nothing except her cause and her willingness to keep showing up.',
       'The judge ignored her for a long time. But she kept coming — day after day, the same woman, the same request. Eventually the judge said to himself: "Though I fear not God, nor regard man; Yet because this widow troubleth me, I will avenge her, lest by her continual coming she weary me" (Luke 18:4–5). He did not help her because he had a change of heart. He helped her because she simply would not stop. Jesus then made the contrast explicit: if even an unjust judge who cares nothing for God or people eventually responds to persistence, "shall not God avenge his own elect, which cry day and night unto him?" (Luke 18:7). The answer is yes — and speedily.',
@@ -503,7 +489,7 @@ export const STORIES: Story[] = [
     reference: 'Luke 19:1–10',
     category: 'New Testament',
     readTime: 5,
-    image: IMG.jesusSpelt,
+    image: STORY_BG.jesus,
     body: [
       'Zacchaeus had wealth, influence, and status. He also had a terrible reputation. As the chief tax collector in Jericho, he oversaw a system that many viewed as both corrupt and treasonous. Tax collectors worked for the Roman occupation and were notorious for charging more than required and keeping the difference. He had built his fortune on the backs of his own people. Most of Jericho despised him. When word spread that Jesus was passing through, crowds packed the streets — but no one offered Zacchaeus a space at the front. He was short and could not see over the crowd. So he ran ahead and did something undignified for a man of his social position: he climbed a sycamore tree.',
       'As Jesus passed beneath, He stopped. Looking up, He said: "Zacchaeus, make haste, and come down; for to day I must abide at thy house" (Luke 19:5). Jesus knew his name. Jesus knew where he was hiding. Jesus chose to go to his house — not the house of a Pharisee, not a prominent citizen, but the most unpopular man in town. Zacchaeus came down immediately and received Him joyfully. The crowd was scandalised: "That he was gone to be guest with a man that is a sinner" (Luke 19:7). In their eyes, Jesus had wasted His visit on the wrong person.',
@@ -524,7 +510,7 @@ export const STORIES: Story[] = [
     reference: 'Luke 24:13–35',
     category: 'New Testament',
     readTime: 5,
-    image: IMG.risen,
+    image: STORY_BG.jesus,
     body: [
       'It was Sunday afternoon, just days after Jesus had been crucified. Two disciples were walking from Jerusalem to Emmaus, about seven miles away. Their hopes had been shattered — they had believed Jesus was the promised Messiah who would redeem Israel, but now He was dead. As they walked they discussed everything that had happened: the arrest, the trial, the crucifixion, and the confusing reports that morning of an empty tomb. They were trying to make sense of a story that no longer seemed to make sense. As they talked, a stranger approached and began walking beside them. It was Jesus — but somehow they were prevented from recognising Him.',
       'The stranger asked what they were discussing. Cleopas replied with astonishment: "Art thou only a stranger in Jerusalem, and hast not known the things which are come to pass there in these days?" (Luke 24:18). They told him everything. Then Jesus responded. Beginning with Moses and all the Prophets, He explained how the entire sweep of Scripture pointed forward to a Messiah who had to suffer before entering His glory. Everything suddenly fit together. The Messiah had not failed. The Messiah had fulfilled God\'s plan exactly.',
@@ -545,7 +531,7 @@ export const STORIES: Story[] = [
     reference: 'Acts 20:7–12',
     category: 'New Testament',
     readTime: 4,
-    image: IMG.morningBible,
+    image: STORY_BG.paul,
     body: [
       'Paul arrived in Troas knowing he might never see these believers again. He was leaving the next morning, so he preached late into the night. The meeting took place in a crowded upper room lit by many oil lamps, warm and stuffy. Among those listening was a young man named Eutychus, sitting in a third-story window. At first he probably listened attentively. But as the hours stretched well past midnight, fatigue began to win. He grew drowsier and drowsier — until he fell asleep completely. As he slept he lost his balance and fell from the third-story window. The crowd gasped. When they reached him, he was dead.',
       'Paul hurried downstairs, bent over the young man, and embraced him. Then he told the stunned crowd: "Trouble not yourselves; for his life is in him" (Acts 20:10). Life returned to Eutychus. The believers were overwhelmed with relief and amazement. Afterward Paul returned upstairs, continued the Lord\'s Supper, ate, and talked until daybreak. Luke records that they brought the young man home alive, "and were not a little comforted" (Acts 20:12). Apparently nobody fell asleep again.',
@@ -566,7 +552,7 @@ export const STORIES: Story[] = [
     reference: 'Acts 27',
     category: 'New Testament',
     readTime: 6,
-    image: IMG.waterWay,
+    image: STORY_BG.paul,
     body: [
       'Paul had appealed his case to Caesar and was being transported to Rome as a prisoner. The voyage began normally, but sailing conditions worsened as winter approached. Paul warned the crew: "I can see that our voyage is going to be disastrous" (Acts 27:10). The ship\'s captain disagreed and the majority chose to continue. A violent storm known as the Euroclydon struck without warning. For days the crew fought it — throwing cargo overboard, discarding equipment, doing everything to survive. "And when neither sun nor stars in many days appeared, and no small tempest lay on us, all hope that we should be saved was then taken away" (Acts 27:20). Even experienced sailors had given up.',
       'While everyone else despaired, Paul stood up and addressed the exhausted crew with calm certainty. An angel had appeared to him: "Fear not, Paul; thou must be brought before Caesar: and, lo, God hath given thee all them that sail with thee" (Acts 27:24). Two hundred and seventy-six people aboard, and God had given them all to one prisoner. Paul urged everyone to take food and keep up their courage, and he himself gave thanks publicly and broke bread before them all. After two weeks at sea the sailors detected land and ran the ship toward shore. It struck a sandbar and began breaking apart.',
@@ -587,7 +573,7 @@ export const STORIES: Story[] = [
     reference: 'Acts 28:1–6',
     category: 'New Testament',
     readTime: 4,
-    image: IMG.fire,
+    image: STORY_BG.paul,
     body: [
       'After the shipwreck, all 276 survivors made it to the island of Malta. The local people showed them extraordinary kindness — lighting a large bonfire to help everyone recover from the cold and the rain. Paul immediately joined in. Even after everything he had just endured, he was still serving others. As he gathered sticks and laid them on the fire, a viper driven out by the heat fastened onto his hand and hung there. The islanders saw it immediately.',
       'In their culture, unexpected disasters were read as divine judgment. Their conclusion was swift: "No doubt this man is a murderer, whom, though he hath escaped the sea, yet vengeance suffereth not to live" (Acts 28:4). They all expected him to swell up or suddenly fall dead. They watched. Minutes passed. Nothing happened. They kept watching. Paul shook the viper off into the fire and felt no harm whatsoever.',
@@ -608,7 +594,7 @@ export const STORIES: Story[] = [
     reference: 'Philemon 1–25',
     category: 'New Testament',
     readTime: 5,
-    image: IMG.writingBible,
+    image: STORY_BG.paul,
     body: [
       'Unlike most New Testament stories, this one contains no miracles, storms, angels, or dramatic rescues. Yet it may be one of the most powerful. Onesimus was a slave belonging to a Christian man named Philemon, who hosted a church in his home in Colossae. At some point he ran away — possibly also taking something from his master. Under Roman law, a runaway slave faced severe punishment if captured. Somehow this desperate man crossed paths with Paul while Paul was in prison. Nobody knows exactly how. But the meeting changed everything. Paul shared the gospel, and Onesimus became a believer. The runaway slave became a spiritual son to the imprisoned apostle.',
       'Paul wanted Onesimus to stay with him — the man had become genuinely useful and dear to him. But running away had not resolved the underlying problem. Reconciliation required confronting the past. So Paul sent Onesimus back to Philemon, not alone but carrying a personal letter. That letter is the New Testament book of Philemon. Paul appealed with careful and deliberate words: "Receive him no longer as a servant, but above a servant, a brother beloved, specially to me, but how much more unto thee, both in the flesh, and in the Lord?" (Philemon 1:16). He even offered to personally repay any debt Onesimus owed.',
@@ -632,7 +618,7 @@ export const STORIES: Story[] = [
     reference: 'Acts 2',
     category: 'Early Church',
     readTime: 6,
-    image: IMG.fire,
+    image: STORY_BG.church,
     body: [
       'After Jesus ascended, He told His disciples to wait in Jerusalem. About a hundred and twenty of them gathered in an upper room — praying, waiting, with no timeline and no plan. Ten days passed. Then came the day of Pentecost, the Jewish harvest festival. Suddenly, without warning, a sound like a violent rushing wind filled the entire house. What appeared to be tongues of fire separated and rested on each person. "And they were all filled with the Holy Ghost, and began to speak with other tongues, as the Spirit gave them utterance" (Acts 2:4). The city was packed with pilgrims from across the Roman world, and the sound drew a crowd. Every person heard the disciples speaking in their own native language. Some were amazed. Others mocked, saying they were drunk.',
       'Peter stood up to address the crowd. This was the same Peter who weeks earlier had denied knowing Jesus three times around a charcoal fire. He was neither cautious nor apologetic. He quoted Joel: this outpouring was the fulfilment of ancient prophecy. He quoted David to declare that Jesus of Nazareth — crucified and raised — had been exalted to the right hand of God and poured out what they were now seeing and hearing. "Therefore let all the house of Israel know assuredly, that God hath made that same Jesus, whom ye have crucified, both Lord and Christ" (Acts 2:36). The crowd was cut to the heart: "Men and brethren, what shall we do?" Peter answered: repent and be baptized in the name of Jesus Christ for the remission of sins, and you will receive the gift of the Holy Spirit. The promise was for them, their children, and all who were afar off.',
@@ -653,7 +639,7 @@ export const STORIES: Story[] = [
     reference: 'Acts 5:1–11',
     category: 'Early Church',
     readTime: 4,
-    image: IMG.prayer,
+    image: STORY_BG.church,
     body: [
       'The early church was experiencing remarkable unity — believers were selling property and sharing resources with those in need, not because they were forced to but because they loved one another. Among these believers was a couple named Ananias and Sapphira who decided to sell a piece of land. The decision to give was commendable. The problem came afterward: they secretly kept back part of the money while presenting the remainder as though it were the full amount. They wanted the reputation of generosity without its sacrifice.',
       'When Ananias brought the money to the apostles, Peter confronted him directly: "Why has Satan filled your heart to lie to the Holy Ghost?" (Acts 5:3). Peter made clear that the property had belonged entirely to Ananias — he was free to do whatever he wished with it. There was nothing wrong with keeping some. The sin was the deception. "Thou hast not lied unto men, but unto God" (Acts 5:4). Immediately after hearing these words, Ananias collapsed and died. Young men carried him out and buried him.',
@@ -674,7 +660,7 @@ export const STORIES: Story[] = [
     reference: 'Acts 8:26–40',
     category: 'Early Church',
     readTime: 5,
-    image: IMG.dove,
+    image: STORY_BG.church,
     body: [
       'Philip was in the middle of a successful revival in Samaria — large crowds listening, people being healed — when God gave him an unexpected instruction: leave and go south to the desert road from Jerusalem to Gaza. No explanation. No details. Just direction. He obeyed. Along that empty road he encountered a man of extraordinary status: a high-ranking Ethiopian official responsible for the entire treasury of the queen of Ethiopia. He had traveled hundreds of miles to worship in Jerusalem and was returning home, reading aloud from the scroll of Isaiah as his chariot rolled through the desert.',
       'The Holy Spirit told Philip to approach the chariot. Philip heard the official reading and asked: "Understandest thou what thou readest?" The man\'s reply was honest and open: "How can I, except some man should guide me?" (Acts 8:31). He invited Philip in. The passage he was reading described a suffering servant led like a lamb to slaughter. The official asked who the prophet was describing. "Then Philip opened his mouth, and began at the same scripture, and preached unto him Jesus" (Acts 8:35).',
@@ -695,7 +681,7 @@ export const STORIES: Story[] = [
     reference: 'Acts 12:1–19',
     category: 'Early Church',
     readTime: 5,
-    image: IMG.bible,
+    image: STORY_BG.church,
     body: [
       'King Herod Agrippa had executed James the brother of John with a sword. When he saw it pleased certain groups, he arrested Peter during Passover and assigned sixteen soldiers to guard him in shifts. Escape seemed impossible. While Peter sat in prison, the church gathered night after night to pray. The execution date drew near. Yet Peter remained in chains.',
       'The night before his trial, Peter slept between two soldiers. Suddenly a bright light filled the cell and an angel appeared, striking Peter\'s side to wake him: "Quick, get up!" Immediately the chains fell from his wrists. The angel instructed him to dress and follow. Peter obeyed, thinking he was seeing a vision. They walked through two guard posts, through a massive iron gate that opened of its own accord, and out into the city street. Only then did Peter realise: this was real. "Now I know of a surety, that the LORD hath sent his angel, and hath delivered me out of the hand of Herod" (Acts 12:11).',
@@ -716,7 +702,7 @@ export const STORIES: Story[] = [
     reference: 'Acts 16:16–40',
     category: 'Early Church',
     readTime: 5,
-    image: IMG.prayerBg,
+    image: STORY_BG.church,
     body: [
       'Paul and Silas had arrived in Philippi, a prominent Roman colony. Their ministry there had started well — a woman named Lydia believed, and her household was baptized. Then they encountered a slave girl who had a spirit of divination, earning her owners considerable money as a fortune-teller. She followed Paul and Silas for days, crying out that they were servants of the Most High God. Eventually Paul turned and commanded the spirit to leave her in the name of Jesus Christ. It left immediately. When her owners realised their source of income had vanished, they seized Paul and Silas, dragged them before the magistrates, and accused them of causing civil unrest. The crowd turned against them. The magistrates ordered them stripped and beaten with rods — a brutal punishment — then thrown into the inner dungeon with their feet locked in stocks. It was a particularly severe outcome for doing something entirely good.',
       'At midnight Paul and Silas were praying and singing hymns to God. The other prisoners were listening. Whatever these two men were doing in the darkness — beaten, shackled in the deepest cell — it was not despair. Then the ground shook. A violent earthquake struck, every door flew open, and every chain fell loose. The jailer woke in terror, saw the doors wide open, and drew his sword to kill himself — the Roman penalty for allowing prisoners to escape was death. Paul called out at once: "Do thyself no harm: for we are all here" (Acts 16:28). Not one prisoner had used the open door. The jailer called for lights, ran in trembling, and fell before Paul and Silas. He brought them out and asked the question that has echoed across centuries: "Sirs, what must I do to be saved?"',
@@ -737,7 +723,7 @@ export const STORIES: Story[] = [
     reference: 'Acts 19:23–41',
     category: 'Early Church',
     readTime: 4,
-    image: IMG.apostles,
+    image: STORY_BG.church,
     body: [
       'Ephesus was one of the most important cities in the Roman Empire, centered around the magnificent Temple of Artemis — one of the seven wonders of the ancient world. Thousands of pilgrims visited every year, and a thriving craftsman industry made silver idols and souvenirs connected to the goddess. Then Christianity arrived. As people believed Paul\'s message, many abandoned idol worship entirely. Demand for silver shrines declined.',
       'A silversmith named Demetrius saw the danger clearly and called a meeting of the trade. "Ye know that by this craft we have our wealth," he said, "Moreover ye see and hear, that not alone at Ephesus, but almost throughout all Asia, this Paul hath persuaded and turned away much people, saying that they be no gods, which are made with hands" (Acts 19:25–26). He was not merely concerned about religion — he was concerned about money. Fear turned into fury. The city erupted. Crowds surged into the great theatre chanting "Great is Diana of the Ephesians!" for two solid hours. Luke notes that many in the crowd did not even know why they were there.',
@@ -761,7 +747,7 @@ export const STORIES: Story[] = [
     reference: 'Revelation 1:9',
     category: 'Revelation',
     readTime: 5,
-    image: IMG.sky,
+    image: STORY_BG.revelation,
     body: [
       'John introduced himself at the opening of Revelation with a single sentence that carried the weight of decades: "I John, who also am your brother, and companion in tribulation, and in the kingdom and patience of Jesus Christ, was in the isle that is called Patmos, for the word of God, and for the testimony of Jesus Christ" (Revelation 1:9). He named no title, no rank. He named what he shared with his readers: tribulation, the kingdom, and patient endurance. John was not on Patmos by choice.',
       'The Roman Emperor Domitian had declared himself "Lord and God" and demanded worship throughout the empire. Those who refused faced arrest, exile, or death. John had outlived nearly every other apostle — James was executed early, Peter crucified, Paul beheaded — and now, an old man of perhaps ninety years, he was still serving the churches of Asia when he was arrested. Early church writers including Tertullian recorded that John was brought to Rome and thrown into boiling oil before a hostile crowd. He emerged unharmed. Unable to kill him, Domitian sent him away instead — to Patmos, a small rocky island in the Aegean Sea used by Rome as a penal colony for political prisoners.',
@@ -782,7 +768,7 @@ export const STORIES: Story[] = [
     reference: 'Revelation 1',
     category: 'Revelation',
     readTime: 6,
-    image: IMG.handsClouds,
+    image: STORY_BG.revelation,
     body: [
       'The apostle John was a prisoner on the island of Patmos "for the word of God, and for the testimony of Jesus Christ" (Revelation 1:9) — exiled, aged, cut off from the churches he loved. On the Lord\'s Day he was in the Spirit when he heard behind him a voice like a trumpet commanding him to write what he saw and send it to seven churches. He turned to see the voice — and was overwhelmed. Seven golden lampstands stood before him, and in their midst "one like unto the Son of man, clothed with a garment down to the foot, and girt about the paps with a golden girdle" (Revelation 1:13).',
       'The description of the glorified Christ is unlike any Gospel portrait: hair white as snow, eyes like flames of fire, feet like burnished bronze in a furnace, voice like the sound of many waters, face shining like the sun in full strength. In His right hand He held seven stars. Out of His mouth came a sharp two-edged sword. When John saw this vision, he "fell at his feet as dead" (Revelation 1:17). This is not the meek teacher of the manger — this is the King of Kings in unveiled, eternal majesty.',
@@ -803,7 +789,7 @@ export const STORIES: Story[] = [
     reference: 'Revelation 2–3',
     category: 'Revelation',
     readTime: 6,
-    image: IMG.openBi,
+    image: STORY_BG.revelation,
     body: [
       'Christ instructed John to write letters to seven churches in Asia Minor — Ephesus, Smyrna, Pergamos, Thyatira, Sardis, Philadelphia, and Laodicea. Each letter was personal, specific, and searching. They represent the full spectrum of the church — triumphant and failing, faithful and compromising, alive and dead. To Ephesus, Christ commended their hard work and rejection of false apostles, then brought a sobering charge: "I have somewhat against thee, because thou hast left thy first love. Remember therefore from whence thou art fallen, and repent" (Revelation 2:4–5). Activity without affection was not enough.',
       'To the suffering church in Smyrna, He offered no rebuke — only courage: "be thou faithful unto death, and I will give thee a crown of life" (Revelation 2:10). To Sardis, a shocking verdict: "Thou hast a name that thou livest, and art dead" (Revelation 3:1). A church can be famous and yet be lifeless before Christ. To Philadelphia He said an open door had been set before them that no one could shut — not by their size or strength, but by their faithfulness to His word.',
@@ -824,7 +810,7 @@ export const STORIES: Story[] = [
     reference: 'Revelation 5–6',
     category: 'Revelation',
     readTime: 5,
-    image: IMG.dusk,
+    image: STORY_BG.endTimes,
     body: [
       'In John\'s vision, the One on the throne held a scroll sealed with seven seals. No one in heaven or earth was found worthy to open it. John wept — until an elder said: "Weep not: behold, the Lion of the tribe of Juda, the Root of David, hath prevailed to open the book" (Revelation 5:5). And there stood the Lamb, as it had been slain. Only Jesus Christ was found worthy to open the seals of history. Heaven broke into worship: "Worthy is the Lamb that was slain to receive power, and riches, and wisdom, and strength, and honour, and glory, and blessing" (Revelation 5:12).',
       'When the first seal was opened, a white horse appeared. Its rider held a bow and was given a crown, "and he went forth conquering, and to conquer" (Revelation 6:2). The second seal brought a red horse and a rider given power to take peace from the earth. The third seal brought a black horse whose rider held scales — basic food at extreme cost, a picture of devastating famine.',
@@ -845,7 +831,7 @@ export const STORIES: Story[] = [
     reference: 'Revelation 7 & 14',
     category: 'Revelation',
     readTime: 5,
-    image: IMG.faithSpelt,
+    image: STORY_BG.endTimes,
     body: [
       'After the sixth seal was opened, John saw four angels holding back the four winds of the earth. A fifth angel came from the rising of the sun holding the seal of the living God and called out: do not harm the earth or sea or trees until we have sealed the servants of God on their foreheads. The number of those sealed was one hundred and forty-four thousand — twelve thousand from each of the twelve tribes of Israel. The seal was not like the mark of the beast — it was a mark of divine identity and protection, written by God on those who belonged to Him.',
       'Immediately after hearing the number, John saw a second company so vast it could not be counted: "a great multitude, which no man could number, of all nations, and kindreds, and people, and tongues, stood before the throne, and before the Lamb, clothed with white robes, and palms in their hands; And cried with a loud voice, saying, Salvation to our God which sitteth upon the throne, and unto the Lamb" (Revelation 7:9–10). One of the elders identified them: these were the ones who had come out of the great tribulation, who had washed their robes white in the blood of the Lamb. They would never hunger or thirst again. God would wipe every tear from their eyes.',
@@ -866,7 +852,7 @@ export const STORIES: Story[] = [
     reference: 'Revelation 8–9',
     category: 'Revelation',
     readTime: 6,
-    image: IMG.prayerBg,
+    image: STORY_BG.endTimes,
     body: [
       'After the seventh seal was opened, there was silence in heaven for about half an hour. Then seven angels were given seven trumpets. Before any trumpet sounded, another angel stood at the golden altar with a golden censer. Incense and the prayers of all the saints rose before God — and then the angel filled the censer with fire from the altar and hurled it to earth. Thunder, lightning, and an earthquake followed. The imagery was deliberate: the prayers of God\'s people were not passive or forgotten. They were fire before the throne, and they preceded the trumpets that would shake the world.',
       'The first four trumpets struck in rapid succession. Hail and fire mixed with blood burned up a third of the earth\'s trees and all its green grass. A burning mass like a great mountain crashed into the sea — a third of the sea turned to blood, a third of its creatures died, a third of the ships were destroyed. A star called Wormwood fell on a third of the rivers and springs, turning them bitter so that many died. Then a third of the sun, moon, and stars were struck dark. Between the fourth and fifth, an eagle cried with a haunting warning through the middle of heaven: "Woe, woe, woe to the inhabitants of the earth by reason of the other voices of the trumpet of the three angels, which are yet to sound!" (Revelation 8:13).',
@@ -887,7 +873,7 @@ export const STORIES: Story[] = [
     reference: 'Revelation 10',
     category: 'Revelation',
     readTime: 5,
-    image: IMG.writingBible,
+    image: STORY_BG.endTimes,
     body: [
       'Between the sixth and seventh trumpets, John saw something that stopped him completely. "I saw another mighty angel come down from heaven, clothed with a cloud: and a rainbow was upon his head, and his face was as it were the sun, and his feet as pillars of fire" (Revelation 10:1). The angel was vast beyond imagination — his right foot planted on the sea, his left foot on the land, straddling two worlds. When he cried out, his voice was like the roaring of a lion. In response, seven thunders spoke. John lifted his pen to write what they said — and was immediately commanded to seal it up. Some of what God revealed to John in that moment was not for this age.',
       'The mighty angel raised his right hand to heaven and swore by the One who lives forever and ever: "There should be time no longer: But in the days of the voice of the seventh angel, when he shall begin to sound, the mystery of God should be finished, as he hath declared to his servants the prophets" (Revelation 10:6–7). The declaration was absolute and final. The centuries of promises through Moses and David, Isaiah and Jeremiah, Daniel and the minor prophets — every one of them would reach completion when the seventh trumpet sounded. The waiting would end. The mystery of God would be finished.',
@@ -908,7 +894,7 @@ export const STORIES: Story[] = [
     reference: 'Revelation 12',
     category: 'Revelation',
     readTime: 6,
-    image: IMG.jesus,
+    image: STORY_BG.endTimes,
     body: [
       'John saw a great sign in heaven: a woman clothed with the sun, the moon beneath her feet, and a crown of twelve stars on her head. She was pregnant and crying out in labour. Then another sign appeared — a great red dragon with seven heads and ten horns and seven crowns. His tail swept a third of the stars from the sky and hurled them to earth. He positioned himself before the woman, ready to devour her child the moment it was born. She gave birth to a son — "who was to rule all nations with a rod of iron" (Revelation 12:5). Before the dragon could act, the child was caught up to God and to His throne. The ancient enemy had failed again.',
       'War broke out in heaven. Michael and his angels fought against the dragon. The dragon and his angels fought back — and lost. "Neither was their place found any more in heaven" (Revelation 12:8). The great dragon was cast down — "that old serpent, called the Devil, and Satan, which deceiveth the whole world." A voice proclaimed: "Now is come salvation, and strength, and the kingdom of our God, and the power of his Christ: for the accuser of our brethren is cast down, which accused them before our God day and night" (Revelation 12:10). The one who had stood daily before God to accuse believers was removed from that position. And then came the announcement of how he was overcome: "They overcame him by the blood of the Lamb, and by the word of their testimony; and they loved not their lives unto the death" (Revelation 12:11).',
@@ -929,7 +915,7 @@ export const STORIES: Story[] = [
     reference: 'Revelation 15–16',
     category: 'Revelation',
     readTime: 6,
-    image: IMG.prayer,
+    image: STORY_BG.endTimes,
     body: [
       'John saw another sign in heaven — great and marvellous: seven angels with the seven last plagues, "for in them is filled up the wrath of God" (Revelation 15:1). But before the bowls were poured, he saw those who had overcome the beast standing on a sea of glass mingled with fire, holding harps and singing the song of Moses and the song of the Lamb: "Great and marvellous are thy works, Lord God Almighty; just and true are thy ways, thou King of saints" (Revelation 15:3). Worship preceded judgment. The temple in heaven opened and the seven angels came out, each given a golden bowl filled with the wrath of God. A voice commanded: "Go your ways, and pour out the vials of the wrath of God upon the earth" (Revelation 16:1).',
       'The first bowl: painful sores on everyone bearing the mark of the beast. The second: the sea became like the blood of a corpse, every living creature in it died. The third: rivers and springs became blood — an angel declared this was just, for those who shed the blood of prophets and saints were now given blood to drink. The fourth: the sun was given power to scorch people with fire; men were scorched with great heat and "blasphemed the name of God... and they repented not" (Revelation 16:9). The fifth bowl was poured on the throne of the beast itself — darkness fell on his kingdom and people gnawed their tongues in agony. Still they refused to repent. The sixth bowl dried up the great Euphrates River, and three unclean spirits like frogs came from the dragon, the beast, and the false prophet, gathering the kings of the earth to Armageddon.',
@@ -950,7 +936,7 @@ export const STORIES: Story[] = [
     reference: 'Revelation 21–22',
     category: 'Revelation',
     readTime: 7,
-    image: IMG.dove,
+    image: STORY_BG.newJerusalem,
     body: [
       'After every vision of tribulation and judgment, John saw something so glorious it defies human language. "And I saw a new heaven and a new earth: for the first heaven and the first earth were passed away" (Revelation 21:1). Then came the Holy City, New Jerusalem, "coming down from God out of heaven, prepared as a bride adorned for her husband" (Revelation 21:2). A great voice declared the defining reality of the new creation: "Behold, the tabernacle of God is with men, and he will dwell with them, and they shall be his people, and God himself shall be with them, and be their God. And God shall wipe away all tears from their eyes; and there shall be no more death, neither sorrow, nor crying, neither shall there be any more pain: for the former things are passed away" (Revelation 21:3–4). God Himself spoke: "Behold, I make all things new" (Revelation 21:5).',
       'The city shone with the glory of God, clear as crystal, with twelve gates of pearl and twelve foundations bearing the names of the twelve apostles. John saw no temple in the city: "for the Lord God Almighty and the Lamb are the temple of it. And the city had no need of the sun, neither of the moon, to shine in it: for the glory of God did lighten it, and the Lamb is the light thereof" (Revelation 21:22–23). The gates were never shut.',

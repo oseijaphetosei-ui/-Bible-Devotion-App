@@ -27,6 +27,13 @@ export const LIGHT = {
   goldBorder: 'rgba(201,169,107,0.30)',
   goldText: '#C9A96B',
 
+  // Card labels (quick-nav cards): dark in light mode, gold in dark mode
+  cardLabel: '#2F2A24',
+
+  // Filter chip inactive state — more opaque than chipBg to stay visible
+  filterInactiveBg:     'rgba(47,42,36,0.12)',
+  filterInactiveBorder: 'rgba(47,42,36,0.20)',
+
   // Inputs
   inputBg: 'rgba(47,42,36,0.05)',
   inputBorder: 'rgba(47,42,36,0.10)',
@@ -74,6 +81,13 @@ export const DARK = {
   goldBg: 'rgba(201,169,107,0.14)',
   goldBorder: 'rgba(201,169,107,0.32)',
   goldText: '#C9A96B',
+
+  // Card labels (quick-nav cards): dark in light mode, gold in dark mode
+  cardLabel: '#C9A96B',
+
+  // Filter chip inactive state — more opaque than chipBg to stay visible
+  filterInactiveBg:     'rgba(243,237,227,0.14)',
+  filterInactiveBorder: 'rgba(243,237,227,0.22)',
 
   // Inputs
   inputBg: 'rgba(243,237,227,0.05)',

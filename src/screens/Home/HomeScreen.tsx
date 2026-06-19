@@ -10,6 +10,7 @@ import {
   Animated,
   Easing,
   LayoutChangeEvent,
+  Dimensions,
   ImageBackground,
   Image,
 } from 'react-native';
@@ -76,7 +77,7 @@ const SECTIONS: AccordionSection[] = [
     icon: '📖',
     title: "Today's Verse",
     meta: '2 MIN',
-    thumbnail: require('../../assets/water-way.jpg'),
+    thumbnail: require('../../assets/today-verse.jpg'),
   },
   {
     id: 'devotion',
@@ -361,6 +362,47 @@ export default function HomeScreen() {
     setOpenId(prev => (prev === id ? null : id));
   }, []);
 
+  // ── Card entrance animation ───────────────────────────────────────────────
+  const cardOpacity    = useRef(new Animated.Value(0)).current;
+  const cardTranslateY = useRef(new Animated.Value(40)).current;
+  const cardScale      = useRef(new Animated.Value(0.94)).current;
+  const hasAnimated    = useRef(false);
+  const cardSectionRef = useRef<View>(null);
+
+  const triggerCardAnim = useCallback(() => {
+    if (hasAnimated.current) return;
+    hasAnimated.current = true;
+    console.log('[Cards] Animation triggered');
+    Animated.parallel([
+      Animated.timing(cardOpacity,    { toValue: 1, duration: 800, useNativeDriver: true }),
+      Animated.timing(cardTranslateY, { toValue: 0, duration: 800, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(cardScale,      { toValue: 1, duration: 800, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  const checkVisibility = useCallback(() => {
+    if (hasAnimated.current || !cardSectionRef.current) return;
+    const screenH = Dimensions.get('window').height;
+    cardSectionRef.current.measure((_x, _y, _w, height, _px, pageY) => {
+      if (height <= 0) return;
+      const visibleTop    = Math.max(pageY, 0);
+      const visibleBottom = Math.min(pageY + height, screenH);
+      const visiblePx     = Math.max(0, visibleBottom - visibleTop);
+      const visibleFraction = visiblePx / height;
+      console.log(`[Cards] Visibility: ${Math.round(visibleFraction * 100)}%`);
+      if (visibleFraction >= 0.4) triggerCardAnim();
+    });
+  }, [triggerCardAnim]);
+
+  const onCardsLayout = useCallback(() => {
+    console.log('[Cards] Section mounted');
+    checkVisibility();
+  }, [checkVisibility]);
+
+  const onScroll = useCallback(() => {
+    checkVisibility();
+  }, [checkVisibility]);
+
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <SafeAreaView style={styles.safe} edges={['top']}>
@@ -426,6 +468,8 @@ export default function HomeScreen() {
           style={styles.scroll}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
         >
           {/* Accordion sections */}
           {SECTIONS.map(section => (
@@ -438,32 +482,44 @@ export default function HomeScreen() {
           ))}
 
           {/* Quick nav */}
-          <Text style={[styles.sectionLabel, { color: t.textMuted, marginTop: 8 }]}>EXPLORE</Text>
-          <View style={styles.quickNavRow}>
-            <TouchableOpacity
-              style={[styles.quickNavItem, { backgroundColor: t.card, borderColor: t.cardBorder }]}
-              onPress={() => navigation.navigate('Stories')}
+          <Text style={[styles.sectionLabel, { color: t.textMuted, marginTop: 8 }]}>EXPLORE THESE PREMIUM FEATURES</Text>
+          <View ref={cardSectionRef} onLayout={onCardsLayout}>
+            <Animated.View
+              style={[
+                styles.quickNavRow,
+                {
+                  opacity: cardOpacity,
+                  transform: [{ translateY: cardTranslateY }, { scale: cardScale }],
+                },
+              ]}
             >
-              <Image source={require('../../assets/group-story-by-fire.jpg')} style={styles.quickNavImage} />
-              <Text style={[styles.quickNavLabel, { color: t.text }]}>Stories</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.quickNavItem, { backgroundColor: t.card, borderColor: t.cardBorder }]}
+                onPress={() => navigation.navigate('Stories')}
+              >
+                <Image source={require('../../assets/group-story-by-fire.jpg')} style={styles.quickNavImage} />
+                <Text style={[styles.quickNavLabel, { color: t.cardLabel }]}>Stories</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.quickNavItem, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}
-              onPress={() => {
-                const verse = getTodayVerseEntry();
-                navigation.navigate('ScriptureChat', {
-                  reference: verse.label,
-                  contextType: 'verse',
-                  context: `${verse.label}\n\n"${verse.fallbackText}"`,
-                });
-              }}
-            >
-              <View style={styles.quickNavIconWrap}>
-                <Ionicons name="chatbubbles-outline" size={32} color={t.gold} />
-              </View>
-              <Text style={[styles.quickNavLabel, { color: t.gold }]}>Talk to Scripture</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.quickNavItem, { backgroundColor: t.card, borderColor: t.cardBorder }]}
+                onPress={() => {
+                  const verse = getTodayVerseEntry();
+                  navigation.navigate('ScriptureChat', {
+                    reference: verse.label,
+                    contextType: 'verse',
+                    context: `${verse.label}\n\n"${verse.fallbackText}"`,
+                  });
+                }}
+              >
+                <Image
+                  source={require('../../assets/talk-to-scripture.jpg')}
+                  style={styles.quickNavImage}
+                  resizeMode="cover"
+                />
+                <Text style={[styles.quickNavLabel, { color: t.cardLabel }]}>Talk to Scripture</Text>
+              </TouchableOpacity>
+            </Animated.View>
           </View>
         </ScrollView>
       </SafeAreaView>

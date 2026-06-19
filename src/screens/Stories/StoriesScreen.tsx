@@ -81,12 +81,16 @@ export default function StoriesScreen() {
                 onPress={() => setActiveCategory(cat as any)}
                 style={[
                   s.filterTab,
-                  { borderColor: t.chipBorder, backgroundColor: t.chipBg },
-                  isActive && { borderColor: color + 'AA', backgroundColor: color + '18' },
+                  isActive
+                    ? { backgroundColor: color + '28', borderColor: color + '90' }
+                    : { backgroundColor: t.filterInactiveBg, borderColor: t.filterInactiveBorder },
                 ]}
-                activeOpacity={0.75}
+                activeOpacity={0.72}
               >
-                <Text style={[s.filterTabText, { color: t.textMuted }, isActive && { color }]}>{cat}</Text>
+                <View style={[s.filterDot, { backgroundColor: color, opacity: isActive ? 1 : 0.35 }]} />
+                <Text style={[s.filterTabText, { color: isActive ? color : t.text }]}>
+                  {cat}
+                </Text>
               </TouchableOpacity>
             );
           })}
@@ -147,12 +151,24 @@ const s = StyleSheet.create({
   headerTitle: { fontSize: 12, fontWeight: '700', letterSpacing: 1.5 },
   headerSpacer: { width: 44 },
 
-  filterContent: { paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
+  filterContent: { paddingHorizontal: 16, paddingVertical: 12, gap: 10, alignItems: 'center' },
   filterTab: {
-    paddingHorizontal: 14, paddingVertical: 7,
-    borderRadius: 20, borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 40,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    borderWidth: 1,
   },
-  filterTabText: { fontSize: 12, fontWeight: '600', letterSpacing: 0.4 },
+  filterDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    marginRight: 8,
+    flexShrink: 0,
+  },
+  filterTabText: { fontSize: 14, fontWeight: '600', letterSpacing: 0.3, lineHeight: 18 },
 
   countLabel: {
     fontSize: 11, paddingHorizontal: 20, paddingTop: 4,
