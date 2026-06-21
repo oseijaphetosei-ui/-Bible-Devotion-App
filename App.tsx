@@ -11,6 +11,9 @@ import {
   AccessibilityInfo,
   useColorScheme,
 } from 'react-native';
+import { AppearanceProvider, useAppearance } from './src/context/AppearanceContext';
+import { ProfileProvider } from './src/context/ProfileContext';
+import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
@@ -32,24 +35,42 @@ import DirectMessageScreen from './src/screens/Chat/DirectMessageScreen';
 import GroupChatScreen from './src/screens/Chat/GroupChatScreen';
 import NewChatScreen from './src/screens/Chat/NewChatScreen';
 import CommunityScreen from './src/screens/Community/CommunityScreen';
+import CreatePostScreen from './src/screens/Community/CreatePostScreen';
+import PostDetailScreen from './src/screens/Community/PostDetailScreen';
+import ProfileScreen from './src/screens/Profile/ProfileScreen';
+import EditProfileScreen from './src/screens/Profile/EditProfileScreen';
+import AppearanceScreen from './src/screens/Profile/AppearanceScreen';
+import NotificationsScreen from './src/screens/Profile/NotificationsScreen';
+import PrivacyScreen from './src/screens/Profile/PrivacyScreen';
 import NotesScreen from './src/screens/Notes/NotesScreen';
 import NoteEditorScreen from './src/screens/Notes/NoteEditorScreen';
 import DevotionScreen from './src/screens/Devotion/DevotionScreen';
 import ScriptureChatScreen from './src/screens/ScriptureChat/ScriptureChatScreen';
+import WelcomeScreen from './src/screens/Auth/WelcomeScreen';
+import EmailAuthScreen from './src/screens/Auth/EmailAuthScreen';
+import ForgotPasswordScreen from './src/screens/Auth/ForgotPasswordScreen';
 
 import {
   HomeStackParamList,
   BibleStackParamList,
   NotesStackParamList,
   ChatStackParamList,
+  CommunityStackParamList,
+  ProfileStackParamList,
+  AppRootParamList,
   RootTabParamList,
+  AuthStackParamList,
 } from './src/types/navigation';
 
-const HomeStack = createNativeStackNavigator<HomeStackParamList>();
-const BibleStack = createNativeStackNavigator<BibleStackParamList>();
-const ChatStack  = createNativeStackNavigator<ChatStackParamList>();
-const NotesStack = createNativeStackNavigator<NotesStackParamList>();
-const Tab = createBottomTabNavigator<RootTabParamList>();
+const HomeStack      = createNativeStackNavigator<HomeStackParamList>();
+const BibleStack     = createNativeStackNavigator<BibleStackParamList>();
+const ChatStack      = createNativeStackNavigator<ChatStackParamList>();
+const NotesStack     = createNativeStackNavigator<NotesStackParamList>();
+const CommunityStack = createNativeStackNavigator<CommunityStackParamList>();
+const ProfileStack   = createNativeStackNavigator<ProfileStackParamList>();
+const AppRoot        = createNativeStackNavigator<AppRootParamList>();
+const AuthNav        = createNativeStackNavigator<AuthStackParamList>();
+const Tab            = createBottomTabNavigator<RootTabParamList>();
 
 function HomeStackScreen() {
   return (
@@ -97,6 +118,71 @@ function NotesStackScreen() {
   );
 }
 
+function CommunityStackScreen() {
+  return (
+    <CommunityStack.Navigator id="community" screenOptions={{ headerShown: false }}>
+      <CommunityStack.Screen name="Community"  component={CommunityScreen}  />
+      <CommunityStack.Screen name="CreatePost" component={CreatePostScreen} />
+      <CommunityStack.Screen name="PostDetail" component={PostDetailScreen} />
+    </CommunityStack.Navigator>
+  );
+}
+
+function ProfileStackScreen() {
+  return (
+    <ProfileStack.Navigator id="profile" screenOptions={{ headerShown: false }}>
+      <ProfileStack.Screen name="Profile"       component={ProfileScreen}       />
+      <ProfileStack.Screen name="EditProfile"   component={EditProfileScreen}   />
+      <ProfileStack.Screen name="Appearance"    component={AppearanceScreen}    />
+      <ProfileStack.Screen name="Notifications" component={NotificationsScreen} />
+      <ProfileStack.Screen name="Privacy"       component={PrivacyScreen}       />
+    </ProfileStack.Navigator>
+  );
+}
+
+function AuthStackScreen() {
+  return (
+    <AuthNav.Navigator id="auth" screenOptions={{ headerShown: false }}>
+      <AuthNav.Screen name="Welcome"        component={WelcomeScreen}       />
+      <AuthNav.Screen name="EmailAuth"      component={EmailAuthScreen}      />
+      <AuthNav.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+    </AuthNav.Navigator>
+  );
+}
+
+function RootNavigator() {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <AuthStackScreen />;
+  return (
+    <AppRoot.Navigator id="approot" screenOptions={{ headerShown: false }}>
+      <AppRoot.Screen name="MainTabs" component={TabNavigatorComponent} />
+      <AppRoot.Screen
+        name="ProfileModal"
+        component={ProfileStackScreen}
+        options={{ presentation: 'modal' }}
+      />
+    </AppRoot.Navigator>
+  );
+}
+
+function TabNavigatorComponent() {
+  return (
+    <Tab.Navigator
+      id="tabs"
+      tabBar={(props) => <CustomTabBar {...props} />}
+      screenOptions={{ headerShown: false }}
+      initialRouteName="HomeTab"
+    >
+      <Tab.Screen name="ChatTab"      component={ChatStackScreen}      />
+      <Tab.Screen name="CommunityTab" component={CommunityStackScreen} />
+      <Tab.Screen name="HomeTab"      component={HomeStackScreen}      />
+      <Tab.Screen name="BibleTab"     component={BibleStackScreen}     />
+      <Tab.Screen name="NotesTab"     component={NotesStackScreen}     />
+    </Tab.Navigator>
+  );
+}
+
 // ─── App-level launch splash ──────────────────────────────────────────────────
 
 const GOLD        = '#C9A96B';
@@ -137,34 +223,34 @@ function AppSplashScreen({ onWillFade, onDone }: { onWillFade: () => void; onDon
     const startFadeOut = () => {
       onWillFade(); // mount NavigationContainer before fade starts
       Animated.timing(overlayOpacity, {
-        toValue: 0, duration: 500, useNativeDriver: true,
+        toValue: 0, duration: 300, useNativeDriver: true,
       }).start(({ finished }) => { if (finished && !cancelled) onDone(); });
     };
 
     const runSequence = () => {
-      // Phase 1 (~1.0s) — logo bulges in: spring 0.7→1.15 + opacity fade
+      // Phase 1 (~0.5s) — logo bulges in: spring 0.7→1.15 + opacity fade
       Animated.parallel([
-        Animated.timing(logoOpacity, { toValue: 1, duration: 600, useNativeDriver: true }),
-        Animated.spring(logoScale,   { toValue: 1.15, tension: 38, friction: 8, useNativeDriver: true }),
+        Animated.timing(logoOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+        Animated.spring(logoScale,   { toValue: 1.15, tension: 50, friction: 8, useNativeDriver: true }),
       ]).start(({ finished: f1 }) => {
         if (!f1 || cancelled) return;
 
-        // Phase 2 (~0.9s) — logo settles downward (0.7s) while background fades in (0.9s)
+        // Phase 2 (~0.65s) — logo settles downward while background fades in
         Animated.parallel([
-          Animated.timing(logoScale,      { toValue: 1.0, duration: 700, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-          Animated.timing(logoTranslateY, { toValue: 8,   duration: 700, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-          Animated.timing(bgOpacity,      { toValue: 1,   duration: 900, useNativeDriver: true }),
+          Animated.timing(logoScale,      { toValue: 1.0, duration: 500, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+          Animated.timing(logoTranslateY, { toValue: 8,   duration: 500, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+          Animated.timing(bgOpacity,      { toValue: 1,   duration: 650, useNativeDriver: true }),
         ]).start(({ finished: f2 }) => {
           if (!f2 || cancelled) return;
 
-          // Phase 3 (~0.9s) — app name slides up and fades in
+          // Phase 3 (~0.6s) — app name slides up and fades in
           Animated.parallel([
-            Animated.timing(nameOpacity,    { toValue: 1, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-            Animated.timing(nameTranslateY, { toValue: 0, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+            Animated.timing(nameOpacity,    { toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+            Animated.timing(nameTranslateY, { toValue: 0, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
           ]).start(({ finished: f3 }) => {
             if (!f3 || cancelled) return;
-            // Hold 1.7s then fade out (0.5s) = 5s total
-            setTimeout(() => { if (!cancelled) startFadeOut(); }, 1700);
+            // Hold 500ms then fade out (300ms) — total ~2.4s vs original 5s
+            setTimeout(() => { if (!cancelled) startFadeOut(); }, 500);
           });
         });
       });
@@ -304,7 +390,9 @@ const TabItem = memo(function TabItem({
 
 function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const { bottom } = useSafeAreaInsets();
-  const isDark = useColorScheme() === 'dark';
+  const { pref }   = useAppearance();
+  const sysScheme  = useColorScheme();
+  const isDark     = pref === 'system' ? sysScheme === 'dark' : pref === 'dark';
 
   const activeIconColor    = GOLD;
   const inactiveIconColor  = isDark ? 'rgba(243,237,227,0.42)' : 'rgba(47,42,36,0.38)';
@@ -668,35 +756,30 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
 
 export default function App() {
   // navMounted: NavigationContainer is added to the tree only when splash begins fading,
-  // so HomeScreen never renders or flashes before the intro animation completes.
+  // so screens never flash before the intro animation completes.
   const [navMounted,    setNavMounted]    = useState(false);
   const [splashRemoved, setSplashRemoved] = useState(false);
 
   return (
-    <SafeAreaProvider>
-      {navMounted && (
-        <NavigationContainer>
-          <Tab.Navigator
-            id="tabs"
-            tabBar={(props) => <CustomTabBar {...props} />}
-            screenOptions={{ headerShown: false }}
-            initialRouteName="HomeTab"
-          >
-            <Tab.Screen name="ChatTab"      component={ChatStackScreen} />
-            <Tab.Screen name="CommunityTab" component={CommunityScreen} />
-            <Tab.Screen name="HomeTab"      component={HomeStackScreen} />
-            <Tab.Screen name="BibleTab"     component={BibleStackScreen} />
-            <Tab.Screen name="NotesTab"     component={NotesStackScreen} />
-          </Tab.Navigator>
-        </NavigationContainer>
-      )}
-      {!splashRemoved && (
-        <AppSplashScreen
-          onWillFade={() => setNavMounted(true)}
-          onDone={() => setSplashRemoved(true)}
-        />
-      )}
-    </SafeAreaProvider>
+    <AppearanceProvider>
+      <AuthProvider>
+        <ProfileProvider>
+          <SafeAreaProvider>
+            {navMounted && (
+              <NavigationContainer>
+                <RootNavigator />
+              </NavigationContainer>
+            )}
+            {!splashRemoved && (
+              <AppSplashScreen
+                onWillFade={() => setNavMounted(true)}
+                onDone={() => setSplashRemoved(true)}
+              />
+            )}
+          </SafeAreaProvider>
+        </ProfileProvider>
+      </AuthProvider>
+    </AppearanceProvider>
   );
 }
 

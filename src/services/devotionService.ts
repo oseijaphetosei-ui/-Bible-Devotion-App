@@ -1,7 +1,6 @@
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../config/firebaseConfig';
 import { Devotion, BibleTranslation } from '../types/devotion';
-
-// Update this to your deployed server URL when ready
-const SERVER_URL = 'http://localhost:3001';
 
 // ─── Hardcoded fallbacks ──────────────────────────────────────────────────────
 
@@ -97,29 +96,22 @@ export function getTodayFallback(): Devotion {
   return FALLBACKS[keys[dayIndex]];
 }
 
-// ─── Server fetch ─────────────────────────────────────────────────────────────
+// ─── AI fetch via Firebase Function ──────────────────────────────────────────
 
 export async function fetchDevotion(
   topic: string,
   translation: BibleTranslation
 ): Promise<Devotion> {
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
+    const fn = httpsCallable<
+      { topic: string; translation: string },
+      Devotion
+    >(functions, 'generateDevotion');
 
-    const res = await fetch(`${SERVER_URL}/api/devotion/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ topic, translation }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-
-    if (!res.ok) throw new Error(`Server error ${res.status}`);
-    const data = await res.json();
-    return data as Devotion;
+    const result = await fn({ topic, translation });
+    return result.data;
   } catch {
-    // Server unavailable — use local fallback silently
+    // Function unavailable or error — fall back to local content silently
     return matchFallback(topic);
   }
 }

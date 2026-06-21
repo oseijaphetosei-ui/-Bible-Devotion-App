@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import {
   View,
   Text,
@@ -82,6 +82,36 @@ function ChapterHeader({ bookName, chapter }: { bookName: string; chapter: numbe
     </View>
   );
 }
+
+// ─── Verse row ─────────────────────────────────────────────────────────────────
+// Memoized so that only the 1–2 verses whose isPlaying/isTarget state changed
+// actually re-render when audio playback advances or a target verse is highlighted.
+type VerseRowProps = {
+  item: Verse;
+  isPlaying: boolean;
+  isTarget: boolean;
+  onLongPress: () => void;
+};
+
+const VerseRow = memo(function VerseRow({ item, isPlaying, isTarget, onLongPress }: VerseRowProps) {
+  return (
+    <TouchableOpacity
+      onLongPress={onLongPress}
+      delayLongPress={450}
+      activeOpacity={0.88}
+      style={[
+        s.verseBlock,
+        isPlaying && s.verseBlockPlaying,
+        isTarget  && s.verseBlockTarget,
+      ]}
+    >
+      <Text style={s.verseContent}>
+        <Text style={s.verseNum}>{item.verse}{'  '}</Text>
+        {item.text}
+      </Text>
+    </TouchableOpacity>
+  );
+});
 
 // ─── Main screen ───────────────────────────────────────────────────────────────
 export default function BibleScreen() {
@@ -281,9 +311,14 @@ export default function BibleScreen() {
     setTranslationPickerVisible(false);
   };
 
-  const filteredBooks = bookSearch
-    ? BOOKS.filter(b => b.name.toLowerCase().includes(bookSearch.toLowerCase()))
-    : BOOKS;
+  // Precompute {book, index} pairs so the FlatList renderItem never needs
+  // BOOKS.indexOf(item), which is O(66) per row on every render.
+  const filteredBooks = useMemo(() => {
+    const q = bookSearch.toLowerCase();
+    return BOOKS
+      .map((book, index) => ({ book, index }))
+      .filter(({ book }) => !bookSearch || book.name.toLowerCase().includes(q));
+  }, [bookSearch]);
 
   // ── Verse actions ─────────────────────────────────────────────────────────
   const openVerseActions = useCallback((verse: Verse) => {
@@ -393,27 +428,17 @@ export default function BibleScreen() {
   const bottomPad = ctrlBottom + CTRL_H + 16;
 
   // ── Verse renderer ────────────────────────────────────────────────────────
-  const renderVerse = useCallback(({ item }: { item: Verse }) => {
-    const isTarget    = params.verseToScroll === item.verse;
-    const isHighlight = playingVerse === item.verse;
-    return (
-      <TouchableOpacity
-        onLongPress={() => openVerseActions(item)}
-        delayLongPress={450}
-        activeOpacity={0.88}
-        style={[
-          s.verseBlock,
-          isHighlight && s.verseBlockPlaying,
-          isTarget    && s.verseBlockTarget,
-        ]}
-      >
-        <Text style={s.verseContent}>
-          <Text style={s.verseNum}>{item.verse}{'  '}</Text>
-          {item.text}
-        </Text>
-      </TouchableOpacity>
-    );
-  }, [playingVerse, params.verseToScroll, openVerseActions]);
+  // Stable callback — playingVerse/verseToScroll are passed via extraData so
+  // FlatList re-evaluates items when they change, while VerseRow's memo skips
+  // re-rendering any row whose isPlaying/isTarget props didn't actually change.
+  const renderVerse = useCallback(({ item }: { item: Verse }) => (
+    <VerseRow
+      item={item}
+      isPlaying={playingVerse === item.verse}
+      isTarget={params.verseToScroll === item.verse}
+      onLongPress={() => openVerseActions(item)}
+    />
+  ), [playingVerse, params.verseToScroll, openVerseActions]);
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -442,6 +467,7 @@ export default function BibleScreen() {
           ref={flatListRef}
           data={verses}
           keyExtractor={v => String(v.verse)}
+          extraData={[playingVerse, params.verseToScroll]}
           ListHeaderComponent={
             <ChapterHeader bookName={book.name} chapter={chapter} />
           }
@@ -449,6 +475,10 @@ export default function BibleScreen() {
           onScroll={onScroll}
           scrollEventThrottle={16}
           showsVerticalScrollIndicator={false}
+          initialNumToRender={20}
+          maxToRenderPerBatch={15}
+          windowSize={5}
+          removeClippedSubviews
           onScrollToIndexFailed={({ index }) => {
             setTimeout(() => {
               flatListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.2 });
@@ -738,10 +768,9 @@ export default function BibleScreen() {
                 />
                 <FlatList
                   data={filteredBooks}
-                  keyExtractor={b => b.usfm}
+                  keyExtractor={({ book }) => book.usfm}
                   showsVerticalScrollIndicator={false}
-                  renderItem={({ item }) => {
-                    const idx        = BOOKS.indexOf(item);
+                  renderItem={({ item: { book, index: idx } }) => {
                     const isSelected = idx === bookIndex;
                     return (
                       <TouchableOpacity
@@ -749,11 +778,11 @@ export default function BibleScreen() {
                         style={[s.pickerRow, isSelected && s.pickerRowSelected]}
                       >
                         <Text style={[s.pickerRowText, isSelected && s.pickerRowTextSel]}>
-                          {item.name}
+                          {book.name}
                         </Text>
                         <View style={s.pickerRowRight}>
                           <Text style={[s.pickerRowMeta, isSelected && { color: GOLD }]}>
-                            {item.chapters} ch
+                            {book.chapters} ch
                           </Text>
                           <Ionicons name="chevron-forward" size={14} color={T_MUTED} />
                         </View>

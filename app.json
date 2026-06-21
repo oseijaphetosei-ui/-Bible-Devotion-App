@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "Daily Devotion",
+    "slug": "daily-devotion-app",
+    "scheme": "dailydevotion",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "backgroundColor": "#1F1C19"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.japhet.dailydevotion",
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Daily Devotion uses your camera to set your profile photo.",
+        "NSPhotoLibraryUsageDescription": "Daily Devotion accesses your photo library so you can set a profile picture.",
+        "NSPhotoLibraryAddUsageDescription": "Daily Devotion saves photos to your library."
+      }
+    },
+    "android": {
+      "package": "com.japhet.dailydevotion",
+      "adaptiveIcon": {
+        "backgroundColor": "#1F1C19"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Daily Devotion accesses your photo library to set your profile picture.",
+          "cameraPermission": "Daily Devotion uses your camera to take a profile photo."
+        }
+      ],
+      "expo-apple-authentication",
+      "expo-web-browser",
+      "expo-font"
+    ]
+  }
+}

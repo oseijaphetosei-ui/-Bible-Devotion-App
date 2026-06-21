@@ -8,12 +8,13 @@ import {
   ScrollView,
   StyleSheet,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   StatusBar,
   Share,
   Animated,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { createNote } from '../../services/notesService';
@@ -252,6 +253,7 @@ export default function ScriptureChatScreen() {
   const route = useRoute();
   const params = (route.params ?? {}) as ScriptureChatNavParams;
   const t = useTheme();
+  const insets = useSafeAreaInsets();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
@@ -260,6 +262,8 @@ export default function ScriptureChatScreen() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [chatId, setChatId] = useState<string | null>(params.chatId ?? null);
   const [savedMsgId, setSavedMsgId] = useState<string | null>(null);
+  const [kbHeight, setKbHeight] = useState(0);
+  const [inputFocused, setInputFocused] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
   const streamIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -279,6 +283,15 @@ export default function ScriptureChatScreen() {
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 120);
     }
   }, [messages.length, isTyping, isStreaming, streamingContent]);
+
+  // Track keyboard height so the input bar docks right above the keyboard
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvent, e => setKbHeight(e.endCoordinates.height));
+    const hide = Keyboard.addListener(hideEvent, () => setKbHeight(0));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
 
   const streamResponse = useCallback((fullText: string, onDone: () => void) => {
     const words = fullText.split(/(\s+)/);
@@ -417,7 +430,7 @@ export default function ScriptureChatScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
+        <SafeAreaView style={{ flex: 1 }} edges={['top']}>
 
           {/* ── Header ── */}
           <View style={[s.header, { borderBottomColor: t.divider }]}>
@@ -512,7 +525,10 @@ export default function ScriptureChatScreen() {
           )}
 
           {/* ── Input bar ── */}
-          <View style={[s.inputBar, { backgroundColor: t.card, borderColor: t.cardBorder }]}>
+          <View style={[s.inputBar, {
+            backgroundColor: t.card,
+            borderColor: 'transparent',
+          }]}>
             <TextInput
               style={[s.textInput, { color: t.text }]}
               value={inputText}
@@ -524,19 +540,20 @@ export default function ScriptureChatScreen() {
               returnKeyType="send"
               onSubmitEditing={() => sendMessage(inputText)}
               blurOnSubmit={false}
+              onFocus={() => setInputFocused(true)}
+              onBlur={() => setInputFocused(false)}
             />
             <TouchableOpacity
               onPress={() => sendMessage(inputText)}
               disabled={!canSend}
               activeOpacity={0.75}
-              style={[
-                s.sendBtn,
-                { backgroundColor: canSend ? t.gold : t.goldBg },
-              ]}
+              style={[s.sendBtn, { backgroundColor: canSend ? t.gold : t.goldBg }]}
             >
               <Ionicons name="arrow-up" size={18} color={canSend ? '#fff' : t.gold} />
             </TouchableOpacity>
           </View>
+          {/* Floats input above the tab bar; collapses to zero when keyboard is up (KAV handles it) */}
+          <View style={{ height: kbHeight > 0 ? 0 : insets.bottom + 52 }} />
 
         </SafeAreaView>
       </KeyboardAvoidingView>
@@ -594,27 +611,27 @@ const s = StyleSheet.create({
 
   inputBar: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     marginHorizontal: 12,
     marginBottom: 8,
-    marginTop: 4,
-    borderRadius: 20,
-    borderWidth: 1,
-    paddingLeft: 16,
-    paddingRight: 6,
-    paddingVertical: 6,
+    marginTop: 6,
+    borderRadius: 26,
+    borderWidth: 1.5,
+    paddingLeft: 18,
+    paddingRight: 8,
+    paddingVertical: 3,
     gap: 8,
     shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    shadowOpacity: 0.10,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 5,
   },
-  textInput: { flex: 1, fontSize: 15, maxHeight: 100, paddingVertical: 4 },
+  textInput: { flex: 1, fontSize: 15, maxHeight: 120, paddingVertical: 4, lineHeight: 21, textAlignVertical: 'center' },
   sendBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },

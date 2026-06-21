@@ -103,7 +103,7 @@ export default function GlassSearchBar({
         s.pill,
         {
           backgroundColor: pillBg,
-          borderColor: focused ? borderFocused : border,
+          borderColor: focused ? borderFocused : 'transparent',
         },
       ]}>
         <Ionicons name="search" size={16} color={iconColor} style={s.icon} />

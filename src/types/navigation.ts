@@ -1,5 +1,12 @@
 import { NavigatorScreenParams } from '@react-navigation/native';
 import type { ScriptureChatNavParams } from './scriptureChat';
+import type { PostType } from './community';
+
+export type AuthStackParamList = {
+  Welcome: undefined;
+  EmailAuth: { mode?: 'signin' | 'signup' } | undefined;
+  ForgotPassword: undefined;
+};
 
 export type HomeStackParamList = {
   Home: undefined;
@@ -31,12 +38,31 @@ export type ChatStackParamList = {
   NewChat: undefined;
 };
 
+export type CommunityStackParamList = {
+  Community:  undefined;
+  CreatePost: { type?: PostType };
+  PostDetail: { postId: string };
+};
+
+export type ProfileStackParamList = {
+  Profile:       undefined;
+  EditProfile:   undefined;
+  Appearance:    undefined;
+  Notifications: undefined;
+  Privacy:       undefined;
+};
+
 export type RootTabParamList = {
-  ChatTab: NavigatorScreenParams<ChatStackParamList> | undefined;
-  CommunityTab: undefined;
-  HomeTab: NavigatorScreenParams<HomeStackParamList> | undefined;
-  BibleTab: NavigatorScreenParams<BibleStackParamList> | undefined;
-  NotesTab: NavigatorScreenParams<NotesStackParamList> | undefined;
+  ChatTab:      NavigatorScreenParams<ChatStackParamList> | undefined;
+  CommunityTab: NavigatorScreenParams<CommunityStackParamList> | undefined;
+  HomeTab:      NavigatorScreenParams<HomeStackParamList> | undefined;
+  BibleTab:     NavigatorScreenParams<BibleStackParamList> | undefined;
+  NotesTab:     NavigatorScreenParams<NotesStackParamList> | undefined;
+};
+
+export type AppRootParamList = {
+  MainTabs:     NavigatorScreenParams<RootTabParamList> | undefined;
+  ProfileModal: NavigatorScreenParams<ProfileStackParamList> | undefined;
 };
 
 // Alias used by all existing screen components — points to the home stack

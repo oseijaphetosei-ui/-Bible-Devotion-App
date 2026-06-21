@@ -1,14 +1,16 @@
 import { useColorScheme } from 'react-native';
+import { useContext } from 'react';
+import { AppearanceContext } from '../context/AppearanceContext';
 
 // ─── Light — warm parchment + sage green + soft gold ────────────────────────
 
 export const LIGHT = {
   // Backgrounds
-  bg: '#FAF6EE',
+  bg: '#F1E9DC',
   bgAlt: '#F2EBDD',
   card: '#F2EBDD',
   cardAlt: '#EDE4D3',
-  cardBorder: 'rgba(47,42,36,0.09)',
+  cardBorder: 'transparent',
   divider: 'rgba(47,42,36,0.07)',
 
   // Text
@@ -59,11 +61,11 @@ export const LIGHT = {
 
 export const DARK = {
   // Backgrounds
-  bg: '#1F1C19',
+  bg: '#181512',
   bgAlt: '#2A2622',
   card: '#2A2622',
   cardAlt: '#322D29',
-  cardBorder: 'rgba(243,237,227,0.08)',
+  cardBorder: 'transparent',
   divider: 'rgba(243,237,227,0.06)',
 
   // Text
@@ -113,6 +115,8 @@ export const DARK = {
 export type AppTheme = typeof LIGHT;
 
 export function useTheme(): AppTheme {
-  const scheme = useColorScheme();
+  const { pref } = useContext(AppearanceContext);
+  const systemScheme = useColorScheme();
+  const scheme = pref === 'system' ? systemScheme : pref;
   return scheme === 'dark' ? DARK : LIGHT;
 }

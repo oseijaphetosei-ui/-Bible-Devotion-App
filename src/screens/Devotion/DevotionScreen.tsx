@@ -38,9 +38,9 @@ const BREATH_PHASES = [
   { label: 'Hold',   seconds: 4, toScale: 1.0  },
 ];
 
-function BreathingTimer({ gold, goldBg, goldBorder, card, cardBorder, text, textMuted }: {
+function BreathingTimer({ gold, goldBg, goldBorder, card, text, textMuted }: {
   gold: string; goldBg: string; goldBorder: string;
-  card: string; cardBorder: string; text: string; textMuted: string;
+  card: string; text: string; textMuted: string;
 }) {
   const [active, setActive] = useState(false);
   const [phaseIdx, setPhaseIdx] = useState(0);
@@ -83,7 +83,7 @@ function BreathingTimer({ gold, goldBg, goldBorder, card, cardBorder, text, text
   const phase = BREATH_PHASES[phaseIdx];
 
   return (
-    <View style={[s.card, { backgroundColor: card, borderColor: cardBorder }]}>
+    <View style={[s.card, { backgroundColor: card }]}>
       <Text style={[s.sectionLabel, { color: textMuted }]}>PRAYER BREATHING</Text>
       <Text style={[s.breathSubtitle, { color: textMuted }]}>Box breathing · 4-4-4-4</Text>
 
@@ -170,11 +170,11 @@ function StreakBoard({ refreshTrigger, gold, goldBg, goldBorder, text, textMuted
 // ─── Reader Controls ─────────────────────────────────────────────────────────
 
 function ReaderControls({
-  fontSz, speaking, copied, gold, goldBg, goldBorder, textMuted,
+  fontSz, speaking, copied, gold, goldBg, textMuted,
   onFont, onTTS, onShare, onCopy,
 }: {
   fontSz: string; speaking: boolean; copied: boolean;
-  gold: string; goldBg: string; goldBorder: string; textMuted: string;
+  gold: string; goldBg: string; textMuted: string;
   onFont: () => void; onTTS: () => void; onShare: () => void; onCopy: () => void;
 }) {
   const items = [
@@ -185,7 +185,7 @@ function ReaderControls({
   ] as const;
 
   return (
-    <View style={[s.readerControls, { backgroundColor: goldBg, borderColor: goldBorder }]}>
+    <View style={[s.readerControls, { backgroundColor: goldBg }]}>
       {items.map(item => (
         <TouchableOpacity key={item.label} style={s.readerBtn} onPress={item.onPress} activeOpacity={0.75}>
           <Ionicons name={item.icon as any} size={18} color={gold} />
@@ -273,7 +273,7 @@ export default function DevotionScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {/* ── Topic Input ── */}
-          <View style={[s.card, { backgroundColor: t.card, borderColor: t.cardBorder }]}>
+          <View style={[s.card, { backgroundColor: t.card }]}>
             <Text style={[s.topicCardLabel, { color: t.textMuted }]}>WHAT'S ON YOUR HEART?</Text>
 
             <GlassSearchBar
@@ -346,7 +346,7 @@ export default function DevotionScreen() {
           {devotion && (
             <>
               {/* Scripture card */}
-              <View style={[s.scriptureCard, { backgroundColor: t.card, borderColor: t.goldBorder }]}>
+              <View style={[s.scriptureCard, { backgroundColor: t.card }]}>
                 <Text style={[s.devotionTitle, { color: t.text }]}>{devotion.title}</Text>
                 <View style={[s.themeBadge, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}>
                   <Text style={[s.themeBadgeText, { color: t.gold }]}>{devotion.keyTheme}</Text>
@@ -362,7 +362,6 @@ export default function DevotionScreen() {
                 copied={reader.copied}
                 gold={t.gold}
                 goldBg={t.goldBg}
-                goldBorder={t.goldBorder}
                 textMuted={t.textMuted}
                 onFont={reader.cycleFontSize}
                 onTTS={reader.toggleTTS}
@@ -372,7 +371,7 @@ export default function DevotionScreen() {
 
               {/* Talk to the Scripture — visible right after scripture card */}
               <TouchableOpacity
-                style={[s.talkBtn, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}
+                style={[s.talkBtn, { backgroundColor: t.goldBg }]}
                 onPress={() => {
                   const context = [
                     `Title: ${devotion.title}`,
@@ -448,8 +447,8 @@ export default function DevotionScreen() {
                 <TouchableOpacity
                   style={[
                     s.completeBtn,
-                    { borderColor: t.goldBorder, backgroundColor: t.goldBg },
-                    markedToday && { backgroundColor: t.gold, borderColor: t.gold },
+                    { backgroundColor: t.goldBg },
+                    markedToday && { backgroundColor: t.gold },
                   ]}
                   onPress={handleMarkComplete}
                   disabled={markedToday}
@@ -488,7 +487,7 @@ export default function DevotionScreen() {
           />
           <BreathingTimer
             gold={t.gold} goldBg={t.goldBg} goldBorder={t.goldBorder}
-            card={t.card} cardBorder={t.cardBorder} text={t.text} textMuted={t.textMuted}
+            card={t.card} text={t.text} textMuted={t.textMuted}
           />
         </ScrollView>
       </SafeAreaView>
@@ -523,7 +522,7 @@ const s = StyleSheet.create({
 
   // Shared card base
   card: {
-    borderRadius: 16, borderWidth: 1, padding: 18,
+    borderRadius: 16, padding: 18,
     gap: 12,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
@@ -552,7 +551,7 @@ const s = StyleSheet.create({
 
   // Scripture card
   scriptureCard: {
-    borderRadius: 16, borderWidth: 1, padding: 20, gap: 12,
+    borderRadius: 16, padding: 20, gap: 12,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
   },
@@ -567,7 +566,7 @@ const s = StyleSheet.create({
 
   // Reader controls
   readerControls: {
-    flexDirection: 'row', borderRadius: 14, borderWidth: 1,
+    flexDirection: 'row', borderRadius: 14,
   },
   readerBtn: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
@@ -596,7 +595,7 @@ const s = StyleSheet.create({
   actionRow: { flexDirection: 'row', gap: 10 },
   completeBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center', gap: 8, borderWidth: 1,
+    justifyContent: 'center', gap: 8,
     borderRadius: 14, paddingVertical: 13,
   },
   completeBtnText: { fontSize: 14, fontWeight: '700' },
@@ -609,7 +608,7 @@ const s = StyleSheet.create({
 
   talkBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, borderWidth: 1, borderRadius: 14,
+    gap: 8, borderRadius: 14,
     paddingVertical: 14, marginTop: 10,
   },
   talkBtnText: { fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },

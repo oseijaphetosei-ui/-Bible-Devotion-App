@@ -11,11 +11,10 @@ import {
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
-import { db } from '../config/firebaseConfig';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '../config/firebaseConfig';
 import { getDeviceId } from './notesService';
 import type { ScriptureChat, ChatMessage, ScriptureChatNavParams } from '../types/scriptureChat';
-
-const SERVER_URL = 'http://localhost:3001';
 
 // ─── Firestore helpers ────────────────────────────────────────────────────────
 
@@ -79,21 +78,16 @@ export async function askScripture(
   context: string,
   messages: ChatMessage[],
 ): Promise<string> {
-  const res = await fetch(`${SERVER_URL}/api/scripture-chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      reference,
-      context,
-      messages: messages.map((m) => ({ role: m.role, content: m.content })),
-    }),
+  const fn = httpsCallable<
+    { reference: string; context: string; messages: { role: string; content: string }[] },
+    { content: string }
+  >(functions, 'askScripture');
+
+  const result = await fn({
+    reference,
+    context,
+    messages: messages.map((m) => ({ role: m.role, content: m.content })),
   });
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error ?? 'Server error');
-  }
-
-  const data = await res.json();
-  return data.content ?? '';
+  return result.data.content ?? '';
 }
