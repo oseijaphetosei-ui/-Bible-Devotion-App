@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Speech from 'expo-speech';
+import { Audio } from 'expo-av';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -33,6 +33,7 @@ import {
 } from '../../services/bibleService';
 import { API_BIBLE_KEY } from '../../config/bibleConfig';
 import GlassSearchBar from '../../components/GlassSearchBar';
+import { speakText } from '../../services/ttsService';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const GOLD        = '#D4B574';
@@ -124,6 +125,7 @@ export default function BibleScreen() {
   const lastScrollY     = useRef(0);
   const barsVisible     = useRef(true);
   const isPlayingRef    = useRef(false);
+  const soundRef        = useRef<Audio.Sound | null>(null);
   const searchModeRef   = useRef(false);
   const searchInputRef  = useRef<TextInput>(null);
 
@@ -188,6 +190,13 @@ export default function BibleScreen() {
   }, [route.params]);
 
   useEffect(() => {
+    return () => {
+      soundRef.current?.unloadAsync().catch(() => {});
+      soundRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!verses.length || !params.verseToScroll) return;
     const idx = params.verseToScroll - 1;
     if (idx < 0 || idx >= verses.length) return;
@@ -205,7 +214,9 @@ export default function BibleScreen() {
     isPlayingRef.current = false;
     setIsPlaying(false);
     setPlayingVerse(null);
-    Speech.stop();
+    soundRef.current?.stopAsync().catch(() => {});
+    soundRef.current?.unloadAsync().catch(() => {});
+    soundRef.current = null;
   }, [bookIndex, chapter]);
 
   // ── Scroll-based bar visibility ───────────────────────────────────────────
@@ -236,8 +247,8 @@ export default function BibleScreen() {
     else if (diff < -10)      showBars();
   }, [showBars, hideBars]);
 
-  // ── Audio playback (expo-speech) ──────────────────────────────────────────
-  const playFromIndex = useCallback((startIdx: number, allVerses: Verse[]) => {
+  // ── Audio playback via shared TTS helper ──────────────────────────────────
+  const playFromIndex = useCallback(async (startIdx: number, allVerses: Verse[]) => {
     if (!isPlayingRef.current || startIdx >= allVerses.length) {
       isPlayingRef.current = false;
       setIsPlaying(false);
@@ -248,13 +259,25 @@ export default function BibleScreen() {
     setPlayingVerse(v.verse);
     // Auto-scroll to playing verse
     flatListRef.current?.scrollToIndex({ index: startIdx, animated: true, viewPosition: 0.35 });
-    Speech.speak(v.text, {
-      language: 'en-US',
-      rate: 0.88,
-      pitch: 1.0,
-      onDone:  () => { if (isPlayingRef.current) playFromIndex(startIdx + 1, allVerses); },
-      onError: () => { isPlayingRef.current = false; setIsPlaying(false); setPlayingVerse(null); },
-    });
+    try {
+      const cacheKey = `bible-${bookIndex}-${chapter}-${v.verse}`;
+      const sound = await speakText(v.text, cacheKey);
+      soundRef.current = sound;
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (!status.isLoaded) return;
+        if (status.didJustFinish) {
+          soundRef.current?.unloadAsync().catch(() => {});
+          soundRef.current = null;
+          if (isPlayingRef.current) {
+            void playFromIndex(startIdx + 1, allVerses);
+          }
+        }
+      });
+    } catch {
+      isPlayingRef.current = false;
+      setIsPlaying(false);
+      setPlayingVerse(null);
+    }
   }, []);
 
   const togglePlay = useCallback(() => {
@@ -262,11 +285,13 @@ export default function BibleScreen() {
       isPlayingRef.current = false;
       setIsPlaying(false);
       setPlayingVerse(null);
-      Speech.stop();
+      soundRef.current?.stopAsync().catch(() => {});
+      soundRef.current?.unloadAsync().catch(() => {});
+      soundRef.current = null;
     } else {
       isPlayingRef.current = true;
       setIsPlaying(true);
-      playFromIndex(0, verses);
+      void playFromIndex(0, verses);
     }
   }, [isPlaying, verses, playFromIndex]);
 

@@ -13,6 +13,7 @@ import {
   StatusBar,
   Share,
   Animated,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,10 +25,13 @@ import {
   saveMessages,
   askScripture,
 } from '../../services/scriptureChatService';
+import { getScriptureInsights } from '../../services/appApi';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import type { ChatMessage, ScriptureChatNavParams } from '../../types/scriptureChat';
 import { SUGGESTED_QUESTIONS } from '../../types/scriptureChat';
+
+type ScriptureInsights = Awaited<ReturnType<typeof getScriptureInsights>>;
 
 // ─── Typing indicator ─────────────────────────────────────────────────────────
 
@@ -97,7 +101,6 @@ function AIMessageContent({ text, t }: { text: string; t: AppTheme }) {
       return;
     }
 
-    // Section header: **Header**
     const headerM = line.match(/^\*\*(.+?)\*\*\s*$/);
     if (headerM) {
       elements.push(
@@ -108,7 +111,6 @@ function AIMessageContent({ text, t }: { text: string; t: AppTheme }) {
       return;
     }
 
-    // List item: - or •
     const listM = line.match(/^[-•]\s+(.+)/);
     if (listM) {
       elements.push(
@@ -124,7 +126,6 @@ function AIMessageContent({ text, t }: { text: string; t: AppTheme }) {
       return;
     }
 
-    // Regular paragraph
     elements.push(
       <InlineBold
         key={i}
@@ -246,6 +247,116 @@ function EmptyState({
   );
 }
 
+// ─── Insights section card ────────────────────────────────────────────────────
+
+function InsightSection({
+  icon,
+  label,
+  t,
+  children,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  label: string;
+  t: AppTheme;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={[is.section, { backgroundColor: t.card, borderColor: t.cardBorder }]}>
+      <View style={is.sectionHeader}>
+        <Ionicons name={icon} size={13} color={t.gold} />
+        <Text style={[is.sectionLabel, { color: t.gold }]}>{label}</Text>
+      </View>
+      {children}
+    </View>
+  );
+}
+
+// ─── Insights view ────────────────────────────────────────────────────────────
+
+function InsightsView({
+  insights,
+  loading,
+  error,
+  t,
+  bottomPad,
+}: {
+  insights: ScriptureInsights | null;
+  loading: boolean;
+  error: string | null;
+  t: AppTheme;
+  bottomPad: number;
+}) {
+  if (loading) {
+    return (
+      <View style={is.center}>
+        <ActivityIndicator size="large" color={t.gold} />
+        <Text style={[is.loadingText, { color: t.textMuted }]}>Analyzing scripture…</Text>
+      </View>
+    );
+  }
+
+  if (error || !insights) {
+    return (
+      <View style={is.center}>
+        <Ionicons name="alert-circle-outline" size={36} color={t.textMuted} />
+        <Text style={[is.errorText, { color: t.textMuted }]}>{error ?? 'Something went wrong.'}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={[is.scroll, { paddingBottom: bottomPad }]}
+      showsVerticalScrollIndicator={false}
+    >
+      <InsightSection icon="document-text-outline" label="SUMMARY" t={t}>
+        <Text style={[is.bodyText, { color: t.text }]}>{insights.summary}</Text>
+      </InsightSection>
+
+      <InsightSection icon="pricetags-outline" label="KEY THEMES" t={t}>
+        <View style={is.themeRow}>
+          {insights.keyThemes.map((theme) => (
+            <View key={theme} style={[is.themeChip, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}>
+              <Text style={[is.themeText, { color: t.gold }]}>{theme}</Text>
+            </View>
+          ))}
+        </View>
+      </InsightSection>
+
+      <InsightSection icon="time-outline" label="HISTORICAL CONTEXT" t={t}>
+        <Text style={[is.bodyText, { color: t.text }]}>{insights.historicalContext}</Text>
+      </InsightSection>
+
+      <InsightSection icon="sparkles-outline" label="THEOLOGICAL INSIGHT" t={t}>
+        <Text style={[is.bodyText, { color: t.text }]}>{insights.theologicalInsight}</Text>
+      </InsightSection>
+
+      <InsightSection icon="git-network-outline" label="CROSS REFERENCES" t={t}>
+        <View style={{ gap: 10 }}>
+          {insights.crossReferences.map((ref) => (
+            <View key={ref.reference} style={[is.crossRefRow, { borderLeftColor: t.goldBorder }]}>
+              <Text style={[is.crossRefRef, { color: t.gold }]}>{ref.reference}</Text>
+              <Text style={[is.crossRefText, { color: t.textSub }]}>{ref.connection}</Text>
+            </View>
+          ))}
+        </View>
+      </InsightSection>
+
+      <InsightSection icon="sunny-outline" label="APPLICATION TODAY" t={t}>
+        <Text style={[is.bodyText, { color: t.text }]}>{insights.applicationToday}</Text>
+      </InsightSection>
+
+      <InsightSection icon="heart-outline" label="PRAYER FOCUS" t={t}>
+        <View style={[is.prayerBox, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}>
+          <Ionicons name="heart" size={12} color={t.gold} style={{ marginBottom: 6 }} />
+          <Text style={[is.prayerText, { color: t.text }]}>{insights.prayerFocus}</Text>
+        </View>
+      </InsightSection>
+    </ScrollView>
+  );
+}
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function ScriptureChatScreen() {
@@ -255,6 +366,9 @@ export default function ScriptureChatScreen() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
 
+  const isInsights = params.mode === 'insights';
+
+  // ── Chat state ──
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -265,8 +379,32 @@ export default function ScriptureChatScreen() {
   const [kbHeight, setKbHeight] = useState(0);
   const [inputFocused, setInputFocused] = useState(false);
 
+  // ── Insights state ──
+  const [insights, setInsights] = useState<ScriptureInsights | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(isInsights);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
+
   const flatListRef = useRef<FlatList>(null);
   const streamIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Fetch insights on mount when in insights mode
+  useEffect(() => {
+    if (!isInsights) return;
+    setInsightsLoading(true);
+    getScriptureInsights({
+      reference: params.reference,
+      text: params.context,
+      type: params.contextType === 'chapter' ? 'chapter' : 'verse',
+    })
+      .then((data) => {
+        setInsights(data);
+        setInsightsLoading(false);
+      })
+      .catch(() => {
+        setInsightsError('Unable to load insights. Please check your connection and try again.');
+        setInsightsLoading(false);
+      });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load existing chat if chatId provided
   useEffect(() => {
@@ -284,7 +422,7 @@ export default function ScriptureChatScreen() {
     }
   }, [messages.length, isTyping, isStreaming, streamingContent]);
 
-  // Track keyboard height so the input bar docks right above the keyboard
+  // Track keyboard height
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
@@ -384,7 +522,6 @@ export default function ScriptureChatScreen() {
           tags: ['scripture-chat'],
           devotionId: undefined,
         });
-        // Flash confirmation
         const msgId = Date.now().toString();
         setSavedMsgId(msgId);
         setTimeout(() => setSavedMsgId(null), 2000);
@@ -405,7 +542,6 @@ export default function ScriptureChatScreen() {
     [params.reference],
   );
 
-  // Build display list
   const displayItems: MessageItem[] = [
     ...messages.map((m) => ({ ...m, _type: 'message' as const })),
     ...(isTyping ? [{ _type: 'typing' as const, id: 'typing' }] : []),
@@ -414,12 +550,13 @@ export default function ScriptureChatScreen() {
       : []),
   ];
 
-  const contextLabel =
-    params.contextType === 'devotion'
-      ? 'Daily Devotion'
-      : params.contextType === 'chapter'
-      ? 'Chapter'
-      : 'Verse';
+  const contextLabel = isInsights
+    ? 'AI Insights'
+    : params.contextType === 'devotion'
+    ? 'Daily Devotion'
+    : params.contextType === 'chapter'
+    ? 'Chapter'
+    : 'Verse';
 
   const canSend = inputText.trim().length > 0 && !isTyping && !isStreaming;
 
@@ -446,7 +583,11 @@ export default function ScriptureChatScreen() {
               </View>
             </View>
             <TouchableOpacity
-              onPress={() => handleShare(messages.map((m) => m.content).join('\n\n'))}
+              onPress={() => handleShare(
+                isInsights && insights
+                  ? `${params.reference}\n\n${insights.summary}\n\n${insights.prayerFocus}`
+                  : messages.map((m) => m.content).join('\n\n')
+              )}
               style={s.headerBtn}
               activeOpacity={0.7}
             >
@@ -462,8 +603,16 @@ export default function ScriptureChatScreen() {
             </View>
           )}
 
-          {/* ── Message list ── */}
-          {displayItems.length === 0 ? (
+          {/* ── Insights view OR chat list ── */}
+          {isInsights ? (
+            <InsightsView
+              insights={insights}
+              loading={insightsLoading}
+              error={insightsError}
+              t={t}
+              bottomPad={insets.bottom + 24}
+            />
+          ) : displayItems.length === 0 ? (
             <ScrollView
               style={{ flex: 1 }}
               contentContainerStyle={{ flexGrow: 1 }}
@@ -500,8 +649,8 @@ export default function ScriptureChatScreen() {
             />
           )}
 
-          {/* ── Suggestion chips (when chatting) ── */}
-          {displayItems.length > 0 && !isTyping && !isStreaming && (
+          {/* ── Suggestion chips — chat mode only ── */}
+          {!isInsights && displayItems.length > 0 && !isTyping && !isStreaming && (
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -524,36 +673,39 @@ export default function ScriptureChatScreen() {
             </ScrollView>
           )}
 
-          {/* ── Input bar ── */}
-          <View style={[s.inputBar, {
-            backgroundColor: t.card,
-            borderColor: 'transparent',
-          }]}>
-            <TextInput
-              style={[s.textInput, { color: t.text }]}
-              value={inputText}
-              onChangeText={setInputText}
-              placeholder="Ask about this passage…"
-              placeholderTextColor={t.textMuted}
-              multiline
-              maxLength={400}
-              returnKeyType="send"
-              onSubmitEditing={() => sendMessage(inputText)}
-              blurOnSubmit={false}
-              onFocus={() => setInputFocused(true)}
-              onBlur={() => setInputFocused(false)}
-            />
-            <TouchableOpacity
-              onPress={() => sendMessage(inputText)}
-              disabled={!canSend}
-              activeOpacity={0.75}
-              style={[s.sendBtn, { backgroundColor: canSend ? t.gold : t.goldBg }]}
-            >
-              <Ionicons name="arrow-up" size={18} color={canSend ? '#fff' : t.gold} />
-            </TouchableOpacity>
-          </View>
-          {/* Floats input above the tab bar; collapses to zero when keyboard is up (KAV handles it) */}
-          <View style={{ height: kbHeight > 0 ? 0 : insets.bottom + 52 }} />
+          {/* ── Input bar — chat mode only ── */}
+          {!isInsights && (
+            <>
+              <View style={[s.inputBar, {
+                backgroundColor: t.card,
+                borderColor: 'transparent',
+              }]}>
+                <TextInput
+                  style={[s.textInput, { color: t.text }]}
+                  value={inputText}
+                  onChangeText={setInputText}
+                  placeholder="Ask about this passage…"
+                  placeholderTextColor={t.textMuted}
+                  multiline
+                  maxLength={400}
+                  returnKeyType="send"
+                  onSubmitEditing={() => sendMessage(inputText)}
+                  blurOnSubmit={false}
+                  onFocus={() => setInputFocused(true)}
+                  onBlur={() => setInputFocused(false)}
+                />
+                <TouchableOpacity
+                  onPress={() => sendMessage(inputText)}
+                  disabled={!canSend}
+                  activeOpacity={0.75}
+                  style={[s.sendBtn, { backgroundColor: canSend ? t.gold : t.goldBg }]}
+                >
+                  <Ionicons name="arrow-up" size={18} color={canSend ? '#fff' : t.gold} />
+                </TouchableOpacity>
+              </View>
+              <View style={{ height: kbHeight > 0 ? 0 : insets.bottom + 52 }} />
+            </>
+          )}
 
         </SafeAreaView>
       </KeyboardAvoidingView>
@@ -721,4 +873,48 @@ const es = StyleSheet.create({
     borderWidth: 1,
   },
   chipText: { fontSize: 13, fontWeight: '500' },
+});
+
+// Insights styles
+const is = StyleSheet.create({
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, paddingHorizontal: 32 },
+  loadingText: { fontSize: 14, fontWeight: '500', textAlign: 'center' },
+  errorText: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
+
+  scroll: { paddingHorizontal: 16, paddingTop: 16, gap: 10 },
+
+  section: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    gap: 10,
+  },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  sectionLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1.2 },
+
+  bodyText: { fontSize: 15, lineHeight: 23 },
+
+  themeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  themeChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  themeText: { fontSize: 12, fontWeight: '600' },
+
+  crossRefRow: {
+    paddingLeft: 12,
+    borderLeftWidth: 2,
+    gap: 3,
+  },
+  crossRefRef: { fontSize: 13, fontWeight: '700' },
+  crossRefText: { fontSize: 14, lineHeight: 20 },
+
+  prayerBox: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 14,
+  },
+  prayerText: { fontSize: 15, lineHeight: 23, fontStyle: 'italic' },
 });

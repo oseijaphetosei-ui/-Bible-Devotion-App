@@ -1,12 +1,6 @@
 import { NavigatorScreenParams } from '@react-navigation/native';
-import type { ScriptureChatNavParams } from './scriptureChat';
+import type { ScriptureChatNavParams, ScriptureInsightsNavParams } from './scriptureChat';
 import type { PostType } from './community';
-
-export type AuthStackParamList = {
-  Welcome: undefined;
-  EmailAuth: { mode?: 'signin' | 'signup' } | undefined;
-  ForgotPassword: undefined;
-};
 
 export type HomeStackParamList = {
   Home: undefined;
@@ -17,6 +11,7 @@ export type HomeStackParamList = {
   Goals: undefined;
   Devotion: { topic?: string } | undefined;
   ScriptureChat: ScriptureChatNavParams;
+  ScriptureInsights: ScriptureInsightsNavParams;
 };
 
 export type BibleStackParamList = {

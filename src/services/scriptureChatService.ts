@@ -11,9 +11,9 @@ import {
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-import { db, functions } from '../config/firebaseConfig';
+import { db } from '../config/firebaseConfig';
 import { getDeviceId } from './notesService';
+import { askScripture as askScriptureRemote } from './appApi';
 import type { ScriptureChat, ChatMessage, ScriptureChatNavParams } from '../types/scriptureChat';
 
 // ─── Firestore helpers ────────────────────────────────────────────────────────
@@ -78,16 +78,11 @@ export async function askScripture(
   context: string,
   messages: ChatMessage[],
 ): Promise<string> {
-  const fn = httpsCallable<
-    { reference: string; context: string; messages: { role: string; content: string }[] },
-    { content: string }
-  >(functions, 'askScripture');
-
-  const result = await fn({
+  const result = await askScriptureRemote({
     reference,
     context,
     messages: messages.map((m) => ({ role: m.role, content: m.content })),
   });
 
-  return result.data.content ?? '';
+  return result.content ?? '';
 }

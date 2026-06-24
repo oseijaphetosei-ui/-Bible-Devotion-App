@@ -22,6 +22,13 @@ export type ScriptureChatNavParams = {
   contextType: ContextType;
   context: string;
   chatId?: string;
+  mode?: 'chat' | 'insights';
+};
+
+export type ScriptureInsightsNavParams = {
+  reference: string;
+  contextType: ContextType;
+  context: string;
 };
 
 export const SUGGESTED_QUESTIONS = [

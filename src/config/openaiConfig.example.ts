@@ -1,5 +1,6 @@
-// Copy this file to openaiConfig.ts and fill in your key.
-// openaiConfig.ts is gitignored — never commit your real key.
+// Legacy example retained for compatibility with older builds.
+// If you do not use OpenAI in this project, you can ignore this file.
+// If you do, copy it to openaiConfig.ts and fill in your key.
 // Get a key at: https://platform.openai.com/api-keys
 
 export const OPENAI_API_KEY = '';

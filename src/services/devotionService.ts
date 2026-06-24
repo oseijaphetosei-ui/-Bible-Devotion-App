@@ -1,6 +1,5 @@
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../config/firebaseConfig';
 import { Devotion, BibleTranslation } from '../types/devotion';
+import { generateDevotion as generateDevotionRemote } from './appApi';
 
 // ─── Hardcoded fallbacks ──────────────────────────────────────────────────────
 
@@ -103,13 +102,7 @@ export async function fetchDevotion(
   translation: BibleTranslation
 ): Promise<Devotion> {
   try {
-    const fn = httpsCallable<
-      { topic: string; translation: string },
-      Devotion
-    >(functions, 'generateDevotion');
-
-    const result = await fn({ topic, translation });
-    return result.data;
+    return await generateDevotionRemote({ topic, translation });
   } catch {
     // Function unavailable or error — fall back to local content silently
     return matchFallback(topic);

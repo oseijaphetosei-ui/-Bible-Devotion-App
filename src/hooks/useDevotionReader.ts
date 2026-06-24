@@ -1,22 +1,33 @@
-import { useState } from 'react';
-import * as Speech from 'expo-speech';
+import { useEffect, useRef, useState } from 'react';
+import { Audio } from 'expo-av';
 import { Share } from 'react-native';
 import { FontSize, FONT_SIZE_MAP, Devotion } from '../types/devotion';
+import { speakText } from '../services/ttsService';
 
 export function useDevotionReader(devotion: Devotion | null) {
   const [fontSz, setFontSz] = useState<FontSize>('md');
   const [speaking, setSpeaking] = useState(false);
   const [copied, setCopied] = useState(false);
+  const soundRef = useRef<Audio.Sound | null>(null);
+
+  useEffect(() => {
+    return () => {
+      soundRef.current?.unloadAsync().catch(() => {});
+      soundRef.current = null;
+    };
+  }, []);
 
   function cycleFontSize() {
     const order: FontSize[] = ['sm', 'md', 'lg', 'xl'];
     setFontSz(prev => order[(order.indexOf(prev) + 1) % order.length]);
   }
 
-  function toggleTTS() {
+  async function toggleTTS() {
     if (!devotion) return;
     if (speaking) {
-      Speech.stop();
+      await soundRef.current?.stopAsync().catch(() => {});
+      await soundRef.current?.unloadAsync().catch(() => {});
+      soundRef.current = null;
       setSpeaking(false);
       return;
     }
@@ -26,18 +37,26 @@ export function useDevotionReader(devotion: Devotion | null) {
       `Life application. ${devotion.lifeApplication}`,
     ].join(' ');
     setSpeaking(true);
-    Speech.speak(text, {
-      language: 'en',
-      pitch: 1.0,
-      rate: 0.88,
-      onDone: () => setSpeaking(false),
-      onStopped: () => setSpeaking(false),
-      onError: () => setSpeaking(false),
-    });
+    try {
+      const sound = await speakText(text, `devotion-${devotion.scriptureReference}`);
+      soundRef.current = sound;
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (!status.isLoaded) return;
+        if (status.didJustFinish) {
+          setSpeaking(false);
+          soundRef.current?.unloadAsync().catch(() => {});
+          soundRef.current = null;
+        }
+      });
+    } catch {
+      setSpeaking(false);
+    }
   }
 
-  function stopTTS() {
-    Speech.stop();
+  async function stopTTS() {
+    await soundRef.current?.stopAsync().catch(() => {});
+    await soundRef.current?.unloadAsync().catch(() => {});
+    soundRef.current = null;
     setSpeaking(false);
   }
 

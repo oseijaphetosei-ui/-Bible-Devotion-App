@@ -1,8 +1,48 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
+import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 
 const geminiKey = defineSecret('GEMINI_API_KEY');
+
+function getAI() {
+  return new GoogleGenAI({ apiKey: geminiKey.value() });
+}
+
+// Bump this file when we need Firebase to publish a fresh revision for the AI functions.
+const FUNCTION_REVISION_NOTE = 'ai-functions-refresh-2026-06-24';
+const GEMINI_MODEL = 'gemini-3.5-flash';
+const DEVOTION_SCHEMA = {
+  type: 'object',
+  properties: {
+    title: { type: 'string' },
+    scriptureReference: { type: 'string' },
+    scriptureText: { type: 'string' },
+    keyTheme: { type: 'string' },
+    devotionalBody: {
+      type: 'array',
+      items: { type: 'string' },
+      minItems: 3,
+      maxItems: 3,
+    },
+    lifeApplication: { type: 'string' },
+    reflectionQuestion: { type: 'string' },
+    guidedPrayer: { type: 'string' },
+    shareableQuote: { type: 'string' },
+  },
+  required: [
+    'title',
+    'scriptureReference',
+    'scriptureText',
+    'keyTheme',
+    'devotionalBody',
+    'lifeApplication',
+    'reflectionQuestion',
+    'guidedPrayer',
+    'shareableQuote',
+  ],
+  additionalProperties: false,
+} as const;
 
 // ── Ask Scripture (Talk to Scripture chat) ────────────────────────────────────
 
@@ -19,10 +59,22 @@ export const askScripture = onCall(
       throw new HttpsError('invalid-argument', 'Missing reference or messages.');
     }
 
-    const genAI = new GoogleGenerativeAI(geminiKey.value());
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash',
-      systemInstruction: `You are a knowledgeable, faithful, and warm Bible scholar and spiritual guide helping someone study Scripture deeply.
+    console.log('[askScripture] request received', {
+      revision: FUNCTION_REVISION_NOTE,
+      reference,
+      messageCount: messages.length,
+    });
+
+    const history = messages.slice(0, -1).map((m) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    }));
+
+    const chat = getAI().chats.create({
+      model: GEMINI_MODEL,
+      history,
+      config: {
+        systemInstruction: `You are a knowledgeable, faithful, and warm Bible scholar and spiritual guide helping someone study Scripture deeply.
 
 The user is currently studying: ${reference}
 Passage context: ${context}
@@ -35,19 +87,18 @@ Guidelines:
 - When asked about application, be specific and practical
 - Do not speculate beyond what Scripture teaches
 - If the question is off-topic, gently redirect back to the passage`,
+      },
     });
 
-    // Build history from all messages except the last (which we send now)
-    const history = messages.slice(0, -1).map((m) => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }],
-    }));
-
-    const chat = model.startChat({ history });
     const lastMessage = messages[messages.length - 1];
-    const result = await chat.sendMessage(lastMessage.content);
+    const result = await chat.sendMessage({ message: lastMessage.content });
 
-    return { content: result.response.text() };
+    console.log('[askScripture] response generated', {
+      revision: FUNCTION_REVISION_NOTE,
+      hasText: Boolean(result.text),
+    });
+
+    return { content: result.text ?? '' };
   },
 );
 
@@ -65,10 +116,10 @@ export const generateDevotion = onCall(
       throw new HttpsError('invalid-argument', 'Missing topic.');
     }
 
-    const genAI = new GoogleGenerativeAI(geminiKey.value());
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash',
-      generationConfig: { responseMimeType: 'application/json' },
+    console.log('[generateDevotion] request received', {
+      revision: FUNCTION_REVISION_NOTE,
+      topic,
+      translation: translation || 'NIV',
     });
 
     const prompt = `Generate a deep, spiritually rich, and personally engaging Christian daily devotion on the topic: "${topic}"
@@ -91,14 +142,31 @@ Return ONLY valid JSON matching this exact structure — no markdown, no extra t
   "shareableQuote": "A powerful, quotable spiritual insight in double quotes"
 }`;
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().trim();
+    const result = await getAI().models.generateContent({
+      model: GEMINI_MODEL,
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseJsonSchema: DEVOTION_SCHEMA,
+        maxOutputTokens: 4096,
+        temperature: 0.4,
+      },
+    });
+
+    const text = (result.text ?? '').trim();
 
     try {
+      console.log('[generateDevotion] response parsed', {
+        revision: FUNCTION_REVISION_NOTE,
+        length: text.length,
+      });
       return JSON.parse(text);
     } catch {
-      // Strip markdown code fences if Gemini wraps the output
       const clean = text.replace(/^```(?:json)?\n?|\n?```$/g, '').trim();
+      console.warn('[generateDevotion] falling back to manual JSON parse', {
+        revision: FUNCTION_REVISION_NOTE,
+        length: clean.length,
+      });
       return JSON.parse(clean);
     }
   },
@@ -119,10 +187,11 @@ export const getScriptureInsights = onCall(
       throw new HttpsError('invalid-argument', 'Missing reference or text.');
     }
 
-    const genAI = new GoogleGenerativeAI(geminiKey.value());
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash',
-      generationConfig: { responseMimeType: 'application/json' },
+    console.log('[getScriptureInsights] request received', {
+      revision: FUNCTION_REVISION_NOTE,
+      reference,
+      type,
+      textLength: text.length,
     });
 
     const prompt = `Provide spiritual and theological insights for the following Bible ${type}:
@@ -145,10 +214,19 @@ Return ONLY valid JSON in this exact structure:
   "prayerFocus": "A single-sentence prayer prompt based on this passage"
 }`;
 
-    const result = await model.generateContent(prompt);
-    const text2 = result.response.text().trim();
+    const result = await getAI().models.generateContent({
+      model: GEMINI_MODEL,
+      contents: prompt,
+      config: { responseMimeType: 'application/json' },
+    });
+
+    const text2 = (result.text ?? '').trim();
 
     try {
+      console.log('[getScriptureInsights] response parsed', {
+        revision: FUNCTION_REVISION_NOTE,
+        length: text2.length,
+      });
       return JSON.parse(text2);
     } catch {
       const clean = text2.replace(/^```(?:json)?\n?|\n?```$/g, '').trim();
@@ -157,10 +235,12 @@ Return ONLY valid JSON in this exact structure:
   },
 );
 
-// ── Text-to-Speech (Gemini TTS model) ────────────────────────────────────────
+// ── Text-to-Speech (Google Cloud TTS) ────────────────────────────────────────
+
+const ttsClient = new TextToSpeechClient();
 
 export const ttsSpeak = onCall(
-  { secrets: [geminiKey], cors: true, invoker: 'public' },
+  { cors: true, invoker: 'public' },
   async (request) => {
     const { text } = request.data as { text: string };
 
@@ -168,41 +248,21 @@ export const ttsSpeak = onCall(
       throw new HttpsError('invalid-argument', 'Missing text.');
     }
 
-    const apiKey = geminiKey.value();
-
-    // Gemini 2.5 Flash TTS — same API key, no extra service needed
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: text.trim() }] }],
-          generationConfig: {
-            responseModalities: ['AUDIO'],
-            speechConfig: {
-              voiceConfig: {
-                // Kore: warm, clear female voice — great for devotional content
-                prebuiltVoiceConfig: { voiceName: 'Kore' },
-              },
-            },
-          },
-        }),
+    const [response] = await ttsClient.synthesizeSpeech({
+      input: { text: text.trim() },
+      voice: { languageCode: 'en-US', name: 'en-US-Neural2-D' },
+      audioConfig: {
+        audioEncoding: 'MP3',
+        speakingRate: 0.92,
+        pitch: -2,
       },
-    );
+    });
 
-    if (!res.ok) {
-      const err = await res.text().catch(() => res.status.toString());
-      throw new HttpsError('internal', `Gemini TTS error: ${err}`);
+    if (!response.audioContent) {
+      throw new HttpsError('internal', 'No audio data returned by TTS.');
     }
 
-    const data = await res.json();
-    const part = data?.candidates?.[0]?.content?.parts?.[0]?.inlineData;
-
-    if (!part?.data) {
-      throw new HttpsError('internal', 'No audio data returned by Gemini TTS.');
-    }
-
-    return { audioBase64: part.data as string, mimeType: (part.mimeType as string) ?? 'audio/wav' };
+    const audioBase64 = Buffer.from(response.audioContent as Uint8Array).toString('base64');
+    return { audioBase64, mimeType: 'audio/mp3' };
   },
 );

@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { AppearanceProvider, useAppearance } from './src/context/AppearanceContext';
 import { ProfileProvider } from './src/context/ProfileContext';
-import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { AuthProvider } from './src/context/AuthContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
@@ -46,9 +46,7 @@ import NotesScreen from './src/screens/Notes/NotesScreen';
 import NoteEditorScreen from './src/screens/Notes/NoteEditorScreen';
 import DevotionScreen from './src/screens/Devotion/DevotionScreen';
 import ScriptureChatScreen from './src/screens/ScriptureChat/ScriptureChatScreen';
-import WelcomeScreen from './src/screens/Auth/WelcomeScreen';
-import EmailAuthScreen from './src/screens/Auth/EmailAuthScreen';
-import ForgotPasswordScreen from './src/screens/Auth/ForgotPasswordScreen';
+import ScriptureInsightsScreen from './src/screens/ScriptureInsights/ScriptureInsightsScreen';
 
 import {
   HomeStackParamList,
@@ -59,7 +57,6 @@ import {
   ProfileStackParamList,
   AppRootParamList,
   RootTabParamList,
-  AuthStackParamList,
 } from './src/types/navigation';
 
 const HomeStack      = createNativeStackNavigator<HomeStackParamList>();
@@ -69,7 +66,6 @@ const NotesStack     = createNativeStackNavigator<NotesStackParamList>();
 const CommunityStack = createNativeStackNavigator<CommunityStackParamList>();
 const ProfileStack   = createNativeStackNavigator<ProfileStackParamList>();
 const AppRoot        = createNativeStackNavigator<AppRootParamList>();
-const AuthNav        = createNativeStackNavigator<AuthStackParamList>();
 const Tab            = createBottomTabNavigator<RootTabParamList>();
 
 function HomeStackScreen() {
@@ -83,6 +79,7 @@ function HomeStackScreen() {
       <HomeStack.Screen name="Goals" component={GoalsScreen} />
       <HomeStack.Screen name="Devotion" component={DevotionScreen} />
       <HomeStack.Screen name="ScriptureChat" component={ScriptureChatScreen} />
+      <HomeStack.Screen name="ScriptureInsights" component={ScriptureInsightsScreen} />
     </HomeStack.Navigator>
   );
 }
@@ -140,20 +137,7 @@ function ProfileStackScreen() {
   );
 }
 
-function AuthStackScreen() {
-  return (
-    <AuthNav.Navigator id="auth" screenOptions={{ headerShown: false }}>
-      <AuthNav.Screen name="Welcome"        component={WelcomeScreen}       />
-      <AuthNav.Screen name="EmailAuth"      component={EmailAuthScreen}      />
-      <AuthNav.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-    </AuthNav.Navigator>
-  );
-}
-
 function RootNavigator() {
-  const { user, loading } = useAuth();
-  if (loading) return null;
-  if (!user) return <AuthStackScreen />;
   return (
     <AppRoot.Navigator id="approot" screenOptions={{ headerShown: false }}>
       <AppRoot.Screen name="MainTabs" component={TabNavigatorComponent} />

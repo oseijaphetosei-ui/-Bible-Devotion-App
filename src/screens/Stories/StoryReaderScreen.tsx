@@ -8,13 +8,14 @@ import {
   StatusBar,
   Animated,
 } from 'react-native';
+import { Audio } from 'expo-av';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import * as Speech from 'expo-speech';
 import { RootStackParamList } from '../../types/navigation';
 import { STORIES, CATEGORY_TEXT_COLORS, type Story } from '../../data/stories';
 import { LinearGradient } from 'expo-linear-gradient';
+import { speakText } from '../../services/ttsService';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 type ReaderRoute = RouteProp<RootStackParamList, 'StoryReader'>;
@@ -101,6 +102,7 @@ export default function StoryReaderScreen() {
   const chunkIdxRef = useRef(0);
   const chunksRef = useRef<string[]>([]);
   const rateRef = useRef(0.9);
+  const soundRef = useRef<Audio.Sound | null>(null);
 
   // Quiz state
   const [currentQ, setCurrentQ] = useState(0);
@@ -114,13 +116,18 @@ export default function StoryReaderScreen() {
 
   // Clean up speech when leaving screen
   useEffect(() => {
-    return () => { activeRef.current = false; Speech.stop(); };
+    return () => {
+      activeRef.current = false;
+      soundRef.current?.unloadAsync().catch(() => {});
+      soundRef.current = null;
+    };
   }, []);
 
   // Reset TTS + quiz whenever story changes
   useEffect(() => {
     activeRef.current = false;
-    Speech.stop();
+    soundRef.current?.unloadAsync().catch(() => {});
+    soundRef.current = null;
     setViewState('story');
     setSpeechState('idle');
     setActiveChunk(-1);
@@ -142,7 +149,7 @@ export default function StoryReaderScreen() {
   );
 
   // ── TTS ──────────────────────────────────────────────────────────────────
-  const speakChunk = useCallback((chunks: string[], idx: number) => {
+  const speakChunk = useCallback(async (chunks: string[], idx: number) => {
     if (!activeRef.current || idx >= chunks.length) {
       activeRef.current = false;
       setSpeechState('idle');
@@ -151,19 +158,19 @@ export default function StoryReaderScreen() {
     }
     chunkIdxRef.current = idx;
     setActiveChunk(idx);
-    Speech.speak(chunks[idx], {
-      rate: rateRef.current,
-      onDone: () => {
+    const sound = await speakText(chunks[idx], `story-${storyId}-${idx}`);
+    sound.setRateAsync(rateRef.current, true).catch(() => {});
+    soundRef.current = sound;
+    sound.setOnPlaybackStatusUpdate((status) => {
+      if (!status.isLoaded) return;
+      if (status.didJustFinish) {
+        soundRef.current?.unloadAsync().catch(() => {});
+        soundRef.current = null;
         if (!activeRef.current) return;
-        setTimeout(() => speakChunk(chunks, idx + 1), 350);
-      },
-      onError: () => {
-        activeRef.current = false;
-        setSpeechState('idle');
-        setActiveChunk(-1);
-      },
+        setTimeout(() => { void speakChunk(chunks, idx + 1); }, 350);
+      }
     });
-  }, []);
+  }, [storyId]);
 
   const handlePlay = () => {
     if (!story) return;
@@ -172,18 +179,24 @@ export default function StoryReaderScreen() {
     activeRef.current = true;
     setSpeechState('playing');
     const startIdx = speechState === 'paused' ? chunkIdxRef.current : 0;
-    speakChunk(chunks, startIdx);
+    void speakChunk(chunks, startIdx).catch(() => {
+      activeRef.current = false;
+      setSpeechState('idle');
+      setActiveChunk(-1);
+    });
   };
 
-  const handlePause = () => {
+  const handlePause = async () => {
     activeRef.current = false;
-    Speech.stop();
+    await soundRef.current?.pauseAsync().catch(() => {});
     setSpeechState('paused');
   };
 
-  const handleStop = () => {
+  const handleStop = async () => {
     activeRef.current = false;
-    Speech.stop();
+    await soundRef.current?.stopAsync().catch(() => {});
+    await soundRef.current?.unloadAsync().catch(() => {});
+    soundRef.current = null;
     setSpeechState('idle');
     setActiveChunk(-1);
     chunkIdxRef.current = 0;
@@ -194,11 +207,14 @@ export default function StoryReaderScreen() {
     const next = rates[(rates.indexOf(speechRate) + 1) % rates.length];
     setSpeechRate(next);
     rateRef.current = next;
+    soundRef.current?.setRateAsync(next, true).catch(() => {});
     if (speechState === 'playing') {
       activeRef.current = false;
-      Speech.stop();
+      soundRef.current?.stopAsync().catch(() => {});
+      soundRef.current?.unloadAsync().catch(() => {});
+      soundRef.current = null;
       activeRef.current = true;
-      setTimeout(() => speakChunk(chunksRef.current, chunkIdxRef.current), 100);
+      setTimeout(() => { void speakChunk(chunksRef.current, chunkIdxRef.current); }, 100);
     }
   };
 
@@ -208,7 +224,9 @@ export default function StoryReaderScreen() {
   // ── Quiz ─────────────────────────────────────────────────────────────────
   const openQuiz = () => {
     activeRef.current = false;
-    Speech.stop();
+    soundRef.current?.stopAsync().catch(() => {});
+    soundRef.current?.unloadAsync().catch(() => {});
+    soundRef.current = null;
     setSpeechState('idle');
     fadeTransition(() => {
       setViewState('quiz');

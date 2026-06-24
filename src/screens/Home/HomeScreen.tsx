@@ -1,10 +1,10 @@
 import React, { useRef, useState, useCallback, useEffect, memo, useMemo } from 'react';
-import * as Speech from 'expo-speech';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   StatusBar, Animated, Easing, Dimensions, Platform,
   ImageBackground, Image, Share as RNShare,
 } from 'react-native';
+import { Audio } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../../types/navigation';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getTodayVerseEntry } from '../../services/verseService';
+import { speakText } from '../../services/ttsService';
 import { loadGoals, isCompletedToday } from '../../services/goalsService';
 import { Goal } from '../../types/goal';
 import { useFocusEffect } from '@react-navigation/native';
@@ -58,14 +59,20 @@ const VerseCard = memo(function VerseCard() {
   const verse = getTodayVerseEntry();
   const [speaking, setSpeaking] = useState(false);
   const speakingRef = useRef(false);
+  const soundRef = useRef<Audio.Sound | null>(null);
 
   useEffect(() => {
-    return () => { Speech.stop(); speakingRef.current = false; };
+    return () => {
+      soundRef.current?.unloadAsync().catch(() => {});
+      speakingRef.current = false;
+    };
   }, []);
 
-  const handleListen = useCallback(() => {
+  const handleListen = useCallback(async () => {
     if (speakingRef.current) {
-      Speech.stop();
+      await soundRef.current?.stopAsync().catch(() => {});
+      await soundRef.current?.unloadAsync().catch(() => {});
+      soundRef.current = null;
       speakingRef.current = false;
       setSpeaking(false);
       return;
@@ -73,14 +80,22 @@ const VerseCard = memo(function VerseCard() {
     const text = `${sanitizeForSpeech(verse.label)}. ${sanitizeForSpeech(verse.fallbackText)}`;
     speakingRef.current = true;
     setSpeaking(true);
-    Speech.speak(text, {
-      language: 'en-US',
-      pitch: 1.0,
-      rate: 0.88,
-      onDone:    () => { speakingRef.current = false; setSpeaking(false); },
-      onStopped: () => { speakingRef.current = false; setSpeaking(false); },
-      onError:   () => { speakingRef.current = false; setSpeaking(false); },
-    });
+    try {
+      const sound = await speakText(text, `today-verse-${verse.label}`);
+      soundRef.current = sound;
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (!status.isLoaded) return;
+        if (status.didJustFinish) {
+          speakingRef.current = false;
+          setSpeaking(false);
+          soundRef.current?.unloadAsync().catch(() => {});
+          soundRef.current = null;
+        }
+      });
+    } catch {
+      speakingRef.current = false;
+      setSpeaking(false);
+    }
   }, [verse]);
 
   const handleShare = useCallback(async () => {
@@ -89,11 +104,11 @@ const VerseCard = memo(function VerseCard() {
     } catch { /* cancelled */ }
   }, [verse]);
 
-  const handleChat = useCallback(() => {
-    navigation.navigate('ScriptureChat', {
+  const handleInsights = useCallback(() => {
+    navigation.navigate('ScriptureInsights', {
       reference: verse.label,
       contextType: 'verse',
-      context: `${verse.label}\n\n"${verse.fallbackText}"`,
+      context: verse.fallbackText,
     });
   }, [navigation, verse]);
 
@@ -129,7 +144,7 @@ const VerseCard = memo(function VerseCard() {
               <Ionicons name="book-outline" size={24} color="rgba(255,255,255,0.88)" />
               <Text style={s.verseActionLabel}>Read</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={s.verseAction} onPress={handleChat} activeOpacity={0.72}>
+            <TouchableOpacity style={s.verseAction} onPress={handleInsights} activeOpacity={0.72}>
               <Ionicons name="sparkles-outline" size={24} color="rgba(255,255,255,0.88)" />
               <Text style={s.verseActionLabel}>AI Insights</Text>
             </TouchableOpacity>
