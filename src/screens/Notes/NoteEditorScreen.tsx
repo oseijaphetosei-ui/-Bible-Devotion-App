@@ -18,7 +18,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { NotesStackParamList } from '../../types/navigation';
 import {
-  Note, createNote, updateNote, deleteNote, getNotes, toggleFavorite,
+  Note, createNote, updateNote, deleteNote, getNote, toggleFavorite,
 } from '../../services/notesService';
 import { useTheme } from '../../theme';
 
@@ -29,11 +29,13 @@ export default function NoteEditorScreen() {
   const navigation = useNavigation<NavProp>();
   const route = useRoute<RouteP>();
   const t = useTheme();
-  const noteId = route.params?.noteId;
+  const noteId          = route.params?.noteId;
+  const prefillRef      = route.params?.prefillReference ?? '';
+  const prefillQuote    = route.params?.prefillQuote ?? '';
   const isNew = !noteId;
 
   const [note, setNote] = useState<Note | null>(null);
-  const [reference, setReference] = useState('');
+  const [reference, setReference] = useState(prefillRef);
   const [content, setContent] = useState('');
   const [editing, setEditing] = useState(isNew);
   const [saving, setSaving] = useState(false);
@@ -46,8 +48,7 @@ export default function NoteEditorScreen() {
     if (!noteId) return;
     (async () => {
       try {
-        const all = await getNotes();
-        const found = all.find(n => n.id === noteId) ?? null;
+        const found = await getNote(noteId);
         if (found) {
           setNote(found);
           setReference(found.bibleReference ?? '');
@@ -220,6 +221,15 @@ export default function NoteEditorScreen() {
               </View>
             </View>
 
+            {/* Quoted verse — only shown when pre-filled from Bible reading */}
+            {isNew && prefillQuote.trim() ? (
+              <View style={[s.quoteBlock, { borderColor: t.goldBorder, backgroundColor: t.goldBg }]}>
+                <Text style={[s.quoteText, { color: t.textSub }]}>
+                  "{prefillQuote.trim()}"
+                </Text>
+              </View>
+            ) : null}
+
             {/* Note body card */}
             <View style={[s.noteCard, { backgroundColor: t.card, borderColor: t.cardBorder }]}>
               <View style={s.noteCardInner}>
@@ -294,6 +304,20 @@ const s = StyleSheet.create({
   },
   categoryTagIcon: { fontSize: 13 },
   categoryTagText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
+
+  quoteBlock: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderLeftWidth: 3,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  quoteText: {
+    fontSize: 15,
+    lineHeight: 24,
+    fontStyle: 'italic',
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+  },
 
   noteCard: {
     borderRadius: 16, borderWidth: 1,

@@ -12,6 +12,10 @@ export type HomeStackParamList = {
   Devotion: { topic?: string } | undefined;
   ScriptureChat: ScriptureChatNavParams;
   ScriptureInsights: ScriptureInsightsNavParams;
+  TodayJourney: undefined;
+  Reading: { planId: string; day: number };
+  Reflection: { planId: string; day: number };
+  PlanLibrary: undefined;
 };
 
 export type BibleStackParamList = {
@@ -23,7 +27,7 @@ export type BibleStackParamList = {
 
 export type NotesStackParamList = {
   Notes: undefined;
-  NoteEditor: { noteId?: string } | undefined;
+  NoteEditor: { noteId?: string; prefillReference?: string; prefillQuote?: string } | undefined;
 };
 
 export type ChatStackParamList = {

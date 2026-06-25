@@ -13,6 +13,7 @@ const CHATS_KEY             = '@profile_scripture_chats';
 const PRAYERS_KEY           = '@profile_prayers_completed';
 const STREAK_KEY            = '@profile_streak';
 const STREAK_LAST_KEY       = '@profile_streak_last_date'; // YYYY-MM-DD
+const STREAK_LONGEST_KEY    = '@profile_streak_longest';
 const FAVORITE_VERSE_KEY    = '@profile_favorite_verse';
 const NOTIF_SETTINGS_KEY    = '@profile_notif_settings';
 const PRIVACY_SETTINGS_KEY  = '@profile_privacy_settings';
@@ -79,25 +80,54 @@ export async function incrementPrayersCompleted(): Promise<void> {
 
 // ── Streak ────────────────────────────────────────────────────────────────────
 
-export async function checkAndUpdateStreak(): Promise<number> {
-  const today = new Date().toISOString().split('T')[0];
-  const lastDate = await AsyncStorage.getItem(STREAK_LAST_KEY);
-  const current  = await getNum(STREAK_KEY);
+export type ReadingCompletionResult = {
+  streak: number;
+  longestStreak: number;
+  isNewRecord: boolean;
+  alreadyDoneToday: boolean;
+};
 
-  if (lastDate === today) return current; // already counted today
+/**
+ * Called when the user completes a reading plan day.
+ * Idempotent per calendar day — safe to call multiple times.
+ */
+export async function recordReadingCompletion(): Promise<ReadingCompletionResult> {
+  const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
+  const [lastDate, current, longest] = await Promise.all([
+    AsyncStorage.getItem(STREAK_LAST_KEY),
+    getNum(STREAK_KEY),
+    getNum(STREAK_LONGEST_KEY),
+  ]);
 
-  const yesterday = new Date(Date.now() - 86_400_000).toISOString().split('T')[0];
-  let next: number;
-
-  if (lastDate === yesterday) {
-    next = current + 1; // continuing streak
-  } else {
-    next = 1; // streak broken, restart
+  if (lastDate === today) {
+    return { streak: current, longestStreak: longest, isNewRecord: false, alreadyDoneToday: true };
   }
 
-  await AsyncStorage.setItem(STREAK_KEY, String(next));
-  await AsyncStorage.setItem(STREAK_LAST_KEY, today);
-  return next;
+  const yesterday = new Date(Date.now() - 86_400_000).toLocaleDateString('en-CA');
+  const next = lastDate === yesterday ? current + 1 : 1;
+  const newLongest = Math.max(next, longest);
+
+  await Promise.all([
+    AsyncStorage.setItem(STREAK_KEY, String(next)),
+    AsyncStorage.setItem(STREAK_LAST_KEY, today),
+    AsyncStorage.setItem(STREAK_LONGEST_KEY, String(newLongest)),
+  ]);
+
+  return {
+    streak: next,
+    longestStreak: newLongest,
+    isNewRecord: next > longest,
+    alreadyDoneToday: false,
+  };
+}
+
+export async function getStreakCount(): Promise<number> {
+  return getNum(STREAK_KEY);
+}
+
+/** @deprecated Incremented on profile open; use recordReadingCompletion() from reading plan completion instead. */
+export async function checkAndUpdateStreak(): Promise<number> {
+  return getStreakCount();
 }
 
 // ── Favorite verse ────────────────────────────────────────────────────────────
@@ -150,7 +180,7 @@ export async function setPrivacySettings(s: PrivacySettings): Promise<void> {
 export async function clearLocalProfile(): Promise<void> {
   const keysToRemove = [
     JOIN_DATE_KEY, CHAPTERS_KEY, CHATS_KEY, PRAYERS_KEY,
-    STREAK_KEY, STREAK_LAST_KEY, FAVORITE_VERSE_KEY,
+    STREAK_KEY, STREAK_LAST_KEY, STREAK_LONGEST_KEY, FAVORITE_VERSE_KEY,
     NOTIF_SETTINGS_KEY, PRIVACY_SETTINGS_KEY,
     '@chat_display_name', '@community_prayed', '@community_joined', '@community_reacted',
     '@chat_favorites',

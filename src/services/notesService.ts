@@ -67,6 +67,7 @@ export async function createNote(
   payload: Pick<Note, 'title' | 'content' | 'bibleReference' | 'devotionId' | 'tags'>
 ): Promise<Note> {
   const userId = await getDeviceId();
+  const now = new Date().toISOString();
   const ref = await addDoc(collection(db, 'notes'), {
     userId,
     title: payload.title,
@@ -78,8 +79,26 @@ export async function createNote(
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
-  const snap = await getDoc(ref);
-  return toNote(ref.id, snap.data());
+  // Return a locally-constructed Note — avoids a second Firestore read and
+  // sidesteps the unresolved serverTimestamp sentinel that getDoc would return.
+  return {
+    id: ref.id,
+    userId,
+    title: payload.title,
+    content: payload.content,
+    bibleReference: payload.bibleReference ?? undefined,
+    devotionId: payload.devotionId ?? undefined,
+    tags: payload.tags ?? [],
+    favorite: false,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+export async function getNote(id: string): Promise<Note | null> {
+  const snap = await getDoc(doc(db, 'notes', id));
+  if (!snap.exists()) return null;
+  return toNote(snap.id, snap.data());
 }
 
 export async function getNotes(): Promise<Note[]> {

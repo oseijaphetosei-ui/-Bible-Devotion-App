@@ -18,6 +18,11 @@ import { Goal } from '../../types/goal';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../theme';
 import ProfileAvatar from '../../components/ProfileAvatar';
+import {
+  getActivePlan, getPlanById, getTodayReading,
+  isTodayCompleted, planProgress, passageLabel,
+} from '../../services/readingPlanService';
+import type { ActivePlan as ReadingActivePlan } from '../../types/readingPlan';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -39,18 +44,6 @@ const getGreeting = () => {
   if (h < 17) return 'Good Afternoon';
   return 'Good Evening';
 };
-
-function getWeekDays() {
-  const today = new Date();
-  const dow = today.getDay();
-  const sunday = new Date(today);
-  sunday.setDate(today.getDate() - dow);
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(sunday);
-    d.setDate(sunday.getDate() + i);
-    return { label: ['S','M','T','W','T','F','S'][i], date: d.getDate(), isToday: i === dow };
-  });
-}
 
 // ─── Today's Verse Card ───────────────────────────────────────────────────────
 
@@ -169,101 +162,196 @@ const VerseCard = memo(function VerseCard() {
   );
 });
 
-// ─── Content card (Devotion, Goals, Prayer…) ─────────────────────────────────
-// Matches the "Guided Scripture" card from the reference screenshot.
-
-type ContentCardProps = {
-  metaIcon: string;
-  metaValue: string;
-  category: string;
-  title: string;
-  subtitle: string;
-  image: any;
-  onPress: () => void;
-};
-
-const ContentCard = memo(function ContentCard({
-  metaIcon, metaValue, category, title, subtitle, image, onPress,
-}: ContentCardProps) {
-  const t = useTheme();
-  return (
-    <TouchableOpacity
-      style={[s.contentCard, { backgroundColor: t.card, borderColor: t.cardBorder }]}
-      onPress={onPress}
-      activeOpacity={0.86}
-    >
-      <View style={s.contentLeft}>
-        <View style={s.contentTopRow}>
-          <Text style={s.contentMetaIcon}>{metaIcon}</Text>
-          <Text style={[s.contentMetaValue, { color: t.textMuted }]}>{metaValue}</Text>
-        </View>
-        <Text style={[s.contentCategory, { color: t.textMuted }]}>{category}</Text>
-        <Text style={[s.contentTitle, { color: t.text }]} numberOfLines={2}>{title}</Text>
-        <View style={s.contentSubRow}>
-          <Ionicons name="play" size={9} color={t.textMuted} />
-          <Text style={[s.contentSubText, { color: t.textMuted }]}>{subtitle}</Text>
-        </View>
-      </View>
-      <Image source={image} style={s.contentImage} resizeMode="cover" />
-    </TouchableOpacity>
-  );
-});
-
-// ─── Spiritual Goals Card ─────────────────────────────────────────────────────
-// Pulls live goal data; same visual shell as ContentCard.
+// ─── Spiritual Goals Row ──────────────────────────────────────────────────────
 
 const GoalsCard = memo(function GoalsCard() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const t = useTheme();
   const [goals, setGoals] = useState<Goal[]>([]);
 
-  useFocusEffect(useCallback(() => { loadGoals().then(setGoals); }, []));
+  useFocusEffect(useCallback(() => { loadGoals().then(setGoals).catch(() => {}); }, []));
 
   const completed = goals.filter(isCompletedToday).length;
-  const firstGoal = goals[0];
+  const pct = goals.length > 0 ? (completed / goals.length) * 100 : 0;
 
   return (
     <TouchableOpacity
-      style={[s.contentCard, { backgroundColor: t.card, borderColor: t.cardBorder }]}
+      style={s.listRow}
       onPress={() => navigation.navigate('Goals')}
-      activeOpacity={0.86}
+      activeOpacity={0.8}
     >
-      <View style={s.contentLeft}>
-        <View style={s.contentTopRow}>
-          <Text style={s.contentMetaIcon}>🎯</Text>
-          <Text style={[s.contentMetaValue, { color: t.textMuted }]}>
-            {goals.length > 0 ? `${completed}/${goals.length}` : '0'}
-          </Text>
-        </View>
-        <Text style={[s.contentCategory, { color: t.textMuted }]}>Spiritual Goals</Text>
-        <Text style={[s.contentTitle, { color: t.text }]} numberOfLines={2}>
-          {firstGoal ? firstGoal.title : 'Set your daily goals'}
-        </Text>
+      <View style={[s.listRowIconWrap, { backgroundColor: t.goldBg }]}>
+        <Ionicons name="flag-outline" size={18} color={t.gold} />
+      </View>
+      <View style={s.listRowBody}>
+        <Text style={[s.listRowTitle, { color: t.text }]}>Spiritual Goals</Text>
         {goals.length > 0 ? (
           <>
             <View style={[s.goalsProgressTrack, { backgroundColor: t.progressTrack }]}>
-              <View style={[
-                s.goalsProgressFill,
-                {
-                  backgroundColor: t.gold,
-                  width: `${goals.length > 0 ? (completed / goals.length) * 100 : 0}%` as any,
-                },
-              ]} />
+              <View style={[s.goalsProgressFill, { width: `${pct}%` as any, backgroundColor: t.gold }]} />
             </View>
-            <Text style={[s.contentSubText, { color: t.textMuted, marginTop: 4 }]}>
-              {completed} completed today
+            <Text style={[s.listRowSub, { color: t.textMuted }]}>
+              {completed} of {goals.length} completed today
             </Text>
           </>
         ) : (
-          <View style={s.contentSubRow}>
-            <Ionicons name="add-circle-outline" size={9} color={t.textMuted} />
-            <Text style={[s.contentSubText, { color: t.textMuted }]}>Get started</Text>
-          </View>
+          <Text style={[s.listRowSub, { color: t.textMuted }]}>Set your daily spiritual goals</Text>
         )}
       </View>
-      <Image source={require('../../assets/dove.jpg')} style={s.contentImage} resizeMode="cover" />
+      <Ionicons name="chevron-forward" size={14} color={t.textMuted} />
     </TouchableOpacity>
   );
+});
+
+// ─── Reading Plan Banner ──────────────────────────────────────────────────────
+
+const ReadingPlanBanner = memo(function ReadingPlanBanner() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const t = useTheme();
+  const [active, setActive] = useState<ReadingActivePlan | null | undefined>(undefined);
+
+  useFocusEffect(useCallback(() => {
+    getActivePlan().then(setActive);
+  }, []));
+
+  if (active === undefined) return null;
+
+  if (!active) {
+    return (
+      <TouchableOpacity
+        style={[rp.noPlanBanner, { borderColor: t.goldBorder, backgroundColor: t.goldBg }]}
+        onPress={() => navigation.navigate('PlanLibrary')}
+        activeOpacity={0.8}
+      >
+        <View style={rp.noPlanLeft}>
+          <Text style={rp.noPlanIcon}>📖</Text>
+          <View>
+            <Text style={[rp.noPlanTitle, { color: t.text }]}>Start a Reading Plan</Text>
+            <Text style={[rp.noPlanSub, { color: t.textMuted }]}>Build a lasting daily Scripture habit</Text>
+          </View>
+        </View>
+        <Ionicons name="chevron-forward" size={16} color={t.gold} />
+      </TouchableOpacity>
+    );
+  }
+
+  const plan    = getPlanById(active.planId);
+  const reading = getTodayReading(active);
+  const done    = isTodayCompleted(active);
+  const pct     = Math.round(planProgress(active) * 100);
+
+  if (!plan || !reading) return null;
+
+  return (
+    <TouchableOpacity
+      style={rp.banner}
+      onPress={() => navigation.navigate('TodayJourney')}
+      activeOpacity={0.85}
+    >
+      {/* Thin gold left accent line */}
+      <View style={rp.accentLine} />
+
+      <View style={rp.bannerBody}>
+        <View style={rp.bannerTop}>
+          <Text style={rp.bannerLabel}>DAILY READING</Text>
+          {active.streak > 0 && (
+            <View style={rp.streakPill}>
+              <Text style={rp.streakFire}>🔥</Text>
+              <Text style={rp.streakNum}>{active.streak}</Text>
+            </View>
+          )}
+        </View>
+
+        <Text style={[rp.readingTitle, { color: t.text }]} numberOfLines={1}>
+          {reading.title}
+        </Text>
+
+        <View style={rp.metaRow}>
+          <Text style={[rp.metaText, { color: t.textMuted }]}>
+            Day {active.currentDay} of {plan.totalDays}
+          </Text>
+          <View style={[rp.metaDot, { backgroundColor: t.textMuted }]} />
+          <Text style={[rp.metaText, { color: t.textMuted }]}>
+            {reading.estimatedMinutes} min
+          </Text>
+          <View style={[rp.metaDot, { backgroundColor: t.textMuted }]} />
+          <Text style={[rp.metaText, { color: t.textMuted }]}>{pct}% done</Text>
+        </View>
+
+        {/* Progress track */}
+        <View style={[rp.progressTrack, { backgroundColor: t.progressTrack }]}>
+          <View style={[rp.progressFill, { width: `${pct}%`, backgroundColor: t.gold }]} />
+        </View>
+
+        {done ? (
+          <View style={rp.completedRow}>
+            <Ionicons name="checkmark-circle" size={14} color={t.gold} />
+            <Text style={[rp.ctaLabel, { color: t.gold }]}>Today's Journey Complete</Text>
+          </View>
+        ) : (
+          <Text style={[rp.ctaLabel, { color: t.gold }]}>Continue Today's Journey →</Text>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+});
+
+const rp = StyleSheet.create({
+  // No active plan
+  noPlanBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 16,
+  },
+  noPlanLeft:  { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  noPlanIcon:  { fontSize: 22 },
+  noPlanTitle: { fontSize: 15, fontWeight: '700', letterSpacing: 0.1 },
+  noPlanSub:   { fontSize: 12, marginTop: 2 },
+
+  // Active plan banner
+  banner: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  accentLine: {
+    width: 2,
+    backgroundColor: '#C9A96B',
+    borderRadius: 2,
+    marginRight: 14,
+    alignSelf: 'stretch',
+  },
+  bannerBody:  { flex: 1 },
+  bannerTop:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  bannerLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 2,
+    color: '#C9A96B',
+  },
+  streakPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  streakFire: { fontSize: 12 },
+  streakNum:  { fontSize: 12, fontWeight: '700', color: '#C9A96B' },
+
+  readingTitle: { fontSize: 18, fontWeight: '700', letterSpacing: -0.2, marginBottom: 6 },
+  metaRow:      { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
+  metaText:     { fontSize: 12, fontWeight: '500' },
+  metaDot:      { width: 2, height: 2, borderRadius: 1, opacity: 0.4 },
+
+  progressTrack: { height: 2, borderRadius: 1, marginBottom: 10 },
+  progressFill:  { height: 2, borderRadius: 1 },
+
+  ctaLabel: { fontSize: 13, fontWeight: '600', letterSpacing: 0.1 },
+  completedRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
 });
 
 // ─── HomeScreen ───────────────────────────────────────────────────────────────
@@ -272,12 +360,10 @@ export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const t = useTheme();
 
-  // These are pure functions of the current time — stable for the life of this mount.
   const greeting = useMemo(() => getGreeting(), []);
   const today    = useMemo(() => new Date().toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric',
   }), []);
-  const weekDays = useMemo(() => getWeekDays(), []);
 
   // Entrance animation for quick-nav cards (still scroll-triggered)
   const cardOpacity    = useRef(new Animated.Value(0)).current;
@@ -318,50 +404,6 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* ── Streak banner ── */}
-        <View style={s.streakCard}>
-          <View style={s.streakInner}>
-            <View style={s.streakTopRow}>
-              <Text style={s.streakEmoji}>🔥</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={[s.streakTitle, { color: t.text }]}>7-Day Streak</Text>
-                <Text style={[s.streakSub, { color: t.textSub }]}>Keep it going — read today's content below</Text>
-              </View>
-              <View style={[s.streakBadge, { backgroundColor: t.gold }]}>
-                <Text style={[s.streakBadgeText, { color: t.bg }]}>7</Text>
-              </View>
-            </View>
-
-            <View style={s.weekRow}>
-              {weekDays.map((d, i) => (
-                <View key={i} style={s.weekDayCol}>
-                  <Text style={[s.weekDayLabel, { color: t.textMuted }]}>{d.label}</Text>
-                  <View style={[
-                    s.weekDayCircle,
-                    { backgroundColor: t.weekCircleBg, borderColor: t.weekCircleBorder },
-                    d.isToday && { backgroundColor: t.weekCircleActiveBg, borderColor: t.goldBorder },
-                  ]}>
-                    <Text style={[
-                      s.weekDayNum, { color: t.textMuted },
-                      d.isToday && { color: t.gold, fontWeight: '700' },
-                    ]}>
-                      {d.date}
-                    </Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-
-            <View style={s.progressRow}>
-              <Text style={[s.progressLabel, { color: t.textSub }]}>Progress today</Text>
-              <Text style={[s.progressPct, { color: t.gold }]}>0%</Text>
-            </View>
-            <View style={[s.progressTrack, { backgroundColor: t.progressTrack }]}>
-              <View style={[s.progressFill, { width: '0%', backgroundColor: t.gold }]} />
-            </View>
-          </View>
-        </View>
-
         <ScrollView
           style={s.scroll}
           contentContainerStyle={s.content}
@@ -369,25 +411,38 @@ export default function HomeScreen() {
           onScroll={checkVisibility}
           scrollEventThrottle={16}
         >
-          {/* ── Today's Verse — large immersive card ── */}
+          {/* ── Reading Plan CTA ── */}
+          <ReadingPlanBanner />
+
+          {/* ── Verse hero — the focal point of the screen ── */}
           <VerseCard />
 
-          {/* ── Daily Devotion ── */}
-          <ContentCard
-            metaIcon="🔥"
-            metaValue="0"
-            category="Daily Devotion"
-            title="Finding Peace in God's Presence"
-            subtitle="2–5 min"
-            image={require('../../assets/man-clouds.jpg')}
-            onPress={() => navigation.navigate('Devotion', undefined)}
-          />
+          {/* ── Today section ── */}
+          <Text style={[s.sectionLabel, { color: t.textMuted }]}>TODAY</Text>
 
-          {/* ── Spiritual Goals ── */}
+          {/* Daily Devotion — text-forward row */}
+          <TouchableOpacity
+            style={s.listRow}
+            onPress={() => navigation.navigate('Devotion', undefined)}
+            activeOpacity={0.8}
+          >
+            <View style={[s.listRowIconWrap, { backgroundColor: t.goldBg }]}>
+              <Ionicons name="flame-outline" size={18} color={t.gold} />
+            </View>
+            <View style={s.listRowBody}>
+              <Text style={[s.listRowTitle, { color: t.text }]}>Daily Devotion</Text>
+              <Text style={[s.listRowSub, { color: t.textMuted }]}>Finding Peace in God's Presence · 2–5 min</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={14} color={t.textMuted} />
+          </TouchableOpacity>
+
+          <View style={[s.rowDivider, { backgroundColor: t.divider }]} />
+
+          {/* Spiritual Goals */}
           <GoalsCard />
 
           {/* ── Explore section ── */}
-          <Text style={[s.sectionLabel, { color: t.textMuted, marginTop: 6 }]}>EXPLORE</Text>
+          <Text style={[s.sectionLabel, { color: t.textMuted, marginTop: 28 }]}>EXPLORE</Text>
 
           <View ref={cardSectionRef} onLayout={checkVisibility}>
             <Animated.View
@@ -397,15 +452,20 @@ export default function HomeScreen() {
               ]}
             >
               <TouchableOpacity
-                style={[s.quickNavItem, { backgroundColor: t.card, borderColor: t.cardBorder }]}
+                style={s.quickNavItem}
                 onPress={() => navigation.navigate('Stories')}
+                activeOpacity={0.88}
               >
                 <Image source={require('../../assets/group-story-by-fire.jpg')} style={s.quickNavImage} />
-                <Text style={[s.quickNavLabel, { color: t.cardLabel }]}>Stories</Text>
+                <LinearGradient
+                  colors={['transparent', 'rgba(0,0,0,0.72)']}
+                  style={StyleSheet.absoluteFillObject}
+                />
+                <Text style={s.quickNavLabel}>Stories</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[s.quickNavItem, { backgroundColor: t.card, borderColor: t.cardBorder }]}
+                style={s.quickNavItem}
                 onPress={() => {
                   const v = getTodayVerseEntry();
                   navigation.navigate('ScriptureChat', {
@@ -414,13 +474,18 @@ export default function HomeScreen() {
                     context: `${v.label}\n\n"${v.fallbackText}"`,
                   });
                 }}
+                activeOpacity={0.88}
               >
                 <Image
                   source={require('../../assets/talk-to-scripture.jpg')}
                   style={s.quickNavImage}
                   resizeMode="cover"
                 />
-                <Text style={[s.quickNavLabel, { color: t.cardLabel }]}>Talk to Scripture</Text>
+                <LinearGradient
+                  colors={['transparent', 'rgba(0,0,0,0.72)']}
+                  style={StyleSheet.absoluteFillObject}
+                />
+                <Text style={s.quickNavLabel}>Talk to Scripture</Text>
               </TouchableOpacity>
             </Animated.View>
           </View>
@@ -435,51 +500,25 @@ export default function HomeScreen() {
 const s = StyleSheet.create({
   safe:    { flex: 1 },
   scroll:  { flex: 1 },
-  content: { paddingHorizontal: 16, paddingBottom: 120 },
+  content: { paddingHorizontal: 18, paddingBottom: 120 },
 
   // Header
-  header:        { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, gap: 12 },
+  header:        { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 18, gap: 12 },
   greetingBlock: { flex: 1 },
-  greeting:      { fontSize: 22, fontWeight: '700' },
+  greeting:      { fontSize: 21, fontWeight: '700', letterSpacing: -0.3 },
   date:          { fontSize: 13, marginTop: 2 },
-
-  // Streak
-  streakCard:      { marginHorizontal: 16, marginBottom: 14 },
-  streakInner:     { padding: 16, paddingTop: 14, gap: 12 },
-  streakTopRow:    { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  streakEmoji:     { fontSize: 22 },
-  streakTitle:     { fontWeight: '700', fontSize: 14 },
-  streakSub:       { fontSize: 12, marginTop: 1 },
-  streakBadge:     { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  streakBadgeText: { fontWeight: '800', fontSize: 15 },
-
-  weekRow:      { flexDirection: 'row', justifyContent: 'space-between' },
-  weekDayCol:   { alignItems: 'center', gap: 4 },
-  weekDayLabel: { fontSize: 10, fontWeight: '600', letterSpacing: 0.5 },
-  weekDayCircle: {
-    width: 32, height: 32, borderRadius: 16,
-    borderWidth: 1, alignItems: 'center', justifyContent: 'center',
-  },
-  weekDayNum: { fontSize: 13, fontWeight: '500' },
-
-  progressRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  progressLabel: { fontSize: 12, fontWeight: '500' },
-  progressPct:  { fontSize: 12, fontWeight: '700' },
-  progressTrack: { height: 4, borderRadius: 2, overflow: 'hidden', marginBottom: 4 },
-  progressFill:  { height: 4, borderRadius: 2 },
 
   // Section label
   sectionLabel: {
-    fontSize: 10, fontWeight: '700', letterSpacing: 1.4,
-    marginBottom: 10, marginTop: 4,
+    fontSize: 10, fontWeight: '700', letterSpacing: 1.6,
+    marginBottom: 12, marginTop: 0,
   },
 
   // ── Today's Verse card ──
   verseCard: {
-    borderRadius: 20, overflow: 'hidden', marginBottom: 14,
-    // Shadow
-    shadowColor: '#000', shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.28, shadowRadius: 14, elevation: 8,
+    borderRadius: 22, overflow: 'hidden', marginBottom: 22,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.32, shadowRadius: 18, elevation: 10,
   },
   verseCardBg: { width: '100%', minHeight: 380 },
   verseCardContent: {
@@ -487,64 +526,66 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     minHeight: 380,
   },
-  verseMeta: { gap: 6, marginBottom: 8 },
+  verseMeta: { gap: 4, marginBottom: 8 },
   verseLabel: {
-    fontSize: 12, color: 'rgba(255,255,255,0.60)',
-    letterSpacing: 0.4,
+    fontSize: 11, color: 'rgba(255,255,255,0.55)',
+    letterSpacing: 1.2, fontWeight: '600',
+    textTransform: 'uppercase',
   },
   verseRef: {
-    fontSize: 20, fontWeight: '800', color: '#fff',
-    letterSpacing: 0.3,
+    fontSize: 19, fontWeight: '700', color: '#fff',
+    letterSpacing: 0.2,
   },
   verseText: {
     flex: 1,
     fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-    fontSize: 24, lineHeight: 38,
+    fontSize: 23, lineHeight: 38,
     color: 'rgba(255,255,255,0.92)',
-    letterSpacing: 0.15,
-    paddingVertical: 16,
+    letterSpacing: 0.1,
+    paddingVertical: 14,
   },
   verseActions: {
     flexDirection: 'row', justifyContent: 'space-around',
-    paddingTop: 16, marginTop: 4,
+    paddingTop: 14, marginTop: 4,
   },
-verseAction:      { alignItems: 'center', gap: 5 },
+  verseAction:      { alignItems: 'center', gap: 5 },
   verseActionLabel: {
-    fontSize: 11, color: 'rgba(255,255,255,0.70)',
+    fontSize: 11, color: 'rgba(255,255,255,0.68)',
     fontWeight: '500', letterSpacing: 0.2,
   },
 
-  // ── Content card (Devotion, Goals) ──
-  contentCard: {
-    flexDirection: 'row', borderRadius: 16, borderWidth: 1,
-    padding: 16, gap: 14, marginBottom: 10,
+  // ── List rows (Devotion, Goals) ──
+  listRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    // Shadow
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07, shadowRadius: 6, elevation: 2,
+    paddingVertical: 14,
+    gap: 13,
   },
-  contentLeft:     { flex: 1, gap: 3 },
-  contentTopRow:   { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 2 },
-  contentMetaIcon: { fontSize: 16 },
-  contentMetaValue: { fontSize: 13, fontWeight: '600' },
-  contentCategory: { fontSize: 11, fontWeight: '600', letterSpacing: 0.3, textTransform: 'uppercase' },
-  contentTitle:    { fontSize: 16, fontWeight: '700', lineHeight: 22 },
-  contentSubRow:   { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-  contentSubText:  { fontSize: 11 },
-  contentImage: {
-    width: 88, height: 88, borderRadius: 12,
+  listRowIconWrap: {
+    width: 36, height: 36, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center',
   },
+  listRowBody:  { flex: 1, gap: 3 },
+  listRowTitle: { fontSize: 15, fontWeight: '600', letterSpacing: 0.1 },
+  listRowSub:   { fontSize: 12, lineHeight: 17 },
 
-  // Goals progress bar (inside content card left)
-  goalsProgressTrack: { height: 3, borderRadius: 2, marginTop: 6, marginBottom: 0 },
-  goalsProgressFill:  { height: 3, borderRadius: 2 },
+  rowDivider: { height: StyleSheet.hairlineWidth, marginLeft: 49 },
+
+  // Goals progress bar
+  goalsProgressTrack: { height: 2, borderRadius: 1, marginTop: 6, marginBottom: 2 },
+  goalsProgressFill:  { height: 2, borderRadius: 1 },
 
   // ── Quick nav ──
   quickNavRow: { flexDirection: 'row', gap: 10, marginBottom: 8 },
   quickNavItem: {
-    flex: 1, alignItems: 'center', borderRadius: 16,
-    overflow: 'hidden', paddingBottom: 12, borderWidth: 1,
+    flex: 1, borderRadius: 16,
+    overflow: 'hidden', height: 110,
+    justifyContent: 'flex-end',
   },
-  quickNavImage: { width: '100%', height: 90, marginBottom: 10 },
-  quickNavLabel: { fontSize: 13, fontWeight: '600' },
+  quickNavImage: { ...StyleSheet.absoluteFillObject as any, width: '100%', height: '100%' },
+  quickNavLabel: {
+    fontSize: 13, fontWeight: '700',
+    color: '#fff', padding: 12,
+    letterSpacing: 0.1,
+  },
 });

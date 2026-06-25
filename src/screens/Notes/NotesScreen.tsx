@@ -21,6 +21,15 @@ import { Note, getNotes, searchNotes, toggleFavorite } from '../../services/note
 import { useTheme } from '../../theme';
 import PremiumSearchBar from '../../components/PremiumSearchBar';
 import ProfileAvatar from '../../components/ProfileAvatar';
+import { BOOKS } from '../../constants/books';
+
+function parseBibleRefForNav(ref: string): { bookIndex: number; chapter: number; verse: number } | null {
+  const match = ref.match(/^(.+)\s+(\d+):(\d+)$/);
+  if (!match) return null;
+  const bIdx = BOOKS.findIndex(b => b.name.toLowerCase() === match[1].trim().toLowerCase());
+  if (bIdx === -1) return null;
+  return { bookIndex: bIdx, chapter: parseInt(match[2], 10), verse: parseInt(match[3], 10) };
+}
 
 type NavProp = NativeStackNavigationProp<NotesStackParamList>;
 
@@ -31,48 +40,55 @@ function formatDate(iso: string) {
 }
 
 const NoteCard = memo(function NoteCard({
-  note, onPress, onFavorite,
-  cardBg, cardBorder, text, textSub, textMuted, gold, goldBg, goldBorder,
+  note, onPress, onFavorite, onOpenBible,
+  cardBg, cardBorder, text, textSub, textMuted, gold, goldBg, goldBorder, divider,
 }: {
-  note: Note; onPress: () => void; onFavorite: () => void;
+  note: Note; onPress: () => void; onFavorite: () => void; onOpenBible?: () => void;
   cardBg: string; cardBorder: string; text: string; textSub: string;
-  textMuted: string; gold: string; goldBg: string; goldBorder: string;
+  textMuted: string; gold: string; goldBg: string; goldBorder: string; divider: string;
 }) {
   return (
     <TouchableOpacity
-      style={[s.card, { backgroundColor: cardBg, borderColor: cardBorder }]}
+      style={[s.card, { borderBottomColor: divider }]}
       onPress={onPress}
-      activeOpacity={0.82}
+      activeOpacity={0.78}
     >
-      {note.bibleReference ? (
-        <View style={s.refRow}>
-          <Text style={s.refIcon}>📖</Text>
-          <Text style={[s.refText, { color: gold }]}>{note.bibleReference}</Text>
-          <View style={[s.verseTag, { backgroundColor: goldBg, borderColor: goldBorder }]}>
-            <Text style={[s.verseTagText, { color: gold }]}>VERSE</Text>
-          </View>
-        </View>
-      ) : null}
-
-      <Text style={[s.cardTitle, { color: text }]} numberOfLines={1}>{note.title}</Text>
-      <Text style={[s.cardPreview, { color: textSub }]} numberOfLines={2}>{note.content}</Text>
-
-      <View style={s.cardFooter}>
-        <Text style={[s.cardDate, { color: textMuted }]}>{formatDate(note.updatedAt)}</Text>
+      <View style={s.cardTop}>
+        {note.bibleReference ? (
+          <TouchableOpacity
+            style={s.refRow}
+            onPress={onOpenBible}
+            hitSlop={{ top: 6, bottom: 6, left: 0, right: 10 }}
+            activeOpacity={0.7}
+          >
+            <Text style={[s.refText, { color: gold }]}>{note.bibleReference}</Text>
+            <Ionicons name="book-outline" size={11} color={gold} style={{ marginLeft: 5, opacity: 0.7 }} />
+          </TouchableOpacity>
+        ) : (
+          <Text style={[s.cardDate, { color: textMuted }]}>{formatDate(note.updatedAt)}</Text>
+        )}
         <TouchableOpacity onPress={onFavorite} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Ionicons
             name={note.favorite ? 'star' : 'star-outline'}
-            size={16}
+            size={14}
             color={note.favorite ? gold : textMuted}
           />
         </TouchableOpacity>
       </View>
+
+      <Text style={[s.cardTitle, { color: text }]} numberOfLines={1}>{note.title}</Text>
+      <Text style={[s.cardPreview, { color: textSub }]} numberOfLines={2}>{note.content}</Text>
+
+      {note.bibleReference && (
+        <Text style={[s.cardDate, { color: textMuted, marginTop: 8 }]}>{formatDate(note.updatedAt)}</Text>
+      )}
     </TouchableOpacity>
   );
 });
 
 export default function NotesScreen() {
   const navigation = useNavigation<NavProp>();
+  const rootNav    = useNavigation<any>();
   const t = useTheme();
   const [notes, setNotes]   = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
@@ -227,8 +243,20 @@ export default function NotesScreen() {
                 gold={t.gold}
                 goldBg={t.goldBg}
                 goldBorder={t.goldBorder}
+                divider={t.divider}
                 onPress={() => navigation.navigate('NoteEditor', { noteId: item.id })}
                 onFavorite={() => handleFavorite(item)}
+                onOpenBible={item.bibleReference ? () => {
+                  const parsed = parseBibleRefForNav(item.bibleReference!);
+                  if (!parsed) return;
+                  rootNav.navigate('MainTabs', {
+                    screen: 'BibleTab',
+                    params: {
+                      screen: 'Bible',
+                      params: { bookIndex: parsed.bookIndex, chapter: parsed.chapter, verseToScroll: parsed.verse },
+                    },
+                  });
+                } : undefined}
               />
             )}
           />
@@ -261,26 +289,23 @@ const s = StyleSheet.create({
   },
   filterTabText: { fontSize: 12, fontWeight: '600' },
 
-  list: { paddingHorizontal: 18, paddingBottom: 120 },
+  list: { paddingHorizontal: 20, paddingBottom: 120 },
 
   card: {
-    borderRadius: 14, borderWidth: 1,
-    padding: 16, marginBottom: 12,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
+    paddingVertical: 18,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  refRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  refIcon: { fontSize: 13 },
-  refText: { fontSize: 13, fontWeight: '700', flex: 1 },
-  verseTag: {
-    borderWidth: 1, borderRadius: 4,
-    paddingHorizontal: 6, paddingVertical: 2,
+  cardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
   },
-  verseTagText: { fontSize: 8, fontWeight: '800', letterSpacing: 0.8 },
+  refRow: { flexDirection: 'row', alignItems: 'center' },
+  refText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
 
-  cardTitle: { fontSize: 15, fontWeight: '700', marginBottom: 6 },
-  cardPreview: { fontSize: 13, lineHeight: 19, marginBottom: 12, fontStyle: 'italic' },
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  cardTitle: { fontSize: 16, fontWeight: '700', letterSpacing: -0.2, marginBottom: 5, lineHeight: 22 },
+  cardPreview: { fontSize: 13, lineHeight: 20, fontStyle: 'italic' },
   cardDate: { fontSize: 11 },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingBottom: 80 },

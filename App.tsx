@@ -47,6 +47,10 @@ import NoteEditorScreen from './src/screens/Notes/NoteEditorScreen';
 import DevotionScreen from './src/screens/Devotion/DevotionScreen';
 import ScriptureChatScreen from './src/screens/ScriptureChat/ScriptureChatScreen';
 import ScriptureInsightsScreen from './src/screens/ScriptureInsights/ScriptureInsightsScreen';
+import TodayJourneyScreen from './src/screens/Use/TodayJourneyScreen';
+import ReadingScreen from './src/screens/Use/ReadingScreen';
+import ReflectionScreen from './src/screens/Use/ReflectionScreen';
+import PlanLibraryScreen from './src/screens/Use/PlanLibraryScreen';
 
 import {
   HomeStackParamList,
@@ -80,6 +84,10 @@ function HomeStackScreen() {
       <HomeStack.Screen name="Devotion" component={DevotionScreen} />
       <HomeStack.Screen name="ScriptureChat" component={ScriptureChatScreen} />
       <HomeStack.Screen name="ScriptureInsights" component={ScriptureInsightsScreen} />
+      <HomeStack.Screen name="TodayJourney" component={TodayJourneyScreen} />
+      <HomeStack.Screen name="Reading" component={ReadingScreen} />
+      <HomeStack.Screen name="Reflection" component={ReflectionScreen} />
+      <HomeStack.Screen name="PlanLibrary" component={PlanLibraryScreen} />
     </HomeStack.Navigator>
   );
 }
@@ -296,8 +304,8 @@ function AppSplashScreen({ onWillFade, onDone }: { onWillFade: () => void; onDon
 
 const sp = StyleSheet.create({
   overlay:  { ...StyleSheet.absoluteFillObject, zIndex: 999, elevation: 999 },
-  solidBg:  { ...StyleSheet.absoluteFillObject, backgroundColor: '#08071A' },
-  scrim:    { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(8,7,18,0.50)' },
+  solidBg:  { ...StyleSheet.absoluteFillObject, backgroundColor: '#080A12' },
+  scrim:    { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(8,10,18,0.52)' },
   center:   { flex: 1, alignItems: 'center', justifyContent: 'center' },
   gap:      { height: 32 },
   iconWrap: {
@@ -308,7 +316,7 @@ const sp = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 }, elevation: 10,
   },
   nameBlock: { alignItems: 'center', gap: 8 },
-  title:     { fontSize: 28, fontWeight: '700', letterSpacing: 0.4, color: '#F3EDE3' },
+  title:     { fontSize: 28, fontWeight: '700', letterSpacing: 0.4, color: '#E8E2D8' },
   divider:   { width: 36, height: 1.5, borderRadius: 1, backgroundColor: 'rgba(201,169,107,0.50)' },
   sub:       { fontSize: 13, letterSpacing: 0.9, color: 'rgba(255,255,255,0.58)' },
 });
@@ -379,16 +387,16 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const isDark     = pref === 'system' ? sysScheme === 'dark' : pref === 'dark';
 
   const activeIconColor    = GOLD;
-  const inactiveIconColor  = isDark ? 'rgba(243,237,227,0.42)' : 'rgba(47,42,36,0.38)';
-  const activeLabelColor   = isDark ? '#F3EDE3' : '#2F2A24';
-  const inactiveLabelColor = isDark ? 'rgba(243,237,227,0.40)' : 'rgba(47,42,36,0.35)';
+  const inactiveIconColor  = isDark ? 'rgba(232,226,216,0.36)' : 'rgba(47,42,36,0.38)';
+  const activeLabelColor   = isDark ? '#E8E2D8' : '#2F2A24';
+  const inactiveLabelColor = isDark ? 'rgba(232,226,216,0.34)' : 'rgba(47,42,36,0.35)';
   const blurTint           = isDark ? ('dark' as const) : ('light' as const);
-  const warmTintBg         = isDark ? 'rgba(31,28,25,0.36)' : 'rgba(250,246,238,0.42)';
-  const glassBorder        = isDark ? 'rgba(201,169,107,0.15)' : 'rgba(201,169,107,0.24)';
-  const topHighlightBg     = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(201,169,107,0.20)';
-  const pillShadowColor    = isDark ? '#1F1C19' : '#C9A96B';
-  const lensGlassBg        = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(201,169,107,0.10)';
-  const lensGlassBorder    = isDark ? 'rgba(255,255,255,0.22)' : 'rgba(201,169,107,0.32)';
+  const warmTintBg         = isDark ? 'rgba(13,15,26,0.38)' : 'rgba(245,240,232,0.44)';
+  const glassBorder        = isDark ? 'rgba(201,169,107,0.13)' : 'rgba(201,169,107,0.22)';
+  const topHighlightBg     = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(201,169,107,0.18)';
+  const pillShadowColor    = isDark ? '#080A12' : '#C9A96B';
+  const lensGlassBg        = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(201,169,107,0.09)';
+  const lensGlassBorder    = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(201,169,107,0.28)';
 
   const tabCount = TABS.length;
 

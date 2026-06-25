@@ -1,0 +1,53 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    match /chatUsers/{userId} {
+      allow read: if signedIn();
+      allow create, update, delete: if signedIn();
+    }
+
+    match /chats/{chatId} {
+      allow read, create, update, delete: if signedIn();
+
+      match /messages/{messageId} {
+        allow read, create, update, delete: if signedIn();
+      }
+    }
+
+    match /scriptureChats/{chatId} {
+      allow read, create, update, delete: if signedIn();
+    }
+
+    match /communityPosts/{postId} {
+      allow read: if true;
+      allow create, update, delete: if signedIn();
+    }
+
+    match /communityComments/{commentId} {
+      allow read: if true;
+      allow create, update, delete: if signedIn();
+    }
+
+    match /communityGroups/{groupId} {
+      allow read: if true;
+      allow create, update, delete: if signedIn();
+    }
+
+    match /communityGroupMembers/{memberId} {
+      allow read, create, update, delete: if signedIn();
+    }
+
+    match /notes/{noteId} {
+      allow read, create, update, delete: if signedIn();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

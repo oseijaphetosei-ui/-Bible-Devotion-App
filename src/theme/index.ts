@@ -2,14 +2,14 @@ import { useColorScheme } from 'react-native';
 import { useContext } from 'react';
 import { AppearanceContext } from '../context/AppearanceContext';
 
-// ─── Light — warm parchment + sage green + soft gold ────────────────────────
+// ─── Light — warm ivory + sage green + soft gold ─────────────────────────────
 
 export const LIGHT = {
   // Backgrounds
-  bg: '#F1E9DC',
-  bgAlt: '#F2EBDD',
-  card: '#F2EBDD',
-  cardAlt: '#EDE4D3',
+  bg: '#F5F0E8',
+  bgAlt: '#EDE7D9',
+  card: '#EDE7D9',
+  cardAlt: '#E6DDD0',
   cardBorder: 'transparent',
   divider: 'rgba(47,42,36,0.07)',
 
@@ -52,26 +52,29 @@ export const LIGHT = {
   // Progress bar track
   progressTrack: 'rgba(47,42,36,0.08)',
 
+  // Typography
+  fontSerif: 'Georgia' as string,
+
   // System
   statusBar: 'dark-content' as 'dark-content' | 'light-content',
   retryBg: 'rgba(201,169,107,0.10)',
 };
 
-// ─── Dark — warm charcoal + sage green + soft gold ───────────────────────────
+// ─── Dark — midnight navy + deep indigo + soft gold ──────────────────────────
 
 export const DARK = {
   // Backgrounds
-  bg: '#181512',
-  bgAlt: '#2A2622',
-  card: '#2A2622',
-  cardAlt: '#322D29',
+  bg: '#0D0F1A',
+  bgAlt: '#131626',
+  card: '#131626',
+  cardAlt: '#1A1D32',
   cardBorder: 'transparent',
-  divider: 'rgba(243,237,227,0.06)',
+  divider: 'rgba(232,226,216,0.06)',
 
   // Text
-  text: '#F3EDE3',
-  textSub: '#C7BFB5',
-  textMuted: '#8A8178',
+  text: '#E8E2D8',
+  textSub: '#B8B0A6',
+  textMuted: '#7A7470',
 
   // Primary accent — muted sage green
   accent: '#9EB7A2',
@@ -80,36 +83,39 @@ export const DARK = {
 
   // Secondary accent — soft warm gold
   gold: '#C9A96B',
-  goldBg: 'rgba(201,169,107,0.14)',
-  goldBorder: 'rgba(201,169,107,0.32)',
+  goldBg: 'rgba(201,169,107,0.12)',
+  goldBorder: 'rgba(201,169,107,0.24)',
   goldText: '#C9A96B',
 
   // Card labels (quick-nav cards): dark in light mode, gold in dark mode
   cardLabel: '#C9A96B',
 
   // Filter chip inactive state — more opaque than chipBg to stay visible
-  filterInactiveBg:     'rgba(243,237,227,0.14)',
-  filterInactiveBorder: 'rgba(243,237,227,0.22)',
+  filterInactiveBg:     'rgba(232,226,216,0.12)',
+  filterInactiveBorder: 'rgba(232,226,216,0.18)',
 
   // Inputs
-  inputBg: 'rgba(243,237,227,0.05)',
-  inputBorder: 'rgba(243,237,227,0.09)',
+  inputBg: 'rgba(232,226,216,0.04)',
+  inputBorder: 'rgba(232,226,216,0.08)',
 
   // Filter chips
-  chipBg: 'rgba(243,237,227,0.05)',
-  chipBorder: 'rgba(243,237,227,0.09)',
+  chipBg: 'rgba(232,226,216,0.05)',
+  chipBorder: 'rgba(232,226,216,0.08)',
 
   // Streak week circles
-  weekCircleBg: 'rgba(243,237,227,0.05)',
-  weekCircleBorder: 'rgba(243,237,227,0.08)',
+  weekCircleBg: 'rgba(232,226,216,0.05)',
+  weekCircleBorder: 'rgba(232,226,216,0.08)',
   weekCircleActiveBg: 'rgba(201,169,107,0.14)',
 
   // Progress bar track
-  progressTrack: 'rgba(243,237,227,0.08)',
+  progressTrack: 'rgba(232,226,216,0.08)',
+
+  // Typography
+  fontSerif: 'Georgia' as string,
 
   // System
   statusBar: 'light-content' as 'dark-content' | 'light-content',
-  retryBg: 'rgba(201,169,107,0.15)',
+  retryBg: 'rgba(201,169,107,0.12)',
 };
 
 export type AppTheme = typeof LIGHT;

@@ -12,12 +12,15 @@ import {
   Animated,
   Share,
   Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Vibration,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Audio } from 'expo-av';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../../types/navigation';
@@ -34,23 +37,37 @@ import {
 import { API_BIBLE_KEY } from '../../config/bibleConfig';
 import GlassSearchBar from '../../components/GlassSearchBar';
 import { speakText } from '../../services/ttsService';
+import { getNotes, createNote, type Note } from '../../services/notesService';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
-const GOLD        = '#D4B574';
-const GOLD_DIM    = 'rgba(212,181,116,0.12)';
-const GOLD_BORDER = 'rgba(212,181,116,0.20)';
-const BG          = '#0A0A0A';
-const BG_CARD     = '#111111';
-const T_PRIMARY   = '#F5F5F5';
-const T_SEC       = 'rgba(255,255,255,0.62)';
-const T_MUTED     = 'rgba(255,255,255,0.35)';
-const DIVIDER     = 'rgba(255,255,255,0.06)';
+const GOLD        = '#C9A96B';
+const GOLD_DIM    = 'rgba(201,169,107,0.09)';
+const GOLD_BORDER = 'rgba(201,169,107,0.18)';
+const BG          = '#080A12';
+const BG_CARD     = '#0D0F1A';
+const T_PRIMARY   = '#E8E2D8';
+const T_SEC       = 'rgba(232,226,216,0.58)';
+const T_MUTED     = 'rgba(232,226,216,0.28)';
+const DIVIDER     = 'rgba(232,226,216,0.07)';
+const SERIF       = 'Georgia';
 
 const TOP_H  = 50;  // floating header content height (below status bar)
 const CTRL_H = 52;  // floating control bar height
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 type Params  = { bookIndex?: number; chapter?: number; verseToScroll?: number };
+
+// Parse "John 3:16" or "1 Corinthians 3:4" into bookIndex/chapter/verse
+function parseBibleRef(ref: string): { bookIndex: number; chapter: number; verse: number } | null {
+  const match = ref.match(/^(.+)\s+(\d+):(\d+)$/);
+  if (!match) return null;
+  const bookName = match[1].trim();
+  const chNum = parseInt(match[2], 10);
+  const verseNum = parseInt(match[3], 10);
+  const bIdx = BOOKS.findIndex(b => b.name.toLowerCase() === bookName.toLowerCase());
+  if (bIdx === -1) return null;
+  return { bookIndex: bIdx, chapter: chNum, verse: verseNum };
+}
 
 // ─── Highlighted search text ───────────────────────────────────────────────────
 function HighlightedText({ text, query, style }: { text: string; query: string; style?: object }) {
@@ -80,21 +97,23 @@ function ChapterHeader({ bookName, chapter }: { bookName: string; chapter: numbe
       <Text style={s.chapterHeaderBook}>{bookName.toUpperCase()}</Text>
       <Text style={s.chapterHeaderNum}>{chapter}</Text>
       <View style={s.chapterHeaderRule} />
+      <Text style={s.chapterHeaderLabel}>Chapter {chapter}</Text>
     </View>
   );
 }
 
 // ─── Verse row ─────────────────────────────────────────────────────────────────
-// Memoized so that only the 1–2 verses whose isPlaying/isTarget state changed
-// actually re-render when audio playback advances or a target verse is highlighted.
+// Memoized so that only the 1–2 verses whose isPlaying/isTarget/hasNote state
+// actually changed re-render when those values change.
 type VerseRowProps = {
   item: Verse;
   isPlaying: boolean;
   isTarget: boolean;
+  hasNote: boolean;
   onLongPress: () => void;
 };
 
-const VerseRow = memo(function VerseRow({ item, isPlaying, isTarget, onLongPress }: VerseRowProps) {
+const VerseRow = memo(function VerseRow({ item, isPlaying, isTarget, hasNote, onLongPress }: VerseRowProps) {
   return (
     <TouchableOpacity
       onLongPress={onLongPress}
@@ -106,6 +125,8 @@ const VerseRow = memo(function VerseRow({ item, isPlaying, isTarget, onLongPress
         isTarget  && s.verseBlockTarget,
       ]}
     >
+      {/* Slim gold left-margin marker — appears when a note is attached */}
+      {hasNote && <View style={s.noteMarker} />}
       <Text style={s.verseContent}>
         <Text style={s.verseNum}>{item.verse}{'  '}</Text>
         {item.text}
@@ -166,6 +187,14 @@ export default function BibleScreen() {
   const [isPlaying,           setIsPlaying]           = useState(false);
   const [playingVerse,        setPlayingVerse]        = useState<number | null>(null);
 
+  // ── Note state ────────────────────────────────────────────────────────────
+  const [noteVerseSet,    setNoteVerseSet]    = useState<Set<number>>(new Set());
+  const [notesByVerse,    setNotesByVerse]    = useState<Map<number, Note[]>>(new Map());
+  const [noteSheetVisible, setNoteSheetVisible] = useState(false);
+  const [noteText,        setNoteText]        = useState('');
+  const [noteSaving,      setNoteSaving]      = useState(false);
+  const noteInputRef = useRef<TextInput>(null);
+
   const book = BOOKS[bookIndex];
 
   // ── Data fetching ─────────────────────────────────────────────────────────
@@ -183,6 +212,26 @@ export default function BibleScreen() {
       setLoading(false);
     }
   }, []);
+
+  // ── Note loading ──────────────────────────────────────────────────────────
+  const loadNotesForChapter = useCallback(async () => {
+    try {
+      const allNotes = await getNotes();
+      const verseSet = new Set<number>();
+      const verseMap = new Map<number, Note[]>();
+      allNotes.forEach(note => {
+        if (!note.bibleReference) return;
+        const parsed = parseBibleRef(note.bibleReference);
+        if (!parsed || parsed.bookIndex !== bookIndex || parsed.chapter !== chapter) return;
+        verseSet.add(parsed.verse);
+        verseMap.set(parsed.verse, [...(verseMap.get(parsed.verse) ?? []), note]);
+      });
+      setNoteVerseSet(verseSet);
+      setNotesByVerse(verseMap);
+    } catch { /* offline — no indicators shown */ }
+  }, [bookIndex, chapter]);
+
+  useFocusEffect(useCallback(() => { loadNotesForChapter(); }, [loadNotesForChapter]));
 
   useEffect(() => {
     if (params.bookIndex !== undefined) setBookIndex(params.bookIndex);
@@ -209,7 +258,7 @@ export default function BibleScreen() {
     fetchChapter(bookIndex, chapter, selectedBible);
   }, [bookIndex, chapter, selectedBible]);
 
-  // Stop playback when chapter changes
+  // Stop playback and reload notes when chapter changes
   useEffect(() => {
     isPlayingRef.current = false;
     setIsPlaying(false);
@@ -217,7 +266,8 @@ export default function BibleScreen() {
     soundRef.current?.stopAsync().catch(() => {});
     soundRef.current?.unloadAsync().catch(() => {});
     soundRef.current = null;
-  }, [bookIndex, chapter]);
+    loadNotesForChapter();
+  }, [bookIndex, chapter, loadNotesForChapter]);
 
   // ── Scroll-based bar visibility ───────────────────────────────────────────
   const showBars = useCallback(() => {
@@ -378,6 +428,57 @@ export default function BibleScreen() {
     });
   };
 
+  // ── Note actions ──────────────────────────────────────────────────────────
+  const handleAddNote = useCallback(() => {
+    setVerseActionsVisible(false);
+    // Wait for action sheet to dismiss before showing note sheet
+    setTimeout(() => {
+      setNoteText('');
+      setNoteSheetVisible(true);
+      setTimeout(() => noteInputRef.current?.focus(), 160);
+    }, 350);
+  }, []);
+
+  const handleViewNote = useCallback(() => {
+    if (!selectedVerse) return;
+    const notes = notesByVerse.get(selectedVerse.verse);
+    const noteId = notes?.[0]?.id;
+    if (!noteId) return;
+    setVerseActionsVisible(false);
+    setTimeout(() => {
+      (navigation as any).navigate('MainTabs', {
+        screen: 'NotesTab',
+        params: { screen: 'NoteEditor', params: { noteId } },
+      });
+    }, 300);
+  }, [selectedVerse, notesByVerse, navigation]);
+
+  const handleSaveNote = useCallback(async () => {
+    if (!selectedVerse || !noteText.trim() || noteSaving) return;
+    setNoteSaving(true);
+    try {
+      const ref = `${book.name} ${chapter}:${selectedVerse.verse}`;
+      const newNote = await createNote({
+        title: ref,
+        content: noteText.trim(),
+        bibleReference: ref,
+        devotionId: undefined,
+        tags: [],
+      });
+      // Update note indicators immediately without a network reload
+      setNoteVerseSet(prev => new Set([...prev, selectedVerse.verse]));
+      setNotesByVerse(prev => {
+        const updated = new Map(prev);
+        updated.set(selectedVerse.verse, [newNote, ...(updated.get(selectedVerse.verse) ?? [])]);
+        return updated;
+      });
+      if (Platform.OS !== 'web') Vibration.vibrate(40);
+      setNoteSheetVisible(false);
+      setNoteText('');
+    } catch { /* keep sheet open on error */ }
+    finally { setNoteSaving(false); }
+  }, [selectedVerse, noteText, noteSaving, book.name, chapter]);
+
   // ── Search ────────────────────────────────────────────────────────────────
   const enterSearch = useCallback(() => {
     searchModeRef.current = true;
@@ -461,9 +562,10 @@ export default function BibleScreen() {
       item={item}
       isPlaying={playingVerse === item.verse}
       isTarget={params.verseToScroll === item.verse}
+      hasNote={noteVerseSet.has(item.verse)}
       onLongPress={() => openVerseActions(item)}
     />
-  ), [playingVerse, params.verseToScroll, openVerseActions]);
+  ), [playingVerse, params.verseToScroll, noteVerseSet, openVerseActions]);
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -492,7 +594,7 @@ export default function BibleScreen() {
           ref={flatListRef}
           data={verses}
           keyExtractor={v => String(v.verse)}
-          extraData={[playingVerse, params.verseToScroll]}
+          extraData={[playingVerse, params.verseToScroll, noteVerseSet]}
           ListHeaderComponent={
             <ChapterHeader bookName={book.name} chapter={chapter} />
           }
@@ -738,12 +840,23 @@ export default function BibleScreen() {
             {book.name} {chapter}:{selectedVerse?.verse} · {selectedBible.abbreviation}
           </Text>
           <View style={s.sheetDivider} />
-          {([
-            { icon: 'bookmark-outline',           label: 'Bookmark',              onPress: () => setVerseActionsVisible(false) },
-            { icon: 'pencil-outline',              label: 'Add Note',              onPress: () => setVerseActionsVisible(false) },
-            { icon: 'share-social-outline',        label: 'Share',                 onPress: handleShare },
-            { icon: 'chatbubble-ellipses-outline', label: 'Ask About This Verse',  onPress: handleAskVerse },
-          ] as const).map(a => (
+          {((): Array<{ icon: string; label: string; onPress: () => void }> => {
+            const verseNotes = selectedVerse ? (notesByVerse.get(selectedVerse.verse) ?? []) : [];
+            const hasVerseNotes = verseNotes.length > 0;
+            return [
+              ...(hasVerseNotes
+                ? [
+                    { icon: 'document-text-outline', label: `View Note${verseNotes.length > 1 ? 's' : ''}`, onPress: handleViewNote },
+                    { icon: 'add-circle-outline',    label: 'Add Another Note',                             onPress: handleAddNote },
+                  ]
+                : [
+                    { icon: 'pencil-outline', label: 'Add Note', onPress: handleAddNote },
+                  ]
+              ),
+              { icon: 'share-social-outline',        label: 'Share',                onPress: handleShare },
+              { icon: 'chatbubble-ellipses-outline', label: 'Ask About This Verse', onPress: handleAskVerse },
+            ];
+          })().map(a => (
             <TouchableOpacity key={a.label} style={s.sheetRow} onPress={a.onPress}>
               <View style={s.sheetRowIcon}>
                 <Ionicons name={a.icon as any} size={18} color={GOLD} />
@@ -758,6 +871,77 @@ export default function BibleScreen() {
           >
             <Text style={s.sheetCancelText}>Cancel</Text>
           </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* ── Inline note sheet ────────────────────────────────────────── */}
+      <Modal
+        visible={noteSheetVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setNoteSheetVisible(false)}
+      >
+        <View style={{ flex: 1 }}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFillObject}
+            activeOpacity={1}
+            onPress={() => { Keyboard.dismiss(); setNoteSheetVisible(false); setNoteText(''); }}
+          />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={s.noteSheetKAV}
+          >
+            <View style={[s.noteSheet, { paddingBottom: safeBottom + 16 }]}>
+
+              {/* Drag handle */}
+              <View style={s.noteSheetHandle} />
+
+              {/* Verse reference */}
+              {selectedVerse && (
+                <Text style={s.noteSheetRef}>
+                  {book.name} {chapter}:{selectedVerse.verse}
+                </Text>
+              )}
+
+              {/* Quoted verse */}
+              {selectedVerse && (
+                <Text style={s.noteSheetQuote} numberOfLines={4}>
+                  "{selectedVerse.text}"
+                </Text>
+              )}
+
+              {/* Rule */}
+              <View style={s.noteSheetRule} />
+
+              {/* Label */}
+              <Text style={s.noteSheetLabel}>MY REFLECTION</Text>
+
+              {/* Input */}
+              <TextInput
+                ref={noteInputRef}
+                style={s.noteSheetInput}
+                value={noteText}
+                onChangeText={setNoteText}
+                placeholder="Write what God is speaking to you…"
+                placeholderTextColor={T_MUTED}
+                multiline
+                textAlignVertical="top"
+              />
+
+              {/* Save */}
+              <TouchableOpacity
+                style={[s.noteSheetSave, (!noteText.trim() || noteSaving) && { opacity: 0.45 }]}
+                onPress={handleSaveNote}
+                disabled={!noteText.trim() || noteSaving}
+                activeOpacity={0.82}
+              >
+                {noteSaving
+                  ? <ActivityIndicator size="small" color="#1A1005" />
+                  : <Text style={s.noteSheetSaveText}>Save Reflection</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -942,67 +1126,81 @@ export default function BibleScreen() {
 const s = StyleSheet.create({
   root:        { flex: 1, backgroundColor: BG },
   center:      { flex: 1, backgroundColor: BG, alignItems: 'center', justifyContent: 'center', gap: 14 },
-  statusLabel: { color: T_MUTED, fontSize: 13 },
+  statusLabel: { color: T_MUTED, fontSize: 13, fontFamily: SERIF, fontStyle: 'italic' },
   errorText:   { color: T_SEC, fontSize: 15, textAlign: 'center', paddingHorizontal: 40, lineHeight: 24 },
   retryBtn:    { paddingHorizontal: 28, paddingVertical: 12, borderRadius: 24, borderWidth: 1, borderColor: GOLD_BORDER, backgroundColor: GOLD_DIM },
   retryBtnText:{ color: GOLD, fontSize: 14, fontWeight: '600' },
 
   // ── FlatList ────────────────────────────────────────────────────────────
-  verseList: { paddingHorizontal: 24 },
+  verseList: { paddingHorizontal: 28 },
 
   // ── Chapter header ──────────────────────────────────────────────────────
   chapterHeader: {
     alignItems: 'center',
-    paddingTop: 20,
-    paddingBottom: 36,
-    gap: 6,
+    paddingTop: 32,
+    paddingBottom: 44,
+    gap: 0,
   },
   chapterHeaderBook: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 3,
+    fontSize: 9,
+    fontWeight: '600',
+    letterSpacing: 4.5,
     color: T_MUTED,
+    marginBottom: 16,
   },
   chapterHeaderNum: {
-    fontSize: 80,
-    fontWeight: '200',
-    color: GOLD,
-    lineHeight: 86,
-    letterSpacing: -3,
+    fontFamily: SERIF,
+    fontSize: 100,
+    fontWeight: '300',
+    color: T_PRIMARY,
+    lineHeight: 104,
+    letterSpacing: -4,
+    opacity: 0.88,
   },
   chapterHeaderRule: {
-    width: 32,
+    width: 24,
     height: 1,
     backgroundColor: GOLD_BORDER,
     borderRadius: 1,
-    marginTop: 4,
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  chapterHeaderLabel: {
+    fontFamily: SERIF,
+    fontSize: 11,
+    fontStyle: 'italic',
+    color: GOLD,
+    letterSpacing: 0.3,
+    opacity: 0.75,
   },
 
   // ── Verse blocks ────────────────────────────────────────────────────────
   verseBlock: {
-    marginBottom: 2,
-    paddingVertical: 9,
+    marginBottom: 1,
+    paddingVertical: 7,
     paddingHorizontal: 6,
-    borderRadius: 10,
+    borderRadius: 6,
   },
   verseBlockPlaying: {
-    backgroundColor: 'rgba(212,181,116,0.09)',
+    backgroundColor: 'rgba(201,169,107,0.08)',
   },
   verseBlockTarget: {
-    backgroundColor: 'rgba(212,181,116,0.14)',
+    backgroundColor: 'rgba(201,169,107,0.05)',
   },
   verseContent: {
-    fontSize: 17,
-    lineHeight: 30,
-    letterSpacing: 0.15,
+    fontFamily: SERIF,
+    fontSize: 19.5,
+    lineHeight: 35,
+    letterSpacing: 0.1,
     color: T_PRIMARY,
     fontWeight: '400',
   },
   verseNum: {
-    fontSize: 10,
+    fontSize: 9,
     color: GOLD,
     fontWeight: '700',
-    letterSpacing: 0.2,
+    letterSpacing: 0.4,
+    opacity: 0.65,
   },
 
   // ── Vignette ────────────────────────────────────────────────────────────
@@ -1040,13 +1238,15 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   topBarTitle: {
-    fontSize: 15,
-    fontWeight: '600',
+    fontFamily: SERIF,
+    fontSize: 16,
+    fontWeight: '400',
+    fontStyle: 'italic',
     color: T_PRIMARY,
-    letterSpacing: 0.1,
+    letterSpacing: 0.2,
   },
   topBarChevron: {
-    marginLeft: 4,
+    marginLeft: 5,
     marginTop: 1,
   },
   topBarRight: {
@@ -1057,10 +1257,10 @@ const s = StyleSheet.create({
     gap: 14,
   },
   topBarBadge: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: GOLD,
-    letterSpacing: 0.6,
+    letterSpacing: 0.8,
   },
 
   // ── Floating control bar ────────────────────────────────────────────────
@@ -1079,13 +1279,12 @@ const s = StyleSheet.create({
     borderColor: GOLD_BORDER,
     paddingHorizontal: 4,
   },
-  // Black rectangular box around Book + Translation
   ctrlInfoBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#000000',
+    backgroundColor: 'rgba(8,10,18,0.92)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
+    borderColor: 'rgba(232,226,216,0.10)',
     borderRadius: 8,
     marginLeft: 6,
     overflow: 'hidden',
@@ -1093,7 +1292,7 @@ const s = StyleSheet.create({
   ctrlInfoDivider: {
     width: 1,
     height: 20,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(232,226,216,0.09)',
   },
   ctrlBookBtn: {
     flexDirection: 'row',
@@ -1103,8 +1302,9 @@ const s = StyleSheet.create({
   },
   ctrlBookText: {
     color: T_PRIMARY,
+    fontFamily: SERIF,
+    fontStyle: 'italic',
     fontSize: 12,
-    fontWeight: '600',
     maxWidth: 72,
   },
   ctrlTransBtn: {
@@ -1112,10 +1312,10 @@ const s = StyleSheet.create({
     paddingVertical: 7,
   },
   ctrlTransText: {
-    color: T_SEC,
-    fontSize: 11,
+    color: GOLD,
+    fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   ctrlSep: {
     width: 1,
@@ -1141,7 +1341,6 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 6,
   },
-  // Play button — plain icon, no circle/border
   ctrlPlayBtn: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -1152,46 +1351,47 @@ const s = StyleSheet.create({
   // ── Verse action sheet ──────────────────────────────────────────────────
   sheetOverlayRow: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    backgroundColor: 'rgba(4,5,12,0.72)',
   },
   sheet: {
-    backgroundColor: '#161616',
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
+    backgroundColor: '#0D0F1A',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     borderTopWidth: 1,
     borderTopColor: GOLD_BORDER,
-    paddingHorizontal: 22,
-    paddingTop: 22,
+    paddingHorizontal: 24,
+    paddingTop: 24,
   },
   sheetQuote: {
     color: T_SEC,
-    fontSize: 14,
-    lineHeight: 22,
+    fontFamily: SERIF,
+    fontSize: 15,
+    lineHeight: 25,
     fontStyle: 'italic',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   sheetRef: {
     color: GOLD,
     fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 1,
+    letterSpacing: 1.2,
     textTransform: 'uppercase',
   },
   sheetDivider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: DIVIDER,
-    marginVertical: 16,
+    marginVertical: 18,
   },
   sheetRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
+    paddingVertical: 15,
     gap: 14,
   },
   sheetRowIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
+    width: 34,
+    height: 34,
+    borderRadius: 11,
     backgroundColor: GOLD_DIM,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1231,7 +1431,7 @@ const s = StyleSheet.create({
     color: T_MUTED,
     fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 1.6,
+    letterSpacing: 1.8,
     paddingHorizontal: 20,
     paddingTop: 22,
     paddingBottom: 8,
@@ -1241,8 +1441,8 @@ const s = StyleSheet.create({
     padding: 13,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderColor: 'rgba(232,226,216,0.07)',
+    backgroundColor: 'rgba(232,226,216,0.04)',
     color: T_PRIMARY,
     fontSize: 15,
   },
@@ -1270,7 +1470,7 @@ const s = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(232,226,216,0.07)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1278,7 +1478,7 @@ const s = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(232,226,216,0.07)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1292,7 +1492,7 @@ const s = StyleSheet.create({
     margin: 5,
     aspectRatio: 1,
     borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: 'rgba(232,226,216,0.05)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1323,10 +1523,10 @@ const s = StyleSheet.create({
     gap: 7,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(232,226,216,0.06)',
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(212,181,116,0.22)',
+    borderColor: 'rgba(201,169,107,0.18)',
   },
   searchGlassInput: {
     flex: 1,
@@ -1346,6 +1546,89 @@ const s = StyleSheet.create({
     color: GOLD,
     fontSize: 15,
     fontWeight: '500',
+  },
+
+  // ── Verse note marker (slim gold left-margin line) ───────────────────────
+  noteMarker: {
+    position: 'absolute',
+    left: 0,
+    top: 6,
+    bottom: 6,
+    width: 2,
+    borderRadius: 1,
+    backgroundColor: 'rgba(201,169,107,0.52)',
+  },
+
+  // ── Inline note sheet ────────────────────────────────────────────────────
+  noteSheetKAV: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  noteSheet: {
+    backgroundColor: '#0D0F1A',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderTopWidth: 1,
+    borderTopColor: GOLD_BORDER,
+    paddingHorizontal: 24,
+    paddingTop: 14,
+  },
+  noteSheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(232,226,216,0.15)',
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  noteSheetRef: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 2,
+    color: GOLD,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+  },
+  noteSheetQuote: {
+    fontFamily: SERIF,
+    fontSize: 15,
+    lineHeight: 24,
+    color: T_SEC,
+    fontStyle: 'italic',
+    marginBottom: 16,
+  },
+  noteSheetRule: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: DIVIDER,
+    marginBottom: 14,
+  },
+  noteSheetLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 2.5,
+    color: T_MUTED,
+    marginBottom: 10,
+  },
+  noteSheetInput: {
+    color: T_PRIMARY,
+    fontFamily: SERIF,
+    fontSize: 16,
+    lineHeight: 26,
+    minHeight: 72,
+    maxHeight: 130,
+    marginBottom: 18,
+  },
+  noteSheetSave: {
+    backgroundColor: GOLD,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  noteSheetSaveText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1A1005',
+    letterSpacing: 0.2,
   },
 
   // ── Search results panel ─────────────────────────────────────────────────
@@ -1391,6 +1674,6 @@ const s = StyleSheet.create({
   resultHighlight: {
     color: T_PRIMARY,
     fontWeight: '700',
-    backgroundColor: 'rgba(212,181,116,0.20)',
+    backgroundColor: 'rgba(201,169,107,0.18)',
   },
 });

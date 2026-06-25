@@ -247,23 +247,25 @@ function EmptyState({
   );
 }
 
-// ─── Insights section card ────────────────────────────────────────────────────
+// ─── Insights section ────────────────────────────────────────────────────────
 
 function InsightSection({
   icon,
   label,
   t,
   children,
+  first,
 }: {
   icon: React.ComponentProps<typeof Ionicons>['name'];
   label: string;
   t: AppTheme;
   children: React.ReactNode;
+  first?: boolean;
 }) {
   return (
-    <View style={[is.section, { backgroundColor: t.card, borderColor: t.cardBorder }]}>
+    <View style={[is.section, !first && { borderTopColor: t.divider, borderTopWidth: StyleSheet.hairlineWidth }]}>
       <View style={is.sectionHeader}>
-        <Ionicons name={icon} size={13} color={t.gold} />
+        <Ionicons name={icon} size={12} color={t.gold} />
         <Text style={[is.sectionLabel, { color: t.gold }]}>{label}</Text>
       </View>
       {children}
@@ -310,7 +312,7 @@ function InsightsView({
       contentContainerStyle={[is.scroll, { paddingBottom: bottomPad }]}
       showsVerticalScrollIndicator={false}
     >
-      <InsightSection icon="document-text-outline" label="SUMMARY" t={t}>
+      <InsightSection icon="document-text-outline" label="SUMMARY" t={t} first>
         <Text style={[is.bodyText, { color: t.text }]}>{insights.summary}</Text>
       </InsightSection>
 
@@ -348,10 +350,7 @@ function InsightsView({
       </InsightSection>
 
       <InsightSection icon="heart-outline" label="PRAYER FOCUS" t={t}>
-        <View style={[is.prayerBox, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}>
-          <Ionicons name="heart" size={12} color={t.gold} style={{ marginBottom: 6 }} />
-          <Text style={[is.prayerText, { color: t.text }]}>{insights.prayerFocus}</Text>
-        </View>
+        <Text style={[is.prayerText, { color: t.textSub, fontStyle: 'italic' }]}>{insights.prayerFocus}</Text>
       </InsightSection>
     </ScrollView>
   );
@@ -881,18 +880,16 @@ const is = StyleSheet.create({
   loadingText: { fontSize: 14, fontWeight: '500', textAlign: 'center' },
   errorText: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
 
-  scroll: { paddingHorizontal: 16, paddingTop: 16, gap: 10 },
+  scroll: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
 
   section: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
-    gap: 10,
+    paddingVertical: 20,
+    gap: 12,
   },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  sectionLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1.2 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  sectionLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1.6 },
 
-  bodyText: { fontSize: 15, lineHeight: 23 },
+  bodyText: { fontSize: 15, lineHeight: 25 },
 
   themeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   themeChip: {
@@ -906,15 +903,10 @@ const is = StyleSheet.create({
   crossRefRow: {
     paddingLeft: 12,
     borderLeftWidth: 2,
-    gap: 3,
+    gap: 4,
   },
   crossRefRef: { fontSize: 13, fontWeight: '700' },
-  crossRefText: { fontSize: 14, lineHeight: 20 },
+  crossRefText: { fontSize: 14, lineHeight: 21 },
 
-  prayerBox: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 14,
-  },
-  prayerText: { fontSize: 15, lineHeight: 23, fontStyle: 'italic' },
+  prayerText: { fontSize: 15, lineHeight: 25 },
 });
