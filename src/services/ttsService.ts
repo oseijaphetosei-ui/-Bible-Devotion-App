@@ -2,8 +2,19 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Audio } from 'expo-av';
 import { ttsSpeak } from './appApi';
 
-function safeCacheKey(cacheKey: string): string {
-  return cacheKey.replace(/[^a-z0-9._-]/gi, '_');
+// ─── Voice configuration ──────────────────────────────────────────────────────
+// Must match the voice configured in functions/src/index.ts → ttsSpeak.
+// Bump TTS_CACHE_VERSION whenever the server voice or audio config changes so
+// stale cached files from the previous voice are never served again.
+export const TTS_VOICE_ID      = 'en-US-Neural2-D'; // warm, calm, masculine
+export const TTS_CACHE_VERSION = 'n2d';              // short token embedded in every filename
+
+function safeName(key: string): string {
+  return key.replace(/[^a-z0-9._-]/gi, '_');
+}
+
+function cacheUri(cacheKey: string): string {
+  return `${FileSystem.cacheDirectory}tts_${TTS_CACHE_VERSION}_${safeName(cacheKey)}.mp3`;
 }
 
 let audioModeConfigured = false;
@@ -16,7 +27,7 @@ async function ensureAudioMode(): Promise<void> {
 
 // Fetch TTS audio from the backend function and cache locally so repeat plays are instant
 export async function fetchTTSChunk(text: string, cacheKey: string): Promise<string> {
-  const uri = `${FileSystem.cacheDirectory}tts_${safeCacheKey(cacheKey)}.mp3`;
+  const uri = cacheUri(cacheKey);
 
   const info = await FileSystem.getInfoAsync(uri);
   if (info.exists) return uri;
@@ -29,14 +40,16 @@ export async function fetchTTSChunk(text: string, cacheKey: string): Promise<str
   return uri;
 }
 
-// Play a text string directly (no caching) — for short snippets
+// Speak a text string, caching the audio locally when a stable cacheKey is provided.
+// Always call with a cacheKey for content that may be replayed (verses, devotions, stories).
+// Omit cacheKey only for one-off ephemeral playback.
 export async function speakText(text: string, cacheKey?: string): Promise<Audio.Sound> {
   await ensureAudioMode();
   const uri = cacheKey
     ? await fetchTTSChunk(text, cacheKey)
     : await (async () => {
         const result = await ttsSpeak({ text });
-        const tempUri = `${FileSystem.cacheDirectory}tts_tmp_${Date.now()}.mp3`;
+        const tempUri = `${FileSystem.cacheDirectory}tts_tmp_${TTS_CACHE_VERSION}_${Date.now()}.mp3`;
         await FileSystem.writeAsStringAsync(tempUri, result.audioBase64, {
           encoding: FileSystem.EncodingType.Base64,
         });
@@ -58,10 +71,10 @@ export async function waitForSound(sound: Audio.Sound): Promise<void> {
   });
 }
 
-// Delete cached audio for a given story/content id
+// Delete versioned cached audio chunks for a given story/content id
 export async function clearTTSCache(id: string, chunkCount: number): Promise<void> {
   for (let i = 0; i < chunkCount; i++) {
-    const uri = `${FileSystem.cacheDirectory}tts_${safeCacheKey(id)}_${i}.mp3`;
+    const uri = cacheUri(`${id}_${i}`);
     const info = await FileSystem.getInfoAsync(uri);
     if (info.exists) await FileSystem.deleteAsync(uri, { idempotent: true });
   }

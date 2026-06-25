@@ -332,7 +332,7 @@ type TabConfig = {
 
 const TABS: TabConfig[] = [
   { key: 'ChatTab',      label: 'Chat',      icon: 'chatbubble-outline', iconActive: 'chatbubble' },
-  { key: 'CommunityTab', label: 'Community', icon: 'people-outline',     iconActive: 'people'     },
+  { key: 'CommunityTab', label: 'Hubs',      icon: 'people-outline',     iconActive: 'people'     },
   { key: 'HomeTab',      label: 'Home',      icon: 'heart-outline',      iconActive: 'heart'      },
   { key: 'BibleTab',     label: 'Bible',     icon: 'book-outline',       iconActive: 'book'       },
   { key: 'NotesTab',     label: 'Notes',     icon: 'pencil-outline',     iconActive: 'pencil'     },
@@ -405,7 +405,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const indicatorBase = useRef(0);
   const lensScaleX    = useRef(new Animated.Value(1)).current;
   const lensScaleY    = useRef(new Animated.Value(1)).current;
-  const iridescentOp  = useRef(new Animated.Value(0)).current;
+  const glassShineOp  = useRef(new Animated.Value(0)).current;
   const barActiveAnim = useRef(new Animated.Value(0)).current;
   const lensOffsetX   = useRef(new Animated.Value(0)).current;
   const lensH         = useRef(new Animated.Value(LENS_H_REST)).current;
@@ -450,7 +450,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
       Animated.spring(lensH,        { toValue: LENS_H_REST, tension: 120, friction: 18, useNativeDriver: false }),
       Animated.spring(lensR,        { toValue: LENS_R_REST, tension: 120, friction: 18, useNativeDriver: false }),
       Animated.spring(lensTopA,     { toValue: restTop,     tension: 120, friction: 18, useNativeDriver: false }),
-      Animated.timing(iridescentOp, { toValue: 0, duration: 300, useNativeDriver: false }),
+      Animated.timing(glassShineOp, { toValue: 0, duration: 300, useNativeDriver: false }),
     ]).start();
   }, [state.index]);
 
@@ -527,8 +527,8 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
         const additionalUp = pullFactor * (LENS_H_MAX - LENS_H_LIFT) / 2 + upPull * 0.55;
         lensTopA.setValue(baseLiftTop - additionalUp);
 
-        // Rainbow: corners between tabs + brightens on upward pull
-        iridescentOp.setValue(Math.max(horizPhase * 0.65, pullFactor * 0.88));
+        // Glass specular: brightens between tabs and on upward pull
+        glassShineOp.setValue(Math.max(horizPhase * 0.55, pullFactor * 0.70));
       },
 
       onPanResponderRelease: (_, g) => {
@@ -559,7 +559,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
           Animated.spring(lensH,        { toValue: LENS_H_REST, tension: 120, friction: 18, useNativeDriver: false }),
           Animated.spring(lensR,        { toValue: LENS_R_REST, tension: 120, friction: 18, useNativeDriver: false }),
           Animated.spring(lensTopA,     { toValue: restTop,     tension: 120, friction: 18, useNativeDriver: false }),
-          Animated.timing(iridescentOp, { toValue: 0, duration: 450, useNativeDriver: false }),
+          Animated.timing(glassShineOp, { toValue: 0, duration: 450, useNativeDriver: false }),
         ]).start();
       },
 
@@ -581,7 +581,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
           Animated.spring(lensH,        { toValue: LENS_H_REST, tension: 120, friction: 18, useNativeDriver: false }),
           Animated.spring(lensR,        { toValue: LENS_R_REST, tension: 120, friction: 18, useNativeDriver: false }),
           Animated.spring(lensTopA,     { toValue: restTop,     tension: 120, friction: 18, useNativeDriver: false }),
-          Animated.timing(iridescentOp, { toValue: 0, duration: 300, useNativeDriver: false }),
+          Animated.timing(glassShineOp, { toValue: 0, duration: 300, useNativeDriver: false }),
         ]).start();
       },
     })
@@ -619,7 +619,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
       Animated.timing(lensH,        { toValue: LENS_H_LIFT, ...liftCfg }),
       Animated.timing(lensR,        { toValue: LENS_R_DRAG, ...liftCfg }),
       Animated.timing(lensTopA,     { toValue: liftTop,     ...liftCfg }),
-      Animated.timing(iridescentOp, { toValue: 0.45, duration: 90, useNativeDriver: false }),
+      Animated.timing(glassShineOp, { toValue: 0.45, duration: 90, useNativeDriver: false }),
     ]).start(() => {
       // Phase 2 — glide: tighter spring so travel feels crisp
       Animated.spring(indicatorX, {
@@ -640,7 +640,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
           Animated.spring(lensH,        { toValue: LENS_H_REST, tension: 200, friction: 20, useNativeDriver: false }),
           Animated.spring(lensR,        { toValue: LENS_R_REST, tension: 200, friction: 20, useNativeDriver: false }),
           Animated.spring(lensTopA,     { toValue: restTop,     tension: 200, friction: 20, useNativeDriver: false }),
-          Animated.timing(iridescentOp, { toValue: 0, duration: 250, useNativeDriver: false }),
+          Animated.timing(glassShineOp, { toValue: 0, duration: 250, useNativeDriver: false }),
         ]).start();
         animatingToRef.current = null;
         setSwipeIndex(null);
@@ -668,7 +668,6 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
           >
             <View style={[styles.warmTint, { backgroundColor: warmTintBg }]} pointerEvents="none" />
             <View style={[styles.topHighlight, { backgroundColor: topHighlightBg }]} pointerEvents="none" />
-            <View style={styles.reflectionStreak} pointerEvents="none" />
 
             {/* Tab row — receives all swipe gestures */}
             <View
@@ -713,25 +712,21 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
                 <Animated.View
                   style={[StyleSheet.absoluteFillObject, { transform: [{ scaleX: lensScaleX }, { scaleY: lensScaleY }] }]}
                 >
-                  {/* Rainbow corners */}
-                  <Animated.View style={[styles.lensRainbow, { opacity: iridescentOp, borderRadius: lensR }]}>
-                    <LinearGradient
-                      colors={['rgba(255,100,120,0.72)', 'transparent', 'rgba(100,160,255,0.72)']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={StyleSheet.absoluteFillObject}
-                    />
-                    <LinearGradient
-                      colors={['rgba(55,220,140,0.60)', 'transparent', 'rgba(255,190,55,0.60)']}
-                      start={{ x: 1, y: 0 }}
-                      end={{ x: 0, y: 1 }}
-                      style={StyleSheet.absoluteFillObject}
-                    />
-                  </Animated.View>
                   {/* Frosted glass body */}
                   <Animated.View
                     style={[styles.lensGlass, { backgroundColor: lensGlassBg, borderColor: lensGlassBorder, borderRadius: lensR }]}
                   />
+                  {/* Specular sweep — diagonal white streak, intensifies during motion */}
+                  <Animated.View style={[styles.lensGlassOverlay, { opacity: glassShineOp, borderRadius: lensR, overflow: 'hidden' }]}>
+                    <LinearGradient
+                      colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.26)', 'rgba(255,255,255,0)']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={StyleSheet.absoluteFillObject}
+                    />
+                  </Animated.View>
+                  {/* Edge reflection rim — white border brightens during motion */}
+                  <Animated.View style={[styles.lensEdgeRim, { opacity: glassShineOp, borderRadius: lensR }]} />
                   {/* Depth shadow */}
                   <View style={styles.lensDepth} />
                 </Animated.View>
@@ -811,15 +806,6 @@ const styles = StyleSheet.create({
     height: 1, borderRadius: 1,
   },
 
-  reflectionStreak: {
-    position: 'absolute',
-    top: 0, left: '28%',
-    width: '36%', height: 28,
-    backgroundColor: 'rgba(255,255,255,0.022)',
-    borderBottomLeftRadius: 50,
-    borderBottomRightRadius: 50,
-  },
-
   tabRow: {
     flexDirection: 'row',
     paddingVertical: 7,
@@ -869,10 +855,14 @@ const styles = StyleSheet.create({
     // height and top are animated inline
   },
 
-  lensRainbow: {
+  lensGlassOverlay: {
     ...StyleSheet.absoluteFillObject,
-    overflow: 'hidden',
-    // borderRadius animated inline
+  },
+
+  lensEdgeRim: {
+    ...StyleSheet.absoluteFillObject,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.60)',
   },
 
   lensGlass: {

@@ -127,7 +127,10 @@ export default function ReadingScreen() {
     if (!selected) return;
     setSpeaking(true);
     try {
-      const snd = await speakText(selected.text);
+      const snd = await speakText(
+        selected.text,
+        `reading-${planId}-d${day}-${selected.passageKey}-v${selected.verse}`,
+      );
       soundRef.current = snd;
       snd.setOnPlaybackStatusUpdate((status) => {
         if (status.isLoaded && status.didJustFinish) {
