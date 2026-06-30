@@ -21,6 +21,9 @@ import { createBottomTabNavigator, BottomTabBarProps } from '@react-navigation/b
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { navigationRef } from './src/navigation/navigationRef';
+import { initializeNotifications } from './src/services/notificationService';
 
 import HomeScreen from './src/screens/Home/HomeScreen';
 import BibleScreen from './src/screens/Bible/BibleScreen';
@@ -212,11 +215,19 @@ function AppSplashScreen({ onWillFade, onDone }: { onWillFade: () => void; onDon
   useEffect(() => {
     let cancelled = false;
 
+    if (__DEV__) console.log('[Splash] mounting');
+
     const startFadeOut = () => {
+      if (__DEV__) console.log('[Splash] fading out — mounting navigation');
       onWillFade(); // mount NavigationContainer before fade starts
       Animated.timing(overlayOpacity, {
         toValue: 0, duration: 300, useNativeDriver: true,
-      }).start(({ finished }) => { if (finished && !cancelled) onDone(); });
+      }).start(({ finished }) => {
+        if (finished && !cancelled) {
+          if (__DEV__) console.log('[Splash] done — navigation live');
+          onDone();
+        }
+      });
     };
 
     const runSequence = () => {
@@ -248,17 +259,23 @@ function AppSplashScreen({ onWillFade, onDone }: { onWillFade: () => void; onDon
       });
     };
 
-    AccessibilityInfo.isReduceMotionEnabled().then((reduced) => {
-      if (cancelled) return;
-      if (reduced) {
-        logoOpacity.setValue(1); logoScale.setValue(1); bgOpacity.setValue(1);
-        nameOpacity.setValue(1); nameTranslateY.setValue(0);
-        setTimeout(() => { if (!cancelled) { onWillFade(); setTimeout(() => { if (!cancelled) onDone(); }, 150); } }, 500);
-        return;
-      }
-      playChime();
-      runSequence();
-    });
+    // Guard: if AccessibilityInfo rejects (e.g. native bridge not ready on cold start)
+    // fall back to false so the animation always runs rather than hanging forever.
+    if (__DEV__) console.log('[Splash] querying reduce-motion');
+    AccessibilityInfo.isReduceMotionEnabled()
+      .catch(() => false)
+      .then((reduced) => {
+        if (cancelled) return;
+        if (__DEV__) console.log('[Splash] reduce-motion:', reduced, '— starting sequence');
+        if (reduced) {
+          logoOpacity.setValue(1); logoScale.setValue(1); bgOpacity.setValue(1);
+          nameOpacity.setValue(1); nameTranslateY.setValue(0);
+          setTimeout(() => { if (!cancelled) { onWillFade(); setTimeout(() => { if (!cancelled) onDone(); }, 150); } }, 500);
+          return;
+        }
+        playChime();
+        runSequence();
+      });
     return () => { cancelled = true; };
   }, []);
 
@@ -747,15 +764,27 @@ export default function App() {
   const [navMounted,    setNavMounted]    = useState(false);
   const [splashRemoved, setSplashRemoved] = useState(false);
 
+  // Notification listeners: set up once on mount, cleaned up on unmount.
+  useEffect(() => {
+    return initializeNotifications();
+  }, []);
+
+  if (__DEV__) {
+    // eslint-disable-next-line no-console
+    console.log('[App] render — navMounted:', navMounted, 'splashRemoved:', splashRemoved);
+  }
+
   return (
     <AppearanceProvider>
       <AuthProvider>
         <ProfileProvider>
           <SafeAreaProvider>
             {navMounted && (
-              <NavigationContainer>
-                <RootNavigator />
-              </NavigationContainer>
+              <ErrorBoundary label="NavigationContainer">
+                <NavigationContainer ref={navigationRef}>
+                  <RootNavigator />
+                </NavigationContainer>
+              </ErrorBoundary>
             )}
             {!splashRemoved && (
               <AppSplashScreen

@@ -41,7 +41,7 @@ function TypingIndicator({ t }: { t: AppTheme }) {
   const dot3 = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
-    const anim = (dot: Animated.Value, delay: number) =>
+    const loop = (dot: Animated.Value, delay: number) =>
       Animated.loop(
         Animated.sequence([
           Animated.timing(dot, { toValue: 0.3, duration: 0, delay, useNativeDriver: true }),
@@ -49,11 +49,13 @@ function TypingIndicator({ t }: { t: AppTheme }) {
           Animated.timing(dot, { toValue: 0.3, duration: 350, useNativeDriver: true }),
           Animated.timing(dot, { toValue: 0.3, duration: 360, useNativeDriver: true }),
         ])
-      ).start();
+      );
 
-    anim(dot1, 0);
-    anim(dot2, 240);
-    anim(dot3, 480);
+    const a1 = loop(dot1, 0);
+    const a2 = loop(dot2, 240);
+    const a3 = loop(dot3, 480);
+    a1.start(); a2.start(); a3.start();
+    return () => { a1.stop(); a2.stop(); a3.stop(); };
   }, []);
 
   return (
@@ -385,6 +387,11 @@ export default function ScriptureChatScreen() {
 
   const flatListRef = useRef<FlatList>(null);
   const streamIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Clear streaming interval if component unmounts mid-stream
+  useEffect(() => () => {
+    if (streamIntervalRef.current) clearInterval(streamIntervalRef.current);
+  }, []);
 
   // Fetch insights on mount when in insights mode
   useEffect(() => {

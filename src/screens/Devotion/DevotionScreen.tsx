@@ -24,6 +24,7 @@ import { useDevotionReader } from '../../hooks/useDevotionReader';
 import { Devotion, QUICK_TAGS, TRANSLATIONS, BibleTranslation } from '../../types/devotion';
 import GlassSearchBar from '../../components/GlassSearchBar';
 import { markTodayComplete, getStreakData } from '../../services/devotionStreakService';
+import { maybePromptPermission } from '../../services/notificationService';
 import { useTheme } from '../../theme';
 
 type NavProp = NativeStackNavigationProp<HomeStackParamList, 'Devotion'>;
@@ -236,6 +237,7 @@ export default function DevotionScreen() {
     await markTodayComplete();
     setMarkedToday(true);
     setStreakTrigger(n => n + 1);
+    maybePromptPermission().catch(() => {});
   }
 
   function saveToJournal() {

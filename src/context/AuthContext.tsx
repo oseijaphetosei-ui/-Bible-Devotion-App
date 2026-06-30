@@ -14,7 +14,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (__DEV__) console.log('[Auth] subscribing to auth state');
     const unsubscribe = onAuthStateChanged(auth, (u) => {
+      if (__DEV__) console.log('[Auth] state changed — uid:', u?.uid ?? 'none');
       setUser(u);
       setLoading(false);
     });

@@ -10,6 +10,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../theme';
+import { maybePromptPermission } from '../../services/notificationService';
 import { READING_PLANS, getActivePlan, setActivePlan } from '../../services/readingPlanService';
 import type { ReadingPlan, ActivePlan } from '../../types/readingPlan';
 import type { HomeStackParamList } from '../../types/navigation';
@@ -38,6 +39,7 @@ export default function PlanLibraryScreen() {
     try {
       const active = await setActivePlan(plan.id);
       setActivePlanState(active);
+      maybePromptPermission().catch(() => {});
       navigation.replace('TodayJourney');
     } finally {
       setStarting(null);

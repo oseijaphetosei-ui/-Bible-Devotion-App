@@ -38,7 +38,8 @@
           "cameraPermission": "Daily Devotion uses your camera to take a profile photo."
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-notifications"
     ]
   }
 }
