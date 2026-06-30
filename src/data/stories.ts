@@ -20,18 +20,18 @@ export type Story = {
 };
 
 const STORY_BG = {
-  creation:     require('../STORIES-BACKGROUNDS/hands-cluds.jpg'),
-  deliverance:  require('../STORIES-BACKGROUNDS/water-way.jpg'),
-  warriors:     require('../STORIES-BACKGROUNDS/holy-bible-card-icon.jpg'),
-  prophets:     require('../STORIES-BACKGROUNDS/open-bible-and-sky-background.jpg'),
-  miracles:     require('../STORIES-BACKGROUNDS/faith-spelled.jpg'),
-  jonah:        require('../STORIES-BACKGROUNDS/open-bible-on-table-in-dusk.jpg'),
-  jesus:        require('../STORIES-BACKGROUNDS/Jesus-spelt.jpg'),
-  paul:         require('../STORIES-BACKGROUNDS/group-prayer-hand(background).jpg'),
-  church:       require('../STORIES-BACKGROUNDS/apostles.jpg'),
-  revelation:   require('../STORIES-BACKGROUNDS/prayer-hand-on-bible(card-icon).jpg'),
-  endTimes:     require('../STORIES-BACKGROUNDS/open-bible-in-the-morning.jpg'),
-  newJerusalem: require('../STORIES-BACKGROUNDS/prayer-hand-for-icon.jpg'),
+  creation:     require('../assets/hands-cluds.jpg'),
+  deliverance:  require('../assets/water-way.jpg'),
+  warriors:     require('../assets/stones.jpg'),
+  prophets:     require('../assets/man-clouds.jpg'),
+  miracles:     require('../assets/faith-spelled.jpg'),
+  jonah:        require('../assets/open-bible-on-table-in-dusk.jpg'),
+  jesus:        require('../assets/dove.jpg'),
+  paul:         require('../assets/group-prayer-hand(background).jpg'),
+  church:       require('../assets/apostles.jpg'),
+  revelation:   require('../assets/group-story-by-fire.jpg'),
+  endTimes:     require('../assets/open-bible-in-the-morning.jpg'),
+  newJerusalem: require('../assets/talk-to-scripture.jpg'),
 };
 
 export const STORIES: Story[] = [
