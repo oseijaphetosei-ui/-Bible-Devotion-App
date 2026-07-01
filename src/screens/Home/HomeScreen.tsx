@@ -2,7 +2,8 @@ import React, { useRef, useState, useCallback, useEffect, memo, useMemo } from '
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   StatusBar, Animated, Easing, Dimensions, Platform,
-  ImageBackground, Image, Share as RNShare,
+  ImageBackground, Image, Share as RNShare, Linking,
+  LayoutAnimation, UIManager,
 } from 'react-native';
 import { Audio } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,6 +12,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../../types/navigation';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getTodayVerseEntry } from '../../services/verseService';
 import { speakText } from '../../services/ttsService';
 import { loadGoals, isCompletedToday } from '../../services/goalsService';
@@ -23,6 +25,17 @@ import {
   isTodayCompleted, planProgress, passageLabel,
 } from '../../services/readingPlanService';
 import type { ActivePlan as ReadingActivePlan } from '../../types/readingPlan';
+import {
+  checkPermissionStatus, requestPermission, rescheduleAll,
+} from '../../services/notificationService';
+import { patchPrefs, loadPrefs } from '../../services/notificationPreferences';
+import { navigateToNotificationSettings } from '../../navigation/navigationRef';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const BANNER_SNOOZE_KEY = '@notif_banner_snooze_until';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -44,6 +57,204 @@ const getGreeting = () => {
   if (h < 17) return 'Good Afternoon';
   return 'Good Evening';
 };
+
+// ─── Notification Reminder Banner ────────────────────────────────────────────
+
+async function shouldShowBanner(): Promise<boolean> {
+  try {
+    const [snooze, prefs, permStatus] = await Promise.all([
+      AsyncStorage.getItem(BANNER_SNOOZE_KEY),
+      loadPrefs(),
+      checkPermissionStatus(),
+    ]);
+    // Never show if notifications are properly enabled
+    if (prefs.masterEnabled && permStatus === 'granted') return false;
+    // Don't show if snoozed and snooze hasn't expired
+    if (snooze) {
+      const until = new Date(snooze);
+      if (until > new Date()) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const NotificationReminderBanner = memo(function NotificationReminderBanner() {
+  const t = useTheme();
+  const [visible, setVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const opacity    = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(10)).current;
+
+  const show = useCallback(() => {
+    setVisible(true);
+    Animated.parallel([
+      Animated.spring(opacity,    { toValue: 1, useNativeDriver: true, tension: 80, friction: 12 }),
+      Animated.spring(translateY, { toValue: 0, useNativeDriver: true, tension: 80, friction: 12 }),
+    ]).start();
+  }, [opacity, translateY]);
+
+  const hide = useCallback((snooze = false) => {
+    Animated.parallel([
+      Animated.timing(opacity,    { toValue: 0, duration: 220, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: -6, duration: 220, useNativeDriver: true }),
+    ]).start(() => {
+      LayoutAnimation.configureNext({
+        duration: 260,
+        update: { type: LayoutAnimation.Types.easeInEaseOut },
+        delete: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+      });
+      setVisible(false);
+    });
+    if (snooze) {
+      const until = new Date();
+      until.setDate(until.getDate() + 7);
+      AsyncStorage.setItem(BANNER_SNOOZE_KEY, until.toISOString()).catch(() => {});
+    }
+  }, [opacity, translateY]);
+
+  useFocusEffect(useCallback(() => {
+    let cancelled = false;
+    shouldShowBanner().then(should => {
+      if (!cancelled) {
+        if (should) show();
+        else if (visible) hide();
+      }
+    });
+    return () => { cancelled = true; };
+  }, [show, hide, visible]));
+
+  const handleEnable = useCallback(async () => {
+    if (loading) return;
+    setLoading(true);
+    try {
+      const permStatus = await checkPermissionStatus();
+      if (permStatus === 'denied') {
+        Linking.openSettings();
+      } else if (permStatus === 'undetermined') {
+        const granted = await requestPermission();
+        if (granted) {
+          await patchPrefs({ masterEnabled: true, permissionPromptShown: true });
+          await rescheduleAll();
+          hide();
+        }
+      } else {
+        // Already granted but masterEnabled is off — go to settings
+        hide();
+        navigateToNotificationSettings();
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [loading, hide]);
+
+  if (!visible) return null;
+
+  return (
+    <Animated.View style={[nb.container, { opacity, transform: [{ translateY }] }]}>
+      <LinearGradient
+        colors={t.statusBar === 'dark-content'
+          ? ['rgba(201,169,107,0.10)', 'rgba(201,169,107,0.06)']
+          : ['rgba(201,169,107,0.14)', 'rgba(201,169,107,0.08)']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[nb.gradient, { borderColor: t.goldBorder }]}
+      >
+        {/* Bell icon */}
+        <View style={[nb.iconWrap, { backgroundColor: t.goldBg }]}>
+          <Ionicons name="notifications-outline" size={20} color={t.gold} />
+        </View>
+
+        {/* Text block */}
+        <View style={nb.textBlock}>
+          <Text style={[nb.primary, { color: t.text }]}>
+            Never miss your daily time with God.
+          </Text>
+          <Text style={[nb.secondary, { color: t.textMuted }]} numberOfLines={2}>
+            Enable gentle reminders for your daily verse, reading plan, prayer, and streak.
+          </Text>
+        </View>
+
+        {/* Dismiss */}
+        <TouchableOpacity
+          style={nb.dismissBtn}
+          onPress={() => hide(true)}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          activeOpacity={0.6}
+        >
+          <Ionicons name="close" size={16} color={t.textMuted} />
+        </TouchableOpacity>
+      </LinearGradient>
+
+      {/* CTA row */}
+      <View style={[nb.ctaRow, { borderColor: t.goldBorder }]}>
+        <TouchableOpacity
+          style={[nb.ctaPrimary, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}
+          onPress={handleEnable}
+          activeOpacity={0.82}
+          disabled={loading}
+        >
+          <Ionicons name="notifications" size={14} color={t.gold} />
+          <Text style={[nb.ctaPrimaryLabel, { color: t.gold }]}>
+            {loading ? 'Enabling…' : 'Enable Notifications'}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={nb.ctaSecondary}
+          onPress={() => hide(true)}
+          activeOpacity={0.7}
+        >
+          <Text style={[nb.ctaSecondaryLabel, { color: t.textMuted }]}>Not Now</Text>
+        </TouchableOpacity>
+      </View>
+    </Animated.View>
+  );
+});
+
+const nb = StyleSheet.create({
+  container: {
+    marginBottom: 16,
+    borderRadius: 18,
+    overflow: 'hidden',
+    shadowColor: '#C9A96B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  gradient: {
+    flexDirection: 'row', alignItems: 'flex-start',
+    padding: 16, paddingBottom: 14,
+    borderWidth: 1, borderBottomWidth: 0,
+    borderTopLeftRadius: 18, borderTopRightRadius: 18,
+  },
+  iconWrap: {
+    width: 38, height: 38, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+    marginRight: 12, flexShrink: 0, marginTop: 1,
+  },
+  textBlock:  { flex: 1, gap: 4 },
+  primary:    { fontSize: 14, fontWeight: '700', lineHeight: 19, letterSpacing: 0.1 },
+  secondary:  { fontSize: 12, lineHeight: 17 },
+  dismissBtn: { paddingLeft: 8, paddingTop: 2 },
+
+  ctaRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderLeftWidth: 1, borderRightWidth: 1, borderBottomWidth: 1,
+    borderBottomLeftRadius: 18, borderBottomRightRadius: 18,
+  },
+  ctaPrimary: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1,
+  },
+  ctaPrimaryLabel:   { fontSize: 13, fontWeight: '700' },
+  ctaSecondary:      { paddingVertical: 10, paddingHorizontal: 4 },
+  ctaSecondaryLabel: { fontSize: 13, fontWeight: '500' },
+});
 
 // ─── Today's Verse Card ───────────────────────────────────────────────────────
 
@@ -413,6 +624,9 @@ export default function HomeScreen() {
         >
           {/* ── Reading Plan CTA ── */}
           <ReadingPlanBanner />
+
+          {/* ── Notification reminder — only shown when notifications are off ── */}
+          <NotificationReminderBanner />
 
           {/* ── Verse hero — the focal point of the screen ── */}
           <VerseCard />

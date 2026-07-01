@@ -14,3 +14,10 @@ export function navigateFromNotification(screen: NotifScreen) {
     })
   );
 }
+
+export function navigateToNotificationSettings() {
+  if (!navigationRef.isReady()) return;
+  navigationRef.dispatch(
+    CommonActions.navigate('ProfileModal', { screen: 'Notifications' })
+  );
+}

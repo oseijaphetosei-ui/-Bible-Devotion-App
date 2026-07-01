@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, Switch, StyleSheet, StatusBar, ScrollView,
-  TouchableOpacity, Modal, FlatList, Animated, Platform,
-  Alert, Linking,
+  TouchableOpacity, Modal, Animated, Platform,
+  Alert, Linking, Pressable, LayoutAnimation, UIManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,128 +16,215 @@ import {
   checkPermissionStatus, requestPermission, rescheduleAll,
 } from '../../services/notificationService';
 
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 // ─── Time Picker Modal ────────────────────────────────────────────────────────
 
 const HOURS   = Array.from({ length: 24 }, (_, i) => i);
 const MINUTES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
-const ITEM_H  = 48;
+const ITEM_H  = 52;
+const VISIBLE = 5; // number of items visible in the wheel at once
+const WHEEL_H = ITEM_H * VISIBLE;
+
+function formatHour(h: number): string {
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  const apm  = h < 12 ? 'AM' : 'PM';
+  return `${String(h12).padStart(2, '0')} ${apm}`;
+}
+
+function WheelColumn({
+  data,
+  selectedValue,
+  onValueChange,
+  renderLabel,
+  t,
+}: {
+  data:           number[];
+  selectedValue:  number;
+  onValueChange:  (v: number) => void;
+  renderLabel:    (v: number) => string;
+  t: ReturnType<typeof useTheme>;
+}) {
+  const scrollRef    = useRef<ScrollView>(null);
+  const hasMomentum  = useRef(false);
+  const lastY        = useRef(0);
+
+  // When the selected value changes externally (modal opens), scroll to it
+  useEffect(() => {
+    const idx = data.indexOf(selectedValue);
+    if (idx < 0) return;
+    // rAF ensures the layout has settled before we scroll
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ y: idx * ITEM_H, animated: false });
+    });
+  }, [selectedValue, data]);
+
+  const snap = useCallback((y: number) => {
+    const raw     = Math.round(y / ITEM_H);
+    const clamped = Math.max(0, Math.min(raw, data.length - 1));
+    lastY.current = clamped * ITEM_H;
+    onValueChange(data[clamped]);
+  }, [data, onValueChange]);
+
+  return (
+    <View style={wh.column}>
+      {/* Fade mask — top */}
+      <View style={[wh.fade, wh.fadeTop, { backgroundColor: t.card }]} pointerEvents="none" />
+
+      {/* Selection highlight */}
+      <View style={[wh.selector, {
+        top:             ITEM_H * Math.floor(VISIBLE / 2),
+        height:          ITEM_H,
+        backgroundColor: t.goldBg,
+        borderColor:     t.goldBorder,
+      }]} pointerEvents="none" />
+
+      <ScrollView
+        ref={scrollRef}
+        showsVerticalScrollIndicator={false}
+        snapToInterval={ITEM_H}
+        decelerationRate="fast"
+        contentContainerStyle={{ paddingVertical: ITEM_H * Math.floor(VISIBLE / 2) }}
+        style={{ height: WHEEL_H }}
+        // Prevent this scroll view from being stolen by parent scrolls
+        nestedScrollEnabled
+        // Track whether momentum will fire after drag ends
+        onMomentumScrollBegin={() => { hasMomentum.current = true; }}
+        onScrollEndDrag={e => {
+          // Only snap here when the user does a slow deliberate scroll (no momentum)
+          if (!hasMomentum.current) {
+            snap(e.nativeEvent.contentOffset.y);
+          }
+        }}
+        onMomentumScrollEnd={e => {
+          hasMomentum.current = false;
+          snap(e.nativeEvent.contentOffset.y);
+        }}
+      >
+        {data.map((v) => (
+          <Pressable
+            key={v}
+            style={wh.item}
+            onPress={() => {
+              onValueChange(v);
+              scrollRef.current?.scrollTo({ y: data.indexOf(v) * ITEM_H, animated: true });
+            }}
+          >
+            <Text style={[wh.itemText, { color: v === selectedValue ? t.gold : t.textMuted }]}>
+              {renderLabel(v)}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+
+      {/* Fade mask — bottom */}
+      <View style={[wh.fade, wh.fadeBottom, { backgroundColor: t.card }]} pointerEvents="none" />
+    </View>
+  );
+}
+
+const wh = StyleSheet.create({
+  column:   { flex: 1, position: 'relative', overflow: 'hidden', height: WHEEL_H },
+  selector: {
+    position: 'absolute', left: 8, right: 8,
+    borderRadius: 10, borderWidth: 1, zIndex: 0,
+  },
+  item:     { height: ITEM_H, justifyContent: 'center', alignItems: 'center' },
+  itemText: { fontSize: 18, fontWeight: '600' },
+  fade: {
+    position: 'absolute', left: 0, right: 0, height: ITEM_H * 1.8, zIndex: 1,
+    opacity: 0.85,
+  },
+  fadeTop:    { top: 0 },
+  fadeBottom: { bottom: 0 },
+});
 
 function TimePicker({
   visible, value, onClose, onConfirm, t,
 }: {
-  visible: boolean;
-  value: NotifTime;
-  onClose: () => void;
+  visible:   boolean;
+  value:     NotifTime;
+  onClose:   () => void;
   onConfirm: (t: NotifTime) => void;
   t: ReturnType<typeof useTheme>;
 }) {
   const [hour,   setHour]   = useState(value.hour);
   const [minute, setMinute] = useState(value.minute);
 
-  const hourRef   = useRef<FlatList>(null);
-  const minuteRef = useRef<FlatList>(null);
-
+  // Reset to current value each time the picker opens
   useEffect(() => {
-    if (!visible) return;
-    setHour(value.hour);
-    setMinute(value.minute);
-    setTimeout(() => {
-      hourRef.current?.scrollToIndex({ index: value.hour, animated: false });
-      const mIdx = MINUTES.indexOf(value.minute);
-      minuteRef.current?.scrollToIndex({ index: mIdx >= 0 ? mIdx : 0, animated: false });
-    }, 80);
-  }, [visible]);
-
-  const selectedBg = t.goldBg;
+    if (visible) {
+      setHour(value.hour);
+      setMinute(value.minute);
+    }
+  }, [visible, value.hour, value.minute]);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <TouchableOpacity style={tp.backdrop} activeOpacity={1} onPress={onClose}>
-        <TouchableOpacity activeOpacity={1}>
-          <View style={[tp.sheet, { backgroundColor: t.card }]}>
-            <Text style={[tp.heading, { color: t.text }]}>Set Time</Text>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      {/* Pressable backdrop — does NOT delay touches unlike TouchableOpacity */}
+      <Pressable style={tp.backdrop} onPress={onClose}>
+        {/* Inner sheet — Pressable with empty onPress stops tap propagating to backdrop */}
+        <Pressable style={[tp.sheet, { backgroundColor: t.card }]} onPress={() => {}}>
+          <Text style={[tp.heading, { color: t.text }]}>Set Time</Text>
 
-            <View style={tp.pickers}>
-              {/* Hour column */}
-              <View style={tp.column}>
-                <Text style={[tp.colLabel, { color: t.textMuted }]}>HOUR</Text>
-                <View style={[tp.wheel, { borderColor: t.divider }]}>
-                  <View style={[tp.selector, { backgroundColor: selectedBg }]} pointerEvents="none" />
-                  <FlatList
-                    ref={hourRef}
-                    data={HOURS}
-                    keyExtractor={(h) => String(h)}
-                    showsVerticalScrollIndicator={false}
-                    snapToInterval={ITEM_H}
-                    decelerationRate="fast"
-                    contentContainerStyle={{ paddingVertical: ITEM_H }}
-                    onMomentumScrollEnd={(e) => {
-                      const idx = Math.round(e.nativeEvent.contentOffset.y / ITEM_H);
-                      setHour(HOURS[Math.max(0, Math.min(idx, HOURS.length - 1))]);
-                    }}
-                    renderItem={({ item }) => {
-                      const h12 = item % 12 === 0 ? 12 : item % 12;
-                      const apm = item < 12 ? 'AM' : 'PM';
-                      return (
-                        <View style={[tp.item, { height: ITEM_H }]}>
-                          <Text style={[tp.itemText, { color: item === hour ? t.gold : t.textMuted }]}>
-                            {String(h12).padStart(2, '0')} {apm}
-                          </Text>
-                        </View>
-                      );
-                    }}
-                    getItemLayout={(_, i) => ({ length: ITEM_H, offset: ITEM_H * i, index: i })}
-                  />
-                </View>
-              </View>
-
-              <Text style={[tp.colon, { color: t.textMuted }]}>:</Text>
-
-              {/* Minute column */}
-              <View style={tp.column}>
-                <Text style={[tp.colLabel, { color: t.textMuted }]}>MIN</Text>
-                <View style={[tp.wheel, { borderColor: t.divider }]}>
-                  <View style={[tp.selector, { backgroundColor: selectedBg }]} pointerEvents="none" />
-                  <FlatList
-                    ref={minuteRef}
-                    data={MINUTES}
-                    keyExtractor={(m) => String(m)}
-                    showsVerticalScrollIndicator={false}
-                    snapToInterval={ITEM_H}
-                    decelerationRate="fast"
-                    contentContainerStyle={{ paddingVertical: ITEM_H }}
-                    onMomentumScrollEnd={(e) => {
-                      const idx = Math.round(e.nativeEvent.contentOffset.y / ITEM_H);
-                      setMinute(MINUTES[Math.max(0, Math.min(idx, MINUTES.length - 1))]);
-                    }}
-                    renderItem={({ item }) => (
-                      <View style={[tp.item, { height: ITEM_H }]}>
-                        <Text style={[tp.itemText, { color: item === minute ? t.gold : t.textMuted }]}>
-                          {String(item).padStart(2, '0')}
-                        </Text>
-                      </View>
-                    )}
-                    getItemLayout={(_, i) => ({ length: ITEM_H, offset: ITEM_H * i, index: i })}
-                  />
-                </View>
-              </View>
+          <View style={tp.pickers}>
+            {/* Hour column */}
+            <View style={{ flex: 1 }}>
+              <Text style={[tp.colLabel, { color: t.textMuted }]}>HOUR</Text>
+              <WheelColumn
+                data={HOURS}
+                selectedValue={hour}
+                onValueChange={setHour}
+                renderLabel={formatHour}
+                t={t}
+              />
             </View>
 
-            <View style={tp.actions}>
-              <TouchableOpacity style={[tp.btn, { borderColor: t.divider }]} onPress={onClose} activeOpacity={0.7}>
-                <Text style={[tp.btnLabel, { color: t.textMuted }]}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[tp.btn, tp.btnPrimary, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}
-                onPress={() => onConfirm({ hour, minute })}
-                activeOpacity={0.8}
-              >
-                <Text style={[tp.btnLabel, { color: t.gold }]}>Set Time</Text>
-              </TouchableOpacity>
+            {/* Separator */}
+            <View style={tp.colonWrap}>
+              <Text style={[tp.colon, { color: t.textMuted }]}>:</Text>
+            </View>
+
+            {/* Minute column */}
+            <View style={{ flex: 1 }}>
+              <Text style={[tp.colLabel, { color: t.textMuted }]}>MIN</Text>
+              <WheelColumn
+                data={MINUTES}
+                selectedValue={minute}
+                onValueChange={setMinute}
+                renderLabel={m => String(m).padStart(2, '0')}
+                t={t}
+              />
             </View>
           </View>
-        </TouchableOpacity>
-      </TouchableOpacity>
+
+          <View style={tp.actions}>
+            <TouchableOpacity
+              style={[tp.btn, { borderColor: t.divider }]}
+              onPress={onClose}
+              activeOpacity={0.7}
+            >
+              <Text style={[tp.btnLabel, { color: t.textMuted }]}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[tp.btn, tp.btnPrimary, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}
+              onPress={() => onConfirm({ hour, minute })}
+              activeOpacity={0.8}
+            >
+              <Text style={[tp.btnLabel, { color: t.gold }]}>Set Time</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
@@ -148,31 +235,25 @@ const tp = StyleSheet.create({
     alignItems: 'center', justifyContent: 'flex-end',
     paddingBottom: Platform.OS === 'ios' ? 40 : 24,
   },
-  sheet:   { width: 320, borderRadius: 24, padding: 24 },
-  heading: { fontSize: 17, fontWeight: '700', textAlign: 'center', marginBottom: 24 },
-  pickers: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-  column:  { flex: 1, alignItems: 'center' },
-  colLabel:{ fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 8 },
-  wheel:   { width: '100%', height: ITEM_H * 3, borderRadius: 14, overflow: 'hidden', borderWidth: 1 },
-  selector:{
-    position: 'absolute', top: ITEM_H, left: 0, right: 0, height: ITEM_H,
-    borderRadius: 10, zIndex: 0,
+  sheet:    { width: 320, borderRadius: 24, padding: 24 },
+  heading:  { fontSize: 17, fontWeight: '700', textAlign: 'center', marginBottom: 20 },
+  pickers:  { flexDirection: 'row', alignItems: 'flex-start', gap: 4 },
+  colLabel: {
+    fontSize: 10, fontWeight: '700', letterSpacing: 1.5,
+    textAlign: 'center', marginBottom: 8,
   },
-  item:    { justifyContent: 'center', alignItems: 'center', zIndex: 1 },
-  itemText:{ fontSize: 18, fontWeight: '600' },
-  colon:   { fontSize: 22, fontWeight: '600', paddingBottom: ITEM_H + 6 },
-  actions: { flexDirection: 'row', gap: 12, marginTop: 24 },
-  btn:     { flex: 1, paddingVertical: 14, borderRadius: 14, borderWidth: 1, alignItems: 'center' },
+  colonWrap: { justifyContent: 'center', alignItems: 'center', height: WHEEL_H, marginTop: 26 },
+  colon:    { fontSize: 22, fontWeight: '600' },
+  actions:  { flexDirection: 'row', gap: 12, marginTop: 20 },
+  btn:      { flex: 1, paddingVertical: 14, borderRadius: 14, borderWidth: 1, alignItems: 'center' },
   btnPrimary: {},
-  btnLabel:{ fontSize: 15, fontWeight: '600' },
+  btnLabel: { fontSize: 15, fontWeight: '600' },
 });
 
 // ─── Section header ───────────────────────────────────────────────────────────
 
 function SectionLabel({ label, t }: { label: string; t: ReturnType<typeof useTheme> }) {
-  return (
-    <Text style={[s.sectionLabel, { color: t.textMuted }]}>{label}</Text>
-  );
+  return <Text style={[s.sectionLabel, { color: t.textMuted }]}>{label}</Text>;
 }
 
 // ─── Setting row variants ─────────────────────────────────────────────────────
@@ -265,17 +346,14 @@ export default function NotificationsScreen() {
   const t   = useTheme();
   const nav = useNavigation();
 
-  const [prefs,  setPrefs]  = useState<NotificationPrefs | null>(null);
-  const [status, setStatus] = useState<'granted' | 'denied' | 'undetermined'>('undetermined');
+  const [prefs,        setPrefs]        = useState<NotificationPrefs | null>(null);
+  const [status,       setStatus]       = useState<'granted' | 'denied' | 'undetermined'>('undetermined');
   const [pickerTarget, setPickerTarget] = useState<TimePickerTarget | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const reload = useCallback(async () => {
-    const [p, st] = await Promise.all([
-      loadPrefs(),
-      checkPermissionStatus(),
-    ]);
+    const [p, st] = await Promise.all([loadPrefs(), checkPermissionStatus()]);
     setPrefs(p);
     setStatus(st);
     Animated.timing(fadeAnim, { toValue: 1, duration: 280, useNativeDriver: true }).start();
@@ -294,29 +372,24 @@ export default function NotificationsScreen() {
   const handleMasterToggle = useCallback(async (val: boolean) => {
     if (val && status !== 'granted') {
       const granted = await requestPermission();
-      if (!granted) {
-        setStatus('denied');
-        return;
-      }
+      if (!granted) { setStatus('denied'); return; }
       setStatus('granted');
     }
     await update({ masterEnabled: val });
   }, [status, update]);
 
-  const openSettings = useCallback(() => {
-    Linking.openSettings();
-  }, []);
+  const openSettings = useCallback(() => Linking.openSettings(), []);
 
   const getPickerTime = (): NotifTime => {
     if (!prefs) return { hour: 7, minute: 0 };
     switch (pickerTarget) {
-      case 'verse':       return prefs.dailyVerse.time;
-      case 'reading':     return prefs.readingPlan.time;
-      case 'streak':      return prefs.streak.time;
-      case 'prayer':      return prefs.prayer.time;
-      case 'quietStart':  return prefs.quietHours.start;
-      case 'quietEnd':    return prefs.quietHours.end;
-      default:            return { hour: 7, minute: 0 };
+      case 'verse':      return prefs.dailyVerse.time;
+      case 'reading':    return prefs.readingPlan.time;
+      case 'streak':     return prefs.streak.time;
+      case 'prayer':     return prefs.prayer.time;
+      case 'quietStart': return prefs.quietHours.start;
+      case 'quietEnd':   return prefs.quietHours.end;
+      default:           return { hour: 7, minute: 0 };
     }
   };
 
@@ -543,7 +616,7 @@ export default function NotificationsScreen() {
         </Animated.ScrollView>
       </SafeAreaView>
 
-      {/* Time Picker Modal */}
+      {/* Time Picker Modal — rendered outside SafeAreaView so it covers full screen */}
       <TimePicker
         visible={pickerTarget !== null}
         value={getPickerTime()}
@@ -578,7 +651,7 @@ const s = StyleSheet.create({
     shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
   },
 
-  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 },
+  row:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 },
   iconWrap: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   rowBody:  { flex: 1 },
   rowLabel: { fontSize: 15, fontWeight: '600' },
