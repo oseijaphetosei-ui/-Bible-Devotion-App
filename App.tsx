@@ -11,6 +11,7 @@ import {
   AccessibilityInfo,
   useColorScheme,
 } from 'react-native';
+import { isOnboardingCompleted } from './src/services/onboardingService';
 import { AppearanceProvider, useAppearance } from './src/context/AppearanceContext';
 import { ProfileProvider } from './src/context/ProfileContext';
 import { AuthProvider } from './src/context/AuthContext';
@@ -24,6 +25,7 @@ import { BlurView } from 'expo-blur';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { navigationRef } from './src/navigation/navigationRef';
 import { initializeNotifications } from './src/services/notificationService';
+import OnboardingFlow from './src/screens/Onboarding/OnboardingFlow';
 
 import HomeScreen from './src/screens/Home/HomeScreen';
 import BibleScreen from './src/screens/Bible/BibleScreen';
@@ -148,10 +150,15 @@ function ProfileStackScreen() {
   );
 }
 
-function RootNavigator() {
+function RootNavigator({ onboardingCompleted }: { onboardingCompleted: boolean }) {
   return (
-    <AppRoot.Navigator id="approot" screenOptions={{ headerShown: false }}>
-      <AppRoot.Screen name="MainTabs" component={TabNavigatorComponent} />
+    <AppRoot.Navigator
+      id="approot"
+      screenOptions={{ headerShown: false }}
+      initialRouteName={onboardingCompleted ? 'MainTabs' : 'Onboarding'}
+    >
+      <AppRoot.Screen name="Onboarding" component={OnboardingFlow} />
+      <AppRoot.Screen name="MainTabs"   component={TabNavigatorComponent} />
       <AppRoot.Screen
         name="ProfileModal"
         component={ProfileStackScreen}
@@ -761,17 +768,26 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
 export default function App() {
   // navMounted: NavigationContainer is added to the tree only when splash begins fading,
   // so screens never flash before the intro animation completes.
-  const [navMounted,    setNavMounted]    = useState(false);
-  const [splashRemoved, setSplashRemoved] = useState(false);
+  const [navMounted,          setNavMounted]          = useState(false);
+  const [splashRemoved,       setSplashRemoved]       = useState(false);
+  const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
+
+  // Check onboarding status immediately — resolves long before the splash ends.
+  useEffect(() => {
+    isOnboardingCompleted().then(setOnboardingCompleted).catch(() => setOnboardingCompleted(false));
+  }, []);
 
   // Notification listeners: set up once on mount, cleaned up on unmount.
   useEffect(() => {
     return initializeNotifications();
   }, []);
 
+  // Nav is ready when splash starts fading AND we know onboarding status.
+  const navReady = navMounted && onboardingCompleted !== null;
+
   if (__DEV__) {
     // eslint-disable-next-line no-console
-    console.log('[App] render — navMounted:', navMounted, 'splashRemoved:', splashRemoved);
+    console.log('[App] render — navMounted:', navMounted, 'onboarding:', onboardingCompleted, 'splashRemoved:', splashRemoved);
   }
 
   return (
@@ -779,10 +795,10 @@ export default function App() {
       <AuthProvider>
         <ProfileProvider>
           <SafeAreaProvider>
-            {navMounted && (
+            {navReady && (
               <ErrorBoundary label="NavigationContainer">
                 <NavigationContainer ref={navigationRef}>
-                  <RootNavigator />
+                  <RootNavigator onboardingCompleted={onboardingCompleted!} />
                 </NavigationContainer>
               </ErrorBoundary>
             )}

@@ -12,7 +12,6 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../../types/navigation';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getTodayVerseEntry } from '../../services/verseService';
 import { speakText } from '../../services/ttsService';
 import { loadGoals, isCompletedToday } from '../../services/goalsService';
@@ -30,12 +29,11 @@ import {
 } from '../../services/notificationService';
 import { patchPrefs, loadPrefs } from '../../services/notificationPreferences';
 import { navigateToNotificationSettings } from '../../navigation/navigationRef';
+import { loadOnboarding, PrimaryGoal } from '../../services/onboardingService';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
-
-const BANNER_SNOOZE_KEY = '@notif_banner_snooze_until';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -62,18 +60,8 @@ const getGreeting = () => {
 
 async function shouldShowBanner(): Promise<boolean> {
   try {
-    const [snooze, prefs, permStatus] = await Promise.all([
-      AsyncStorage.getItem(BANNER_SNOOZE_KEY),
-      loadPrefs(),
-      checkPermissionStatus(),
-    ]);
-    // Never show if notifications are properly enabled
+    const [prefs, permStatus] = await Promise.all([loadPrefs(), checkPermissionStatus()]);
     if (prefs.masterEnabled && permStatus === 'granted') return false;
-    // Don't show if snoozed and snooze hasn't expired
-    if (snooze) {
-      const until = new Date(snooze);
-      if (until > new Date()) return false;
-    }
     return true;
   } catch {
     return false;
@@ -96,7 +84,7 @@ const NotificationReminderBanner = memo(function NotificationReminderBanner() {
     ]).start();
   }, [opacity, translateY]);
 
-  const hide = useCallback((snooze = false) => {
+  const hide = useCallback(() => {
     Animated.parallel([
       Animated.timing(opacity,    { toValue: 0, duration: 220, useNativeDriver: true }),
       Animated.timing(translateY, { toValue: -6, duration: 220, useNativeDriver: true }),
@@ -108,11 +96,6 @@ const NotificationReminderBanner = memo(function NotificationReminderBanner() {
       });
       setVisible(false);
     });
-    if (snooze) {
-      const until = new Date();
-      until.setDate(until.getDate() + 7);
-      AsyncStorage.setItem(BANNER_SNOOZE_KEY, until.toISOString()).catch(() => {});
-    }
   }, [opacity, translateY]);
 
   useFocusEffect(useCallback(() => {
@@ -141,7 +124,6 @@ const NotificationReminderBanner = memo(function NotificationReminderBanner() {
           hide();
         }
       } else {
-        // Already granted but masterEnabled is off — go to settings
         hide();
         navigateToNotificationSettings();
       }
@@ -153,63 +135,33 @@ const NotificationReminderBanner = memo(function NotificationReminderBanner() {
   if (!visible) return null;
 
   return (
-    <Animated.View style={[nb.container, { opacity, transform: [{ translateY }] }]}>
-      <LinearGradient
-        colors={t.statusBar === 'dark-content'
-          ? ['rgba(201,169,107,0.10)', 'rgba(201,169,107,0.06)']
-          : ['rgba(201,169,107,0.14)', 'rgba(201,169,107,0.08)']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[nb.gradient, { borderColor: t.goldBorder }]}
-      >
-        {/* Bell icon */}
-        <View style={[nb.iconWrap, { backgroundColor: t.goldBg }]}>
-          <Ionicons name="notifications-outline" size={20} color={t.gold} />
+    <Animated.View style={[nb.container, { backgroundColor: t.card, opacity, transform: [{ translateY }] }]}>
+      <View style={nb.headerRow}>
+        <View style={[nb.iconWrap, { backgroundColor: t.accentBg }]}>
+          <Ionicons name="notifications-outline" size={18} color={t.accent} />
         </View>
-
-        {/* Text block */}
-        <View style={nb.textBlock}>
-          <Text style={[nb.primary, { color: t.text }]}>
-            Never miss your daily time with God.
-          </Text>
-          <Text style={[nb.secondary, { color: t.textMuted }]} numberOfLines={2}>
-            Enable gentle reminders for your daily verse, reading plan, prayer, and streak.
-          </Text>
-        </View>
-
-        {/* Dismiss */}
+        <View style={{ flex: 1 }} />
         <TouchableOpacity
-          style={nb.dismissBtn}
-          onPress={() => hide(true)}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          onPress={hide}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           activeOpacity={0.6}
+          accessibilityLabel="Dismiss"
         >
           <Ionicons name="close" size={16} color={t.textMuted} />
         </TouchableOpacity>
-      </LinearGradient>
-
-      {/* CTA row */}
-      <View style={[nb.ctaRow, { borderColor: t.goldBorder }]}>
-        <TouchableOpacity
-          style={[nb.ctaPrimary, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}
-          onPress={handleEnable}
-          activeOpacity={0.82}
-          disabled={loading}
-        >
-          <Ionicons name="notifications" size={14} color={t.gold} />
-          <Text style={[nb.ctaPrimaryLabel, { color: t.gold }]}>
-            {loading ? 'Enabling…' : 'Enable Notifications'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={nb.ctaSecondary}
-          onPress={() => hide(true)}
-          activeOpacity={0.7}
-        >
-          <Text style={[nb.ctaSecondaryLabel, { color: t.textMuted }]}>Not Now</Text>
-        </TouchableOpacity>
       </View>
+
+      <Text style={[nb.primary, { color: t.text }]}>Stay in step with God's Word.</Text>
+      <Text style={[nb.secondary, { color: t.textMuted }]}>Enable gentle daily reminders.</Text>
+
+      <TouchableOpacity
+        style={[nb.cta, { backgroundColor: t.accent }]}
+        onPress={handleEnable}
+        activeOpacity={0.82}
+        disabled={loading}
+      >
+        <Text style={nb.ctaLabel}>{loading ? 'Enabling…' : 'Enable Notifications'}</Text>
+      </TouchableOpacity>
     </Animated.View>
   );
 });
@@ -217,43 +169,32 @@ const NotificationReminderBanner = memo(function NotificationReminderBanner() {
 const nb = StyleSheet.create({
   container: {
     marginBottom: 16,
-    borderRadius: 18,
-    overflow: 'hidden',
-    shadowColor: '#C9A96B',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 3,
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  gradient: {
-    flexDirection: 'row', alignItems: 'flex-start',
-    padding: 16, paddingBottom: 14,
-    borderWidth: 1, borderBottomWidth: 0,
-    borderTopLeftRadius: 18, borderTopRightRadius: 18,
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
   },
   iconWrap: {
-    width: 38, height: 38, borderRadius: 12,
+    width: 32, height: 32, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',
-    marginRight: 12, flexShrink: 0, marginTop: 1,
   },
-  textBlock:  { flex: 1, gap: 4 },
-  primary:    { fontSize: 14, fontWeight: '700', lineHeight: 19, letterSpacing: 0.1 },
-  secondary:  { fontSize: 12, lineHeight: 17 },
-  dismissBtn: { paddingLeft: 8, paddingTop: 2 },
-
-  ctaRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 14, paddingVertical: 12,
-    borderLeftWidth: 1, borderRightWidth: 1, borderBottomWidth: 1,
-    borderBottomLeftRadius: 18, borderBottomRightRadius: 18,
+  primary:  { fontSize: 15, fontWeight: '600', lineHeight: 21, letterSpacing: 0.1, marginBottom: 3 },
+  secondary: { fontSize: 13, lineHeight: 18, marginBottom: 14 },
+  cta: {
+    borderRadius: 30,
+    paddingVertical: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  ctaPrimary: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1,
-  },
-  ctaPrimaryLabel:   { fontSize: 13, fontWeight: '700' },
-  ctaSecondary:      { paddingVertical: 10, paddingHorizontal: 4 },
-  ctaSecondaryLabel: { fontSize: 13, fontWeight: '500' },
+  ctaLabel: { fontSize: 14, fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.2 },
 });
 
 // ─── Today's Verse Card ───────────────────────────────────────────────────────
@@ -567,6 +508,13 @@ const rp = StyleSheet.create({
 
 // ─── HomeScreen ───────────────────────────────────────────────────────────────
 
+const GOAL_TAGLINES: Record<PrimaryGoal, string> = {
+  devotion: 'Your devotion time is waiting.',
+  study:    'Ready to go deeper today?',
+  prayer:   'Take a moment to pray.',
+  reading:  'Continue your reading streak.',
+};
+
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const t = useTheme();
@@ -575,6 +523,12 @@ export default function HomeScreen() {
   const today    = useMemo(() => new Date().toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric',
   }), []);
+
+  const [primaryGoal, setPrimaryGoal] = useState<PrimaryGoal | null>(null);
+
+  useFocusEffect(useCallback(() => {
+    loadOnboarding().then(d => setPrimaryGoal(d.primaryGoal)).catch(() => {});
+  }, []));
 
   // Entrance animation for quick-nav cards (still scroll-triggered)
   const cardOpacity    = useRef(new Animated.Value(0)).current;
@@ -612,6 +566,11 @@ export default function HomeScreen() {
           <View style={s.greetingBlock}>
             <Text style={[s.greeting, { color: t.text }]}>{greeting}</Text>
             <Text style={[s.date, { color: t.textSub }]}>{today}</Text>
+            {primaryGoal && (
+              <Text style={[s.goalTagline, { color: t.accent }]}>
+                {GOAL_TAGLINES[primaryGoal]}
+              </Text>
+            )}
           </View>
         </View>
 
@@ -721,6 +680,7 @@ const s = StyleSheet.create({
   greetingBlock: { flex: 1 },
   greeting:      { fontSize: 21, fontWeight: '700', letterSpacing: -0.3 },
   date:          { fontSize: 13, marginTop: 2 },
+  goalTagline:   { fontSize: 12, fontWeight: '500', marginTop: 4, letterSpacing: 0.1 },
 
   // Section label
   sectionLabel: {

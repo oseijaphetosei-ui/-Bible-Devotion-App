@@ -60,6 +60,7 @@ export type RootTabParamList = {
 };
 
 export type AppRootParamList = {
+  Onboarding:   undefined;
   MainTabs:     NavigatorScreenParams<RootTabParamList> | undefined;
   ProfileModal: NavigatorScreenParams<ProfileStackParamList> | undefined;
 };
