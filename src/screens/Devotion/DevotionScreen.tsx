@@ -117,11 +117,12 @@ function BreathingTimer({ gold, goldBg, goldBorder, card, text, textMuted }: {
 
 type WeekDay = { dateStr: string; label: string; dayNum: number; completed: boolean; isToday: boolean };
 
-function StreakBoard({ refreshTrigger, gold, goldBg, goldBorder, text, textMuted, weekCircleBg, weekCircleBorder, weekCircleActiveBg }: {
+function StreakBoard({ refreshTrigger, gold, goldBg, goldBorder, text, textMuted, weekCircleBg, weekCircleBorder, weekCircleActiveBg, card, cardBorder }: {
   refreshTrigger: number;
   gold: string; goldBg: string; goldBorder: string;
   text: string; textMuted: string;
   weekCircleBg: string; weekCircleBorder: string; weekCircleActiveBg: string;
+  card: string; cardBorder: string;
 }) {
   const [streak, setStreak] = useState(0);
   const [total, setTotal] = useState(0);
@@ -140,9 +141,9 @@ function StreakBoard({ refreshTrigger, gold, goldBg, goldBorder, text, textMuted
             {streak > 0 ? `🔥 ${streak}-day streak` : 'Start your streak today'}
           </Text>
         </View>
-        <View style={[s.streakBadge, { backgroundColor: goldBg, borderColor: goldBorder }]}>
-          <Text style={[s.streakBadgeNum, { color: gold }]}>{total}</Text>
-          <Text style={[s.streakBadgeLbl, { color: gold }]}>total</Text>
+        <View style={[s.streakBadge, { backgroundColor: card, borderColor: cardBorder }]}>
+          <Text style={[s.streakBadgeNum, { color: text }]}>{total}</Text>
+          <Text style={[s.streakBadgeLbl, { color: textMuted }]}>total</Text>
         </View>
       </View>
 
@@ -449,8 +450,7 @@ export default function DevotionScreen() {
                 <TouchableOpacity
                   style={[
                     s.completeBtn,
-                    { backgroundColor: t.goldBg },
-                    markedToday && { backgroundColor: t.gold },
+                    { borderColor: t.cardBorder, backgroundColor: t.card },
                   ]}
                   onPress={handleMarkComplete}
                   disabled={markedToday}
@@ -459,9 +459,9 @@ export default function DevotionScreen() {
                   <Ionicons
                     name={markedToday ? 'checkmark-circle' : 'checkmark-circle-outline'}
                     size={18}
-                    color={markedToday ? t.bg : t.gold}
+                    color={markedToday ? t.gold : t.textSub}
                   />
-                  <Text style={[s.completeBtnText, { color: t.gold }, markedToday && { color: t.bg }]}>
+                  <Text style={[s.completeBtnText, { color: markedToday ? t.gold : t.text }]}>
                     {markedToday ? 'Completed ✓' : 'Mark Complete'}
                   </Text>
                 </TouchableOpacity>
@@ -486,6 +486,7 @@ export default function DevotionScreen() {
             text={t.text} textMuted={t.textMuted}
             weekCircleBg={t.weekCircleBg} weekCircleBorder={t.weekCircleBorder}
             weekCircleActiveBg={t.weekCircleActiveBg}
+            card={t.card} cardBorder={t.cardBorder}
           />
           <BreathingTimer
             gold={t.gold} goldBg={t.goldBg} goldBorder={t.goldBorder}
@@ -597,7 +598,7 @@ const s = StyleSheet.create({
   actionRow: { flexDirection: 'row', gap: 10 },
   completeBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center', gap: 8,
+    justifyContent: 'center', gap: 8, borderWidth: 1,
     borderRadius: 14, paddingVertical: 13,
   },
   completeBtnText: { fontSize: 14, fontWeight: '700' },

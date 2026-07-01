@@ -2,7 +2,7 @@ import React, {
   useState, useRef, useCallback, useEffect, memo,
 } from 'react';
 import {
-  View, Text, ScrollView, TextInput, TouchableOpacity, Pressable,
+  View, Text, ScrollView, TouchableOpacity, Pressable,
   StyleSheet, Animated, StatusBar, Platform, UIManager, LayoutAnimation,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -35,15 +35,9 @@ const GOALS: GoalOption[] = [
 type TranslationOption = { id: string; name: string; description: string; recommended: boolean };
 
 const TRANSLATIONS: TranslationOption[] = [
-  { id: 'NKJV', name: 'NKJV',  description: 'Classic language with modern readability',       recommended: true  },
-  { id: 'ESV',  name: 'ESV',   description: 'Precise and literary — beloved for study',        recommended: true  },
-  { id: 'NIV',  name: 'NIV',   description: 'Most widely read modern translation',             recommended: true  },
-  { id: 'NLT',  name: 'NLT',   description: 'Clear and contemporary language',                 recommended: false },
-  { id: 'KJV',  name: 'KJV',   description: 'The historic 1611 translation',                   recommended: false },
-  { id: 'CSB',  name: 'CSB',   description: 'Optimal balance of accuracy and readability',     recommended: false },
-  { id: 'NASB', name: 'NASB',  description: 'Highly literal, ideal for deep study',            recommended: false },
-  { id: 'MSG',  name: 'MSG',   description: 'The Message — a contemporary paraphrase',         recommended: false },
-  { id: 'AMP',  name: 'AMP',   description: 'Amplified Bible — richer word-level nuance',     recommended: false },
+  { id: 'KJV',         name: 'KJV',         description: 'The classic 1611 King James Version',   recommended: true  },
+  { id: 'ASANTE_TWI',  name: 'Asante Twi',  description: 'Bible in the Asante Twi dialect',       recommended: false },
+  { id: 'AKUAPEM_TWI', name: 'Akuapem Twi', description: 'Bible in the Akuapem Twi dialect',      recommended: false },
 ];
 
 const HOURS   = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
@@ -605,74 +599,36 @@ function TranslationView({ selected, onSelect, onNext }: {
   selected: string; onSelect: (id: string) => void; onNext: () => void;
 }) {
   const t = useTheme();
-  const [query, setQuery] = useState('');
-
-  const filtered = query.trim()
-    ? TRANSLATIONS.filter(
-        tr => tr.name.toLowerCase().includes(query.toLowerCase()) ||
-              tr.description.toLowerCase().includes(query.toLowerCase()),
-      )
-    : TRANSLATIONS;
 
   return (
-    <View style={{ flex: 1 }}>
-      <View style={{ paddingHorizontal: 24 }}>
-        <View style={ob.screenTitle}>
-          <Text style={[ob.titleLg, { color: t.text }]}>Choose your Bible{'\n'}translation</Text>
-          <Text style={[ob.subtitle, { color: t.textMuted }]}>You can change this anytime.</Text>
-        </View>
+    <View style={{ flex: 1, paddingHorizontal: 24 }}>
+      <View style={ob.screenTitle}>
+        <Text style={[ob.titleLg, { color: t.text }]}>Choose your Bible{'\n'}translation</Text>
+        <Text style={[ob.subtitle, { color: t.textMuted }]}>You can change this anytime.</Text>
+      </View>
 
-        {/* Search */}
-        <View style={[tv.searchWrap, { backgroundColor: t.inputBg, borderColor: t.inputBorder }]}>
-          <Ionicons name="search" size={15} color={t.textMuted} style={{ marginRight: 8 }} />
-          <TextInput
-            style={[tv.searchInput, { color: t.text }]}
-            placeholder="Search translations"
-            placeholderTextColor={t.textMuted}
-            value={query}
-            onChangeText={setQuery}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="search"
+      <View style={[tv.listCard, { backgroundColor: t.card, borderColor: t.divider }]}>
+        {TRANSLATIONS.map(item => (
+          <TranslationItem
+            key={item.id}
+            item={item}
+            selected={selected === item.id}
+            onSelect={() => onSelect(item.id)}
+            t={t}
           />
-          {query.length > 0 && (
-            <Pressable onPress={() => setQuery('')} hitSlop={8}>
-              <Ionicons name="close-circle" size={16} color={t.textMuted} />
-            </Pressable>
-          )}
-        </View>
+        ))}
       </View>
 
-      {/* List */}
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 16 }}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+      <View style={{ flex: 1 }} />
+
+      <TouchableOpacity
+        style={[ob.primaryBtn, { backgroundColor: t.accent }]}
+        onPress={onNext}
+        activeOpacity={0.82}
       >
-        <View style={[tv.listCard, { backgroundColor: t.card, borderColor: t.divider }]}>
-          {filtered.map(item => (
-            <TranslationItem
-              key={item.id}
-              item={item}
-              selected={selected === item.id}
-              onSelect={() => onSelect(item.id)}
-              t={t}
-            />
-          ))}
-        </View>
-      </ScrollView>
-
-      <View style={{ paddingHorizontal: 24 }}>
-        <TouchableOpacity
-          style={[ob.primaryBtn, { backgroundColor: t.accent }]}
-          onPress={onNext}
-          activeOpacity={0.82}
-        >
-          <Text style={ob.primaryBtnLabel}>Continue</Text>
-        </TouchableOpacity>
-        <View style={{ height: 32 }} />
-      </View>
+        <Text style={ob.primaryBtnLabel}>Continue</Text>
+      </TouchableOpacity>
+      <View style={{ height: 32 }} />
     </View>
   );
 }
@@ -858,7 +814,7 @@ export default function OnboardingFlow({ navigation }: Props) {
   const [hour,        setHour]        = useState(7);
   const [minute,      setMinute]      = useState(30);
   const [ampm,        setAmpm]        = useState<'AM' | 'PM'>('AM');
-  const [translation, setTranslation] = useState('NKJV');
+  const [translation, setTranslation] = useState('KJV');
 
   // Page transition animations
   const contentOpacity    = useRef(new Animated.Value(1)).current;

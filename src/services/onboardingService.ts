@@ -14,7 +14,7 @@ const KEY = '@onboarding_v1';
 const DEFAULT: OnboardingData = {
   onboardingCompleted: false,
   primaryGoal: null,
-  preferredBibleTranslation: 'NKJV',
+  preferredBibleTranslation: 'KJV',
   reminderTime: null,
 };
 

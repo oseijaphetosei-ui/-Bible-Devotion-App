@@ -163,7 +163,8 @@ const s = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     padding: 0,
-    height: 22,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
   },
   cancelBtn: {
     paddingLeft: 10,

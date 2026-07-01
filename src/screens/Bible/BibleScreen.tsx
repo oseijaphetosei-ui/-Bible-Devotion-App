@@ -1445,6 +1445,8 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(232,226,216,0.04)',
     color: T_PRIMARY,
     fontSize: 15,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
   },
   pickerRow: {
     flexDirection: 'row',
@@ -1532,8 +1534,9 @@ const s = StyleSheet.create({
     flex: 1,
     color: T_PRIMARY,
     fontSize: 15,
-    height: 22,
     padding: 0,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
   },
   searchCancelBtn: {
     paddingLeft: 10,

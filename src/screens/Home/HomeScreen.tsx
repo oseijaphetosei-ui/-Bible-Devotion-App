@@ -614,6 +614,24 @@ export default function HomeScreen() {
           {/* Spiritual Goals */}
           <GoalsCard />
 
+          <View style={[s.rowDivider, { backgroundColor: t.divider }]} />
+
+          {/* Prayer Journal */}
+          <TouchableOpacity
+            style={s.listRow}
+            onPress={() => navigation.navigate('PrayerJournal')}
+            activeOpacity={0.8}
+          >
+            <View style={[s.listRowIconWrap, { backgroundColor: '#C47B8A22' }]}>
+              <Ionicons name="heart-outline" size={18} color="#C47B8A" />
+            </View>
+            <View style={s.listRowBody}>
+              <Text style={[s.listRowTitle, { color: t.text }]}>Prayer Journal</Text>
+              <Text style={[s.listRowSub, { color: t.textMuted }]}>Record prayers, track answers, build faith</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={14} color={t.textMuted} />
+          </TouchableOpacity>
+
           {/* ── Explore section ── */}
           <Text style={[s.sectionLabel, { color: t.textMuted, marginTop: 28 }]}>EXPLORE</Text>
 

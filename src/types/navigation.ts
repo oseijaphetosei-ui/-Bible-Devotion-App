@@ -16,6 +16,10 @@ export type HomeStackParamList = {
   Reading: { planId: string; day: number };
   Reflection: { planId: string; day: number };
   PlanLibrary: undefined;
+  PrayerJournal: undefined;
+  PrayerEditor: { prayerId?: string; prefillVerse?: { label: string; text: string }; prefillContent?: string } | undefined;
+  PrayerDetail: { prayerId: string };
+  PrayerAnswered: { prayerId: string };
 };
 
 export type BibleStackParamList = {

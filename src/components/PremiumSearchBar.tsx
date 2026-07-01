@@ -159,5 +159,7 @@ const s = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     paddingVertical: 0,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
   },
 });

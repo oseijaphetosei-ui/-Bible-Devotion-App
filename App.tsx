@@ -56,6 +56,10 @@ import TodayJourneyScreen from './src/screens/Use/TodayJourneyScreen';
 import ReadingScreen from './src/screens/Use/ReadingScreen';
 import ReflectionScreen from './src/screens/Use/ReflectionScreen';
 import PlanLibraryScreen from './src/screens/Use/PlanLibraryScreen';
+import PrayerJournalScreen from './src/screens/Prayer/PrayerJournalScreen';
+import PrayerEditorScreen from './src/screens/Prayer/PrayerEditorScreen';
+import PrayerDetailScreen from './src/screens/Prayer/PrayerDetailScreen';
+import PrayerAnsweredScreen from './src/screens/Prayer/PrayerAnsweredScreen';
 
 import {
   HomeStackParamList,
@@ -90,9 +94,13 @@ function HomeStackScreen() {
       <HomeStack.Screen name="ScriptureChat" component={ScriptureChatScreen} />
       <HomeStack.Screen name="ScriptureInsights" component={ScriptureInsightsScreen} />
       <HomeStack.Screen name="TodayJourney" component={TodayJourneyScreen} />
-      <HomeStack.Screen name="Reading" component={ReadingScreen} />
-      <HomeStack.Screen name="Reflection" component={ReflectionScreen} />
-      <HomeStack.Screen name="PlanLibrary" component={PlanLibraryScreen} />
+      <HomeStack.Screen name="Reading"        component={ReadingScreen}        />
+      <HomeStack.Screen name="Reflection"     component={ReflectionScreen}     />
+      <HomeStack.Screen name="PlanLibrary"    component={PlanLibraryScreen}    />
+      <HomeStack.Screen name="PrayerJournal"  component={PrayerJournalScreen}  />
+      <HomeStack.Screen name="PrayerEditor"   component={PrayerEditorScreen}   />
+      <HomeStack.Screen name="PrayerDetail"   component={PrayerDetailScreen}   />
+      <HomeStack.Screen name="PrayerAnswered" component={PrayerAnsweredScreen} />
     </HomeStack.Navigator>
   );
 }
