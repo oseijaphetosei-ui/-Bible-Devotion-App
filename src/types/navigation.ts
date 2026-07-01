@@ -48,11 +48,13 @@ export type CommunityStackParamList = {
 };
 
 export type ProfileStackParamList = {
-  Profile:       undefined;
-  EditProfile:   undefined;
-  Appearance:    undefined;
-  Notifications: undefined;
-  Privacy:       undefined;
+  Profile:         undefined;
+  EditProfile:     undefined;
+  Appearance:      undefined;
+  Notifications:   undefined;
+  Privacy:         undefined;
+  PrivacyPolicy:   undefined;
+  TermsOfService:  undefined;
 };
 
 export type RootTabParamList = {

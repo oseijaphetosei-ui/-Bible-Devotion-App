@@ -14,8 +14,11 @@ import {
   StatusBar,
   ActivityIndicator,
   Animated,
+  Platform,
+  Keyboard,
+  Dimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -319,10 +322,59 @@ function ReaderControls({
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
+// Height of the card portion that should stay visible above the keyboard:
+// card paddingTop (18) + label (~13) + gap (14) + search bar (~46) + breathing room (16)
+const CARD_VISIBLE_HEIGHT = 107;
+
 export default function DevotionScreen() {
   const navigation = useNavigation<NavProp>();
   const route      = useRoute<RouteP>();
   const t          = useTheme();
+  const { top: safeTop } = useSafeAreaInsets();
+
+  // Scroll-to-card-on-keyboard refs
+  const scrollViewRef     = useRef<ScrollView>(null);
+  const cardRef           = useRef<View>(null);
+  const scrollYRef        = useRef(0);
+  const scrollYBeforeKb   = useRef(0);
+  const windowHeight      = Dimensions.get('window').height;
+  const [extraBottomPad, setExtraBottomPad] = useState(0);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const show = Keyboard.addListener(showEvent, (e) => {
+      const kbH = e.endCoordinates.height;
+      // Expand the scrollable area so we can scroll the card far enough above the keyboard
+      setExtraBottomPad(kbH + 120);
+      scrollYBeforeKb.current = scrollYRef.current;
+
+      // Wait one frame for the layout to update with the extra padding before measuring
+      setTimeout(() => {
+        const targetCardTopInWindow = windowHeight - kbH - CARD_VISIBLE_HEIGHT - 4;
+        cardRef.current?.measureInWindow((_x, y) => {
+          const delta = y - targetCardTopInWindow;
+          if (delta > 0) {
+            scrollViewRef.current?.scrollTo({
+              y: scrollYRef.current + delta,
+              animated: true,
+            });
+          }
+        });
+      }, 50);
+    });
+
+    const hide = Keyboard.addListener(hideEvent, () => {
+      setExtraBottomPad(0);
+      scrollViewRef.current?.scrollTo({
+        y: scrollYBeforeKb.current,
+        animated: true,
+      });
+    });
+
+    return () => { show.remove(); hide.remove(); };
+  }, [windowHeight]);
 
   const initialTopic = route.params?.topic ?? '';
   const [topic,         setTopic]         = useState(initialTopic);
@@ -332,6 +384,7 @@ export default function DevotionScreen() {
   const [streakTrigger, setStreakTrigger] = useState(0);
   const [markedToday,   setMarkedToday]   = useState(false);
   const [streakData,    setStreakData]    = useState({ streak: 0, total: 0 });
+  const [inputFocused,  setInputFocused]  = useState(false);
 
   const reader = useDevotionReader(devotion);
 
@@ -381,10 +434,13 @@ export default function DevotionScreen() {
         <StatusBar barStyle={t.statusBar} backgroundColor="transparent" translucent />
 
         <ScrollView
+          ref={scrollViewRef}
           style={{ flex: 1 }}
-          contentContainerStyle={s.scrollContent}
+          contentContainerStyle={[s.scrollContent, extraBottomPad > 0 && { paddingBottom: 130 + extraBottomPad }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          onScroll={(e) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
+          scrollEventThrottle={50}
         >
           {/* ── Hero ── */}
           <HeroSection
@@ -547,7 +603,7 @@ export default function DevotionScreen() {
             <BreathingTimer t={t} />
 
             {/* ── Topic Input (bottom) ── */}
-            <View style={[s.card, { backgroundColor: t.card }]}>
+            <View ref={cardRef} style={[s.card, { backgroundColor: t.card }]}>
               <Text style={[s.topicCardLabel, { color: t.textMuted }]}>WHAT'S ON YOUR HEART?</Text>
 
               <GlassSearchBar
@@ -557,38 +613,42 @@ export default function DevotionScreen() {
                 returnKeyType="go"
                 onSubmitEditing={generate}
                 showCancel={false}
+                onFocus={() => setInputFocused(true)}
+                onBlur={() => setInputFocused(false)}
               />
 
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={s.tagsScroll}
-                contentContainerStyle={s.tagsRow}
-              >
-                {QUICK_TAGS.map(tag => {
-                  const isActive = topic.toLowerCase() === tag.toLowerCase();
-                  return (
-                    <TouchableOpacity
-                      key={tag}
-                      style={[
-                        s.tagChip,
-                        { borderColor: t.chipBorder, backgroundColor: t.chipBg },
-                        isActive && { borderColor: t.goldBorder, backgroundColor: t.goldBg },
-                      ]}
-                      onPress={() => setTopic(tag)}
-                      activeOpacity={0.75}
-                    >
-                      <Text style={[
-                        s.tagChipText,
-                        { color: t.textMuted },
-                        isActive && { color: t.gold },
-                      ]}>
-                        {tag}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
+              {!inputFocused && (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={s.tagsScroll}
+                  contentContainerStyle={s.tagsRow}
+                >
+                  {QUICK_TAGS.map(tag => {
+                    const isActive = topic.toLowerCase() === tag.toLowerCase();
+                    return (
+                      <TouchableOpacity
+                        key={tag}
+                        style={[
+                          s.tagChip,
+                          { borderColor: t.chipBorder, backgroundColor: t.chipBg },
+                          isActive && { borderColor: t.goldBorder, backgroundColor: t.goldBg },
+                        ]}
+                        onPress={() => setTopic(tag)}
+                        activeOpacity={0.75}
+                      >
+                        <Text style={[
+                          s.tagChipText,
+                          { color: t.textMuted },
+                          isActive && { color: t.gold },
+                        ]}>
+                          {tag}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              )}
 
               <TouchableOpacity
                 style={[

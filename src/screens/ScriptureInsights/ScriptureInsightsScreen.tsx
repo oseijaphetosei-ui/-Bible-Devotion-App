@@ -9,7 +9,6 @@ import {
   StatusBar,
   Animated,
   Easing,
-  KeyboardAvoidingView,
   Keyboard,
   Platform,
   useColorScheme,
@@ -325,6 +324,96 @@ export default function ScriptureInsightsScreen() {
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const [conversation, setConversation] = useState<Message[]>([]);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  // Dock hide/show on scroll
+  const dockSlide       = useRef(new Animated.Value(0)).current;
+  const lastScrollY     = useRef(0);
+  const isDockVisible   = useRef(true);
+  const keyboardOpenRef = useRef(false);
+
+  // Glass → solid transition on focus
+  const focusAnim = useRef(new Animated.Value(0)).current;
+
+  const dockBgColors = useMemo(
+    () => scheme === 'dark'
+      ? ['rgba(0,0,0,0)', 'rgba(7,17,31,1)']
+      : ['rgba(0,0,0,0)', 'rgba(245,239,230,1)'],
+    [scheme],
+  );
+  const inputBgColors = useMemo(
+    () => scheme === 'dark'
+      ? ['rgba(255,255,255,0.06)', 'rgba(20,24,42,1)']
+      : ['rgba(255,255,255,0.68)', 'rgba(255,255,255,1)'],
+    [scheme],
+  );
+
+  const animDockBg  = useMemo(
+    () => focusAnim.interpolate({ inputRange: [0, 1], outputRange: dockBgColors }),
+    [focusAnim, dockBgColors],
+  );
+  const animInputBg = useMemo(
+    () => focusAnim.interpolate({ inputRange: [0, 1], outputRange: inputBgColors }),
+    [focusAnim, inputBgColors],
+  );
+
+  const handleFocus = useCallback(() => {
+    Animated.timing(focusAnim, {
+      toValue: 1, duration: 220,
+      easing: Easing.out(Easing.quad), useNativeDriver: false,
+    }).start();
+  }, [focusAnim]);
+
+  const handleBlur = useCallback(() => {
+    Animated.timing(focusAnim, {
+      toValue: 0, duration: 200,
+      easing: Easing.out(Easing.quad), useNativeDriver: false,
+    }).start();
+  }, [focusAnim]);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+      keyboardOpenRef.current = true;
+      // always show dock when keyboard opens
+      if (!isDockVisible.current) {
+        isDockVisible.current = true;
+        Animated.timing(dockSlide, { toValue: 0, duration: 200, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
+      }
+    });
+    const hide = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+      keyboardOpenRef.current = false;
+    });
+    return () => { show.remove(); hide.remove(); };
+  }, [dockSlide]);
+
+  const handleScroll = useCallback((e: any) => {
+    if (keyboardOpenRef.current) return;
+    const y: number = e.nativeEvent.contentOffset.y;
+    const dy = y - lastScrollY.current;
+    lastScrollY.current = y;
+
+    if (dy > 5 && isDockVisible.current) {
+      isDockVisible.current = false;
+      Animated.timing(dockSlide, {
+        toValue: 150,
+        duration: 240,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    } else if (dy < -5 && !isDockVisible.current) {
+      isDockVisible.current = true;
+      Animated.timing(dockSlide, {
+        toValue: 0,
+        duration: 220,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [dockSlide]);
 
   const inputRef = useRef<TextInput>(null);
 
@@ -504,11 +593,7 @@ export default function ScriptureInsightsScreen() {
       <StatusBar barStyle={palette.statusBar} backgroundColor="transparent" translucent />
       <BackgroundWash palette={palette} />
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
           <View style={styles.topBar}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn} activeOpacity={0.75}>
               <Ionicons name="chevron-back" size={22} color={palette.text} />
@@ -540,6 +625,8 @@ export default function ScriptureInsightsScreen() {
               { paddingBottom: 300 + insets.bottom, paddingTop: 24 },
             ]}
             showsVerticalScrollIndicator={false}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
           >
             <View style={styles.hero}>
               {loading ? (
@@ -630,11 +717,17 @@ export default function ScriptureInsightsScreen() {
             )}
           </ScrollView>
         </SafeAreaView>
-      </KeyboardAvoidingView>
 
-      <View style={[styles.bottomDock, { paddingBottom: Math.max(insets.bottom, 10) + 10 }]}>
-        <View style={[styles.dockGlass, { borderColor: palette.border }]}>
-          <View style={[styles.inputRow, { backgroundColor: palette.inputBg, borderColor: palette.inputBorder }]}>
+      <Animated.View style={[
+        styles.bottomDock,
+        {
+          bottom: keyboardHeight,
+          paddingBottom: keyboardHeight > 0 ? 0 : Math.max(insets.bottom, 10) + 34,
+          transform: [{ translateY: dockSlide }],
+        },
+      ]}>
+        <Animated.View style={[styles.dockGlass, { borderColor: palette.border, backgroundColor: animDockBg }]}>
+          <Animated.View style={[styles.inputRow, { backgroundColor: animInputBg, borderColor: palette.inputBorder }]}>
             <TextInput
               ref={inputRef}
               value={inputText}
@@ -643,11 +736,13 @@ export default function ScriptureInsightsScreen() {
               placeholderTextColor={palette.textMuted}
               style={[styles.input, { color: palette.text }]}
               returnKeyType="send"
+              onFocus={handleFocus}
+              onBlur={handleBlur}
               onSubmitEditing={() => void sendPrompt(inputText)}
             />
-          </View>
-        </View>
-      </View>
+          </Animated.View>
+        </Animated.View>
+      </Animated.View>
     </View>
   );
 }
@@ -693,9 +788,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   heroQuote: {
-    fontSize: 26,
-    lineHeight: 38,
-    letterSpacing: 0,
+    fontSize: 22,
+    lineHeight: 34,
+    letterSpacing: 0.1,
     fontWeight: '500',
     maxWidth: 620,
   },
@@ -763,9 +858,9 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   bodyText: {
-    fontSize: 15,
-    lineHeight: 26,
-    letterSpacing: 0,
+    fontSize: 14,
+    lineHeight: 24,
+    letterSpacing: 0.1,
   },
   themeWrap: {
     flexDirection: 'row',
@@ -790,8 +885,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   prayerText: {
-    fontSize: 15,
-    lineHeight: 26,
+    fontSize: 14,
+    lineHeight: 24,
   },
   crossRow: {
     borderLeftWidth: 2,
@@ -855,19 +950,18 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 0,
     paddingHorizontal: 14,
   },
   dockGlass: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderRadius: 26,
-    padding: 12,
+    padding: 10,
     overflow: 'hidden',
   },
   inputRow: {
-    minHeight: 56,
+    minHeight: 48,
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 22,
+    borderRadius: 20,
     paddingLeft: 16,
     paddingRight: 8,
     flexDirection: 'row',

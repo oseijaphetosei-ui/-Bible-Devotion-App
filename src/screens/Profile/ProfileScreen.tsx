@@ -311,12 +311,6 @@ export default function ProfileScreen() {
                 text={t.text} textMuted={t.textMuted} divider={t.divider}
               />
               <SettingRow
-                ionIcon="chatbubble-ellipses-outline" iconBg="#6C8AB022" iconColor="#6C8AB0"
-                label="Scripture Chat"
-                onPress={goHomeTab}
-                text={t.text} textMuted={t.textMuted} divider={t.divider}
-              />
-              <SettingRow
                 ionIcon="heart-outline" iconBg="#C47B8A22" iconColor="#C47B8A"
                 label="Prayer Journal"
                 onPress={() => goHome('PrayerJournal')}
@@ -356,6 +350,24 @@ export default function ProfileScreen() {
                 ionIcon="lock-closed-outline" iconBg="#6B8B8A22" iconColor="#6B8B8A"
                 label="Privacy"
                 onPress={() => nav.navigate('Privacy')}
+                text={t.text} textMuted={t.textMuted} divider={t.divider}
+                isLast
+              />
+            </View>
+
+            {/* ── Legal ── */}
+            <Text style={[s.sectionTitle, { color: t.textMuted }]}>LEGAL</Text>
+            <View style={[s.settingsCard, { borderColor: t.divider }]}>
+              <SettingRow
+                ionIcon="shield-checkmark-outline" iconBg="#6B8B8A22" iconColor="#6B8B8A"
+                label="Privacy Policy"
+                onPress={() => nav.navigate('PrivacyPolicy')}
+                text={t.text} textMuted={t.textMuted} divider={t.divider}
+              />
+              <SettingRow
+                ionIcon="document-text-outline" iconBg="#8A7AB022" iconColor="#8A7AB0"
+                label="Terms of Service"
+                onPress={() => nav.navigate('TermsOfService')}
                 text={t.text} textMuted={t.textMuted} divider={t.divider}
                 isLast
               />

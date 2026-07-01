@@ -1,8 +1,10 @@
-import React, { useRef, useState, useCallback, useEffect, memo, useMemo } from 'react';
+import React, {
+  useRef, useState, useCallback, useEffect, memo, useMemo,
+} from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  StatusBar, Animated, Easing, Dimensions, Platform,
-  ImageBackground, Image, Share as RNShare, Linking,
+  StatusBar, Animated, Easing, Platform,
+  ImageBackground, Share as RNShare, Linking,
   LayoutAnimation, UIManager,
 } from 'react-native';
 import { Audio } from 'expo-av';
@@ -18,10 +20,11 @@ import { loadGoals, isCompletedToday } from '../../services/goalsService';
 import { Goal } from '../../types/goal';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../theme';
+import type { AppTheme } from '../../theme';
 import ProfileAvatar from '../../components/ProfileAvatar';
 import {
   getActivePlan, getPlanById, getTodayReading,
-  isTodayCompleted, planProgress, passageLabel,
+  isTodayCompleted, planProgress,
 } from '../../services/readingPlanService';
 import type { ActivePlan as ReadingActivePlan } from '../../types/readingPlan';
 import {
@@ -30,12 +33,13 @@ import {
 import { patchPrefs, loadPrefs } from '../../services/notificationPreferences';
 import { navigateToNotificationSettings } from '../../navigation/navigationRef';
 import { loadOnboarding, PrimaryGoal } from '../../services/onboardingService';
+import { getStreakData } from '../../services/devotionStreakService';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function sanitizeForSpeech(raw: string): string {
   return raw
@@ -56,7 +60,14 @@ const getGreeting = () => {
   return 'Good Evening';
 };
 
-// ─── Notification Reminder Banner ────────────────────────────────────────────
+const GOAL_TAGLINES: Record<PrimaryGoal, string> = {
+  devotion: 'Your devotion time is waiting.',
+  study:    'Ready to go deeper today?',
+  prayer:   'Take a moment to pray.',
+  reading:  'Continue your reading streak.',
+};
+
+// ─── Notification Reminder Banner ─────────────────────────────────────────────
 
 async function shouldShowBanner(): Promise<boolean> {
   try {
@@ -150,10 +161,8 @@ const NotificationReminderBanner = memo(function NotificationReminderBanner() {
           <Ionicons name="close" size={16} color={t.textMuted} />
         </TouchableOpacity>
       </View>
-
       <Text style={[nb.primary, { color: t.text }]}>Stay in step with God's Word.</Text>
       <Text style={[nb.secondary, { color: t.textMuted }]}>Enable gentle daily reminders.</Text>
-
       <TouchableOpacity
         style={[nb.cta, { backgroundColor: t.accent }]}
         onPress={handleEnable}
@@ -168,43 +177,97 @@ const NotificationReminderBanner = memo(function NotificationReminderBanner() {
 
 const nb = StyleSheet.create({
   container: {
-    marginBottom: 16,
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    borderRadius: 16, padding: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  iconWrap: {
-    width: 32, height: 32, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  primary:  { fontSize: 15, fontWeight: '600', lineHeight: 21, letterSpacing: 0.1, marginBottom: 3 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  iconWrap:  { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  primary:   { fontSize: 15, fontWeight: '600', lineHeight: 21, letterSpacing: 0.1, marginBottom: 3 },
   secondary: { fontSize: 13, lineHeight: 18, marginBottom: 14 },
-  cta: {
-    borderRadius: 30,
-    paddingVertical: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ctaLabel: { fontSize: 14, fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.2 },
+  cta:       { borderRadius: 30, paddingVertical: 13, alignItems: 'center', justifyContent: 'center' },
+  ctaLabel:  { fontSize: 14, fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.2 },
 });
 
-// ─── Today's Verse Card ───────────────────────────────────────────────────────
+// ─── Hero Section ─────────────────────────────────────────────────────────────
+
+const HeroSection = memo(function HeroSection({
+  greeting, today, tagline, streak, total, t,
+}: {
+  greeting: string; today: string;
+  tagline: string; streak: number; total: number; t: AppTheme;
+}) {
+  const isDark = t.statusBar === 'light-content';
+
+  return (
+    <LinearGradient
+      colors={isDark
+        ? ['rgba(19,22,38,1)', 'rgba(13,15,26,0.92)']
+        : ['rgba(237,231,217,1)', 'rgba(237,231,217,0.82)']}
+      style={hs.container}
+    >
+      {/* Avatar left + greeting right */}
+      <View style={hs.greetRow}>
+        <ProfileAvatar size={48} />
+        <Text style={[hs.greeting, { color: t.text }]}>{greeting}</Text>
+      </View>
+
+      {/* Date + tagline */}
+      <Text style={[hs.date, { color: t.textMuted }]}>{today}</Text>
+      <Text style={[hs.tagline, { color: t.textMuted }]}>{tagline}</Text>
+
+      {/* Stats row */}
+      <View style={[hs.statsRow, { borderTopColor: t.divider }]}>
+        <View style={hs.statItem}>
+          <Text style={[hs.statValue, { color: t.text }]}>{streak}</Text>
+          <Text style={[hs.statLabel, { color: t.textMuted }]}>Day Streak</Text>
+        </View>
+        <View style={[hs.statDivider, { backgroundColor: t.divider }]} />
+        <View style={hs.statItem}>
+          <Text style={[hs.statValue, { color: t.text }]}>{total}</Text>
+          <Text style={[hs.statLabel, { color: t.textMuted }]}>Devotions</Text>
+        </View>
+        <View style={[hs.statDivider, { backgroundColor: t.divider }]} />
+        <View style={hs.statItem}>
+          <Ionicons
+            name={streak > 0 ? 'flame' : 'sunny-outline'}
+            size={22}
+            color={streak > 0 ? t.gold : t.textMuted}
+          />
+          <Text style={[hs.statLabel, { color: t.textMuted }]}>
+            {streak > 0 ? 'On Fire!' : 'Begin Today'}
+          </Text>
+        </View>
+      </View>
+    </LinearGradient>
+  );
+});
+
+const hs = StyleSheet.create({
+  container:  { paddingHorizontal: 24, paddingTop: 14, paddingBottom: 0 },
+  greetRow:   { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 16 },
+  greeting:   { fontSize: 28, fontWeight: '700', letterSpacing: -0.4, lineHeight: 34 },
+  date:       { fontSize: 14, marginBottom: 4 },
+  tagline:    { fontSize: 14, fontStyle: 'italic', lineHeight: 20, marginBottom: 28 },
+  statsRow: {
+    flexDirection: 'row', alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 20, paddingBottom: 20,
+  },
+  statItem:    { flex: 1, alignItems: 'center', gap: 4 },
+  statValue:   { fontSize: 22, fontWeight: '700', letterSpacing: -0.5 },
+  statLabel:   { fontSize: 10, fontWeight: '500', letterSpacing: 0.5 },
+  statDivider: { width: StyleSheet.hairlineWidth, height: 32, marginHorizontal: 4 },
+});
+
+// ─── Verse of the Day ─────────────────────────────────────────────────────────
 
 const VerseCard = memo(function VerseCard() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const verse = getTodayVerseEntry();
-  const [speaking, setSpeaking] = useState(false);
+  const verse      = getTodayVerseEntry();
+  const [speaking, setSpeaking]     = useState(false);
   const speakingRef = useRef(false);
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const soundRef    = useRef<Audio.Sound | null>(null);
 
   useEffect(() => {
     return () => {
@@ -258,54 +321,48 @@ const VerseCard = memo(function VerseCard() {
   }, [navigation, verse]);
 
   return (
-    <View style={s.verseCard}>
+    <View style={vc.card}>
       <ImageBackground
         source={require('../../assets/today-verse.jpg')}
-        style={s.verseCardBg}
+        style={vc.bg}
         resizeMode="cover"
       >
-        {/* Base dark veil for contrast */}
-        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(4,6,18,0.42)' }]} />
-        {/* Gradient: light top → heavy bottom so text is always readable */}
+        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(4,6,18,0.38)' }]} />
         <LinearGradient
-          colors={['rgba(0,0,0,0.10)', 'rgba(0,0,0,0.52)', 'rgba(0,0,0,0.86)']}
+          colors={['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.50)', 'rgba(0,0,0,0.88)']}
           locations={[0, 0.45, 1]}
           style={StyleSheet.absoluteFillObject}
         />
-
-        <View style={s.verseCardContent}>
-          {/* Meta: label + reference */}
-          <View style={s.verseMeta}>
-            <Text style={s.verseLabel}>Verse of the Day</Text>
-            <Text style={s.verseRef}>{verse.label}</Text>
+        <View style={vc.content}>
+          <View style={vc.meta}>
+            <Text style={vc.metaLabel}>VERSE OF THE DAY</Text>
+            <Text style={vc.metaRef}>{verse.label}</Text>
           </View>
-
-          {/* Verse text — large, immersive */}
-          <Text style={s.verseText}>{verse.fallbackText.replace(/^[""]+|[""]+$/g, '').trim()}</Text>
-
-          {/* Action bar */}
-          <View style={s.verseActions}>
-            <TouchableOpacity style={s.verseAction} onPress={() => navigation.navigate('Verse')} activeOpacity={0.72}>
-              <Ionicons name="book-outline" size={24} color="rgba(255,255,255,0.88)" />
-              <Text style={s.verseActionLabel}>Read</Text>
+          <Text style={vc.verseText}>
+            {verse.fallbackText.replace(/^[""]+|[""]+$/g, '').trim()}
+          </Text>
+          <View style={vc.actions}>
+            <TouchableOpacity style={vc.action} onPress={() => navigation.navigate('Verse')} activeOpacity={0.72}>
+              <Ionicons name="book-outline" size={22} color="rgba(255,255,255,0.88)" />
+              <Text style={vc.actionLabel}>Read</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={s.verseAction} onPress={handleInsights} activeOpacity={0.72}>
-              <Ionicons name="sparkles-outline" size={24} color="rgba(255,255,255,0.88)" />
-              <Text style={s.verseActionLabel}>AI Insights</Text>
+            <TouchableOpacity style={vc.action} onPress={handleInsights} activeOpacity={0.72}>
+              <Ionicons name="sparkles-outline" size={22} color="rgba(255,255,255,0.88)" />
+              <Text style={vc.actionLabel}>Insights</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={s.verseAction} onPress={handleListen} activeOpacity={0.72}>
+            <TouchableOpacity style={vc.action} onPress={handleListen} activeOpacity={0.72}>
               <Ionicons
                 name={speaking ? 'stop-circle-outline' : 'headset-outline'}
-                size={24}
+                size={22}
                 color={speaking ? '#C9A96B' : 'rgba(255,255,255,0.88)'}
               />
-              <Text style={[s.verseActionLabel, speaking && { color: '#C9A96B' }]}>
+              <Text style={[vc.actionLabel, speaking && { color: '#C9A96B' }]}>
                 {speaking ? 'Stop' : 'Listen'}
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={s.verseAction} onPress={handleShare} activeOpacity={0.72}>
-              <Ionicons name="share-outline" size={24} color="rgba(255,255,255,0.88)" />
-              <Text style={s.verseActionLabel}>Share</Text>
+            <TouchableOpacity style={vc.action} onPress={handleShare} activeOpacity={0.72}>
+              <Ionicons name="share-outline" size={22} color="rgba(255,255,255,0.88)" />
+              <Text style={vc.actionLabel}>Share</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -314,50 +371,35 @@ const VerseCard = memo(function VerseCard() {
   );
 });
 
-// ─── Spiritual Goals Row ──────────────────────────────────────────────────────
-
-const GoalsCard = memo(function GoalsCard() {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const t = useTheme();
-  const [goals, setGoals] = useState<Goal[]>([]);
-
-  useFocusEffect(useCallback(() => { loadGoals().then(setGoals).catch(() => {}); }, []));
-
-  const completed = goals.filter(isCompletedToday).length;
-  const pct = goals.length > 0 ? (completed / goals.length) * 100 : 0;
-
-  return (
-    <TouchableOpacity
-      style={s.listRow}
-      onPress={() => navigation.navigate('Goals')}
-      activeOpacity={0.8}
-    >
-      <View style={[s.listRowIconWrap, { backgroundColor: t.goldBg }]}>
-        <Ionicons name="flag-outline" size={18} color={t.gold} />
-      </View>
-      <View style={s.listRowBody}>
-        <Text style={[s.listRowTitle, { color: t.text }]}>Spiritual Goals</Text>
-        {goals.length > 0 ? (
-          <>
-            <View style={[s.goalsProgressTrack, { backgroundColor: t.progressTrack }]}>
-              <View style={[s.goalsProgressFill, { width: `${pct}%` as any, backgroundColor: t.gold }]} />
-            </View>
-            <Text style={[s.listRowSub, { color: t.textMuted }]}>
-              {completed} of {goals.length} completed today
-            </Text>
-          </>
-        ) : (
-          <Text style={[s.listRowSub, { color: t.textMuted }]}>Set your daily spiritual goals</Text>
-        )}
-      </View>
-      <Ionicons name="chevron-forward" size={14} color={t.textMuted} />
-    </TouchableOpacity>
-  );
+const vc = StyleSheet.create({
+  card: {
+    borderRadius: 22, overflow: 'hidden',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28, shadowRadius: 18, elevation: 10,
+  },
+  bg:      { width: '100%', minHeight: 340 },
+  content: { flex: 1, padding: 22, paddingTop: 24, paddingBottom: 18, justifyContent: 'space-between', minHeight: 340 },
+  meta:    { gap: 4, marginBottom: 8 },
+  metaLabel: {
+    fontSize: 10, color: 'rgba(255,255,255,0.55)',
+    letterSpacing: 1.8, fontWeight: '700',
+  },
+  metaRef: { fontSize: 18, fontWeight: '700', color: '#fff', letterSpacing: 0.2 },
+  verseText: {
+    flex: 1,
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    fontSize: 21, lineHeight: 35,
+    color: 'rgba(255,255,255,0.92)',
+    letterSpacing: 0.1, paddingVertical: 12,
+  },
+  actions:     { flexDirection: 'row', justifyContent: 'space-around', paddingTop: 12 },
+  action:      { alignItems: 'center', gap: 5 },
+  actionLabel: { fontSize: 11, color: 'rgba(255,255,255,0.65)', fontWeight: '500', letterSpacing: 0.2 },
 });
 
-// ─── Reading Plan Banner ──────────────────────────────────────────────────────
+// ─── Reading Plan Card ────────────────────────────────────────────────────────
 
-const ReadingPlanBanner = memo(function ReadingPlanBanner() {
+const ReadingPlanCard = memo(function ReadingPlanCard() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const t = useTheme();
   const [active, setActive] = useState<ReadingActivePlan | null | undefined>(undefined);
@@ -371,18 +413,21 @@ const ReadingPlanBanner = memo(function ReadingPlanBanner() {
   if (!active) {
     return (
       <TouchableOpacity
-        style={[rp.noPlanBanner, { borderColor: t.goldBorder, backgroundColor: t.goldBg }]}
+        style={[rp.card, { backgroundColor: t.card }]}
         onPress={() => navigation.navigate('PlanLibrary')}
-        activeOpacity={0.8}
+        activeOpacity={0.82}
       >
-        <View style={rp.noPlanLeft}>
-          <Text style={rp.noPlanIcon}>📖</Text>
-          <View>
-            <Text style={[rp.noPlanTitle, { color: t.text }]}>Start a Reading Plan</Text>
-            <Text style={[rp.noPlanSub, { color: t.textMuted }]}>Build a lasting daily Scripture habit</Text>
-          </View>
+        <View style={[rp.noPlanIconWrap, { backgroundColor: t.accentBg }]}>
+          <Ionicons name="book-outline" size={26} color={t.accent} />
         </View>
-        <Ionicons name="chevron-forward" size={16} color={t.gold} />
+        <Text style={[rp.noPlanTitle, { color: t.text }]}>Begin Your Reading Journey</Text>
+        <Text style={[rp.noPlanSub, { color: t.textMuted }]}>
+          Build a lasting daily Scripture habit with a guided reading plan.
+        </Text>
+        <View style={[rp.noPlanCta, { backgroundColor: t.accentBg, borderColor: t.accentBorder }]}>
+          <Text style={[rp.noPlanCtaText, { color: t.accent }]}>Choose a Plan</Text>
+          <Ionicons name="arrow-forward" size={14} color={t.accent} />
+        </View>
       </TouchableOpacity>
     );
   }
@@ -396,52 +441,53 @@ const ReadingPlanBanner = memo(function ReadingPlanBanner() {
 
   return (
     <TouchableOpacity
-      style={rp.banner}
+      style={[rp.card, { backgroundColor: t.card }]}
       onPress={() => navigation.navigate('TodayJourney')}
       activeOpacity={0.85}
     >
-      {/* Thin gold left accent line */}
-      <View style={rp.accentLine} />
-
-      <View style={rp.bannerBody}>
-        <View style={rp.bannerTop}>
-          <Text style={rp.bannerLabel}>DAILY READING</Text>
-          {active.streak > 0 && (
-            <View style={rp.streakPill}>
-              <Text style={rp.streakFire}>🔥</Text>
-              <Text style={rp.streakNum}>{active.streak}</Text>
-            </View>
-          )}
-        </View>
-
-        <Text style={[rp.readingTitle, { color: t.text }]} numberOfLines={1}>
-          {reading.title}
-        </Text>
-
-        <View style={rp.metaRow}>
-          <Text style={[rp.metaText, { color: t.textMuted }]}>
-            Day {active.currentDay} of {plan.totalDays}
-          </Text>
-          <View style={[rp.metaDot, { backgroundColor: t.textMuted }]} />
-          <Text style={[rp.metaText, { color: t.textMuted }]}>
-            {reading.estimatedMinutes} min
-          </Text>
-          <View style={[rp.metaDot, { backgroundColor: t.textMuted }]} />
-          <Text style={[rp.metaText, { color: t.textMuted }]}>{pct}% done</Text>
-        </View>
-
-        {/* Progress track */}
-        <View style={[rp.progressTrack, { backgroundColor: t.progressTrack }]}>
-          <View style={[rp.progressFill, { width: `${pct}%`, backgroundColor: t.gold }]} />
-        </View>
-
-        {done ? (
-          <View style={rp.completedRow}>
-            <Ionicons name="checkmark-circle" size={14} color={t.gold} />
-            <Text style={[rp.ctaLabel, { color: t.gold }]}>Today's Journey Complete</Text>
+      {/* Top row */}
+      <View style={rp.cardTop}>
+        <Text style={[rp.cardLabel, { color: t.textMuted }]}>CONTINUE TODAY'S JOURNEY</Text>
+        {active.streak > 0 && (
+          <View style={rp.streakBadge}>
+            <Ionicons name="flame" size={12} color={t.gold} />
+            <Text style={[rp.streakNum, { color: t.gold }]}>{active.streak}</Text>
           </View>
+        )}
+      </View>
+
+      {/* Reading title */}
+      <Text style={[rp.readingTitle, { color: t.text }]} numberOfLines={2}>
+        {reading.title}
+      </Text>
+
+      {/* Meta info */}
+      <View style={rp.metaRow}>
+        <Text style={[rp.metaText, { color: t.textMuted }]}>{plan.title}</Text>
+        <View style={[rp.metaDot, { backgroundColor: t.textMuted }]} />
+        <Text style={[rp.metaText, { color: t.textMuted }]}>Day {active.currentDay} of {plan.totalDays}</Text>
+        <View style={[rp.metaDot, { backgroundColor: t.textMuted }]} />
+        <Text style={[rp.metaText, { color: t.textMuted }]}>{reading.estimatedMinutes} min</Text>
+      </View>
+
+      {/* Progress */}
+      <View style={[rp.progressTrack, { backgroundColor: t.progressTrack }]}>
+        <View style={[rp.progressFill, { width: `${pct}%` as any, backgroundColor: t.gold }]} />
+      </View>
+      <Text style={[rp.pctLabel, { color: t.textMuted }]}>{pct}% complete</Text>
+
+      {/* CTA */}
+      <View style={[rp.cta, { backgroundColor: t.accentBg, borderColor: t.accentBorder }]}>
+        {done ? (
+          <>
+            <Ionicons name="checkmark-circle" size={15} color={t.accent} />
+            <Text style={[rp.ctaText, { color: t.accent }]}>Today's Journey Complete</Text>
+          </>
         ) : (
-          <Text style={[rp.ctaLabel, { color: t.gold }]}>Continue Today's Journey →</Text>
+          <>
+            <Text style={[rp.ctaText, { color: t.accent }]}>Continue Reading</Text>
+            <Ionicons name="arrow-forward" size={14} color={t.accent} />
+          </>
         )}
       </View>
     </TouchableOpacity>
@@ -449,74 +495,238 @@ const ReadingPlanBanner = memo(function ReadingPlanBanner() {
 });
 
 const rp = StyleSheet.create({
-  // No active plan
-  noPlanBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginBottom: 16,
+  card: {
+    borderRadius: 18, padding: 18, gap: 10,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
   },
-  noPlanLeft:  { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  noPlanIcon:  { fontSize: 22 },
-  noPlanTitle: { fontSize: 15, fontWeight: '700', letterSpacing: 0.1 },
-  noPlanSub:   { fontSize: 12, marginTop: 2 },
-
-  // Active plan banner
-  banner: {
-    flexDirection: 'row',
-    marginBottom: 16,
-    overflow: 'hidden',
+  // No plan
+  noPlanIconWrap: {
+    width: 52, height: 52, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center',
   },
-  accentLine: {
-    width: 2,
-    backgroundColor: '#C9A96B',
-    borderRadius: 2,
-    marginRight: 14,
-    alignSelf: 'stretch',
+  noPlanTitle: { fontSize: 17, fontWeight: '700', letterSpacing: -0.2 },
+  noPlanSub:   { fontSize: 13, lineHeight: 20 },
+  noPlanCta: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+    borderRadius: 20, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 9,
+    marginTop: 4,
   },
-  bannerBody:  { flex: 1 },
-  bannerTop:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-  bannerLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 2,
-    color: '#C9A96B',
+  noPlanCtaText: { fontSize: 13, fontWeight: '700' },
+  // Active plan
+  cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  cardLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1.8 },
+  streakBadge: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  streakNum:   { fontSize: 12, fontWeight: '700' },
+  readingTitle: { fontSize: 19, fontWeight: '700', letterSpacing: -0.2, lineHeight: 26 },
+  metaRow:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  metaText: { fontSize: 12, fontWeight: '500' },
+  metaDot:  { width: 2, height: 2, borderRadius: 1, opacity: 0.4 },
+  progressTrack: { height: 3, borderRadius: 2 },
+  progressFill:  { height: 3, borderRadius: 2 },
+  pctLabel:  { fontSize: 11, fontWeight: '500', marginTop: -4 },
+  cta: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 7, borderRadius: 12, borderWidth: 1,
+    paddingVertical: 12, marginTop: 4,
   },
-  streakPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  streakFire: { fontSize: 12 },
-  streakNum:  { fontSize: 12, fontWeight: '700', color: '#C9A96B' },
-
-  readingTitle: { fontSize: 18, fontWeight: '700', letterSpacing: -0.2, marginBottom: 6 },
-  metaRow:      { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
-  metaText:     { fontSize: 12, fontWeight: '500' },
-  metaDot:      { width: 2, height: 2, borderRadius: 1, opacity: 0.4 },
-
-  progressTrack: { height: 2, borderRadius: 1, marginBottom: 10 },
-  progressFill:  { height: 2, borderRadius: 1 },
-
-  ctaLabel: { fontSize: 13, fontWeight: '600', letterSpacing: 0.1 },
-  completedRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  ctaText: { fontSize: 14, fontWeight: '700', letterSpacing: 0.1 },
 });
 
-// ─── HomeScreen ───────────────────────────────────────────────────────────────
+// ─── Today's Practice Card ────────────────────────────────────────────────────
 
-const GOAL_TAGLINES: Record<PrimaryGoal, string> = {
-  devotion: 'Your devotion time is waiting.',
-  study:    'Ready to go deeper today?',
-  prayer:   'Take a moment to pray.',
-  reading:  'Continue your reading streak.',
-};
+const TodayCard = memo(function TodayCard() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const t = useTheme();
+  const [goals, setGoals] = useState<Goal[]>([]);
+
+  useFocusEffect(useCallback(() => {
+    loadGoals().then(setGoals).catch(() => {});
+  }, []));
+
+  const completedGoals = goals.filter(isCompletedToday).length;
+  const totalGoals     = goals.length;
+  const goalPct        = totalGoals > 0 ? (completedGoals / totalGoals) * 100 : 0;
+
+  return (
+    <View style={[tc.card, { backgroundColor: t.card }]}>
+      <Text style={[tc.label, { color: t.textMuted }]}>TODAY'S PRACTICE</Text>
+
+      {/* Daily Devotion */}
+      <TouchableOpacity
+        style={tc.row}
+        onPress={() => navigation.navigate('Devotion', undefined)}
+        activeOpacity={0.75}
+      >
+        <View style={[tc.iconWrap, { backgroundColor: t.goldBg }]}>
+          <Ionicons name="sunny-outline" size={17} color={t.gold} />
+        </View>
+        <View style={tc.rowBody}>
+          <Text style={[tc.rowTitle, { color: t.text }]}>Daily Devotion</Text>
+          <Text style={[tc.rowSub, { color: t.textMuted }]}>Nourish your soul with Scripture</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={14} color={t.textMuted} />
+      </TouchableOpacity>
+
+      <View style={[tc.divider, { backgroundColor: t.divider }]} />
+
+      {/* Prayer Journal */}
+      <TouchableOpacity
+        style={tc.row}
+        onPress={() => navigation.navigate('PrayerJournal')}
+        activeOpacity={0.75}
+      >
+        <View style={[tc.iconWrap, { backgroundColor: '#C47B8A22' }]}>
+          <Ionicons name="heart-outline" size={17} color="#C47B8A" />
+        </View>
+        <View style={tc.rowBody}>
+          <Text style={[tc.rowTitle, { color: t.text }]}>Prayer Journal</Text>
+          <Text style={[tc.rowSub, { color: t.textMuted }]}>Talk to God, track His answers</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={14} color={t.textMuted} />
+      </TouchableOpacity>
+
+      <View style={[tc.divider, { backgroundColor: t.divider }]} />
+
+      {/* Spiritual Goals */}
+      <TouchableOpacity
+        style={tc.row}
+        onPress={() => navigation.navigate('Goals')}
+        activeOpacity={0.75}
+      >
+        <View style={[tc.iconWrap, { backgroundColor: '#6E8B7422' }]}>
+          <Ionicons name="flag-outline" size={17} color="#6E8B74" />
+        </View>
+        <View style={tc.rowBody}>
+          <Text style={[tc.rowTitle, { color: t.text }]}>Spiritual Goals</Text>
+          {totalGoals > 0 ? (
+            <>
+              <View style={[tc.progressTrack, { backgroundColor: t.progressTrack }]}>
+                <View style={[tc.progressFill, {
+                  width: `${goalPct}%` as any,
+                  backgroundColor: '#6E8B74',
+                }]} />
+              </View>
+              <Text style={[tc.rowSub, { color: t.textMuted }]}>
+                {completedGoals} of {totalGoals} done today
+              </Text>
+            </>
+          ) : (
+            <Text style={[tc.rowSub, { color: t.textMuted }]}>Set your daily spiritual goals</Text>
+          )}
+        </View>
+        <Ionicons name="chevron-forward" size={14} color={t.textMuted} />
+      </TouchableOpacity>
+    </View>
+  );
+});
+
+const tc = StyleSheet.create({
+  card: {
+    borderRadius: 18, overflow: 'hidden',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+  },
+  label: {
+    fontSize: 10, fontWeight: '700', letterSpacing: 1.8,
+    paddingHorizontal: 18, paddingTop: 18, paddingBottom: 14,
+  },
+  row: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 18, paddingVertical: 14, gap: 14,
+  },
+  iconWrap: {
+    width: 36, height: 36, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  rowBody:  { flex: 1, gap: 4 },
+  rowTitle: { fontSize: 15, fontWeight: '600', letterSpacing: 0.1 },
+  rowSub:   { fontSize: 12, lineHeight: 17 },
+  divider:  { height: StyleSheet.hairlineWidth, marginLeft: 68 },
+  progressTrack: { height: 2, borderRadius: 1, marginTop: 5, marginBottom: 2 },
+  progressFill:  { height: 2, borderRadius: 1 },
+});
+
+// ─── Quick Actions ────────────────────────────────────────────────────────────
+
+const QuickActions = memo(function QuickActions() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const t = useTheme();
+  const verse = getTodayVerseEntry();
+
+  const actions = [
+    {
+      icon: 'book-outline'           as const,
+      label: 'Bible',
+      color: '#5B6EAE',
+      bg:    '#5B6EAE22',
+      onPress: () => (navigation as any).navigate('MainTabs', { screen: 'BibleTab' }),
+    },
+    {
+      icon: 'images-outline'         as const,
+      label: 'Stories',
+      color: '#C9804A',
+      bg:    '#C9804A22',
+      onPress: () => navigation.navigate('Stories'),
+    },
+    {
+      icon: 'sparkles-outline'       as const,
+      label: 'AI Insights',
+      color: t.accent,
+      bg:    t.accentBg,
+      onPress: () => navigation.navigate('ScriptureInsights', {
+        reference:   verse.label,
+        contextType: 'verse',
+        context:     verse.fallbackText,
+      }),
+    },
+    {
+      icon: 'document-text-outline'  as const,
+      label: 'Notes',
+      color: '#8A7AB0',
+      bg:    '#8A7AB022',
+      onPress: () => (navigation as any).navigate('MainTabs', { screen: 'NotesTab' }),
+    },
+  ];
+
+  return (
+    <View>
+      <Text style={[qa.label, { color: t.textMuted }]}>EXPLORE</Text>
+      <View style={qa.grid}>
+        {actions.map(a => (
+          <TouchableOpacity
+            key={a.label}
+            style={[qa.item, { backgroundColor: t.card }]}
+            onPress={a.onPress}
+            activeOpacity={0.78}
+          >
+            <View style={[qa.iconWrap, { backgroundColor: a.bg }]}>
+              <Ionicons name={a.icon} size={22} color={a.color} />
+            </View>
+            <Text style={[qa.itemLabel, { color: t.text }]}>{a.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+});
+
+const qa = StyleSheet.create({
+  label: { fontSize: 10, fontWeight: '700', letterSpacing: 1.8, marginBottom: 12 },
+  grid:  { flexDirection: 'row', gap: 10 },
+  item: {
+    flex: 1, alignItems: 'center', gap: 10,
+    borderRadius: 18, paddingVertical: 18,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
+  },
+  iconWrap:  { width: 46, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  itemLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0.1 },
+});
+
+// ─── Home Screen ──────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const t = useTheme();
 
   const greeting = useMemo(() => getGreeting(), []);
@@ -524,162 +734,76 @@ export default function HomeScreen() {
     weekday: 'long', month: 'long', day: 'numeric',
   }), []);
 
+  const [streak,      setStreak]      = useState(0);
+  const [total,       setTotal]       = useState(0);
   const [primaryGoal, setPrimaryGoal] = useState<PrimaryGoal | null>(null);
 
   useFocusEffect(useCallback(() => {
+    getStreakData().then(d => { setStreak(d.streak); setTotal(d.total); });
     loadOnboarding().then(d => setPrimaryGoal(d.primaryGoal)).catch(() => {});
   }, []));
 
-  // Entrance animation for quick-nav cards (still scroll-triggered)
-  const cardOpacity    = useRef(new Animated.Value(0)).current;
-  const cardTranslateY = useRef(new Animated.Value(32)).current;
-  const hasAnimated    = useRef(false);
-  const cardSectionRef = useRef<View>(null);
+  // Content entrance animation
+  const fadeAnim  = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
 
-  const triggerCardAnim = useCallback(() => {
-    if (hasAnimated.current) return;
-    hasAnimated.current = true;
+  useEffect(() => {
     Animated.parallel([
-      Animated.timing(cardOpacity,    { toValue: 1, duration: 600, useNativeDriver: true }),
-      Animated.timing(cardTranslateY, { toValue: 0, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(fadeAnim,  {
+        toValue: 1, duration: 640, delay: 120,
+        easing: Easing.out(Easing.cubic), useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0, duration: 640, delay: 120,
+        easing: Easing.out(Easing.cubic), useNativeDriver: true,
+      }),
     ]).start();
   }, []);
 
-  const checkVisibility = useCallback(() => {
-    if (hasAnimated.current || !cardSectionRef.current) return;
-    const screenH = Dimensions.get('window').height;
-    cardSectionRef.current.measure((_x, _y, _w, height, _px, pageY) => {
-      if (height <= 0) return;
-      const visible = Math.max(0, Math.min(pageY + height, screenH) - Math.max(pageY, 0));
-      if (visible / height >= 0.35) triggerCardAnim();
-    });
-  }, [triggerCardAnim]);
+  const tagline = primaryGoal ? GOAL_TAGLINES[primaryGoal] : 'Walk faithfully today.';
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <SafeAreaView style={s.safe} edges={['top']}>
         <StatusBar barStyle={t.statusBar} backgroundColor="transparent" translucent />
 
-        {/* ── Header ── */}
-        <View style={s.header}>
-          <ProfileAvatar />
-          <View style={s.greetingBlock}>
-            <Text style={[s.greeting, { color: t.text }]}>{greeting}</Text>
-            <Text style={[s.date, { color: t.textSub }]}>{today}</Text>
-            {primaryGoal && (
-              <Text style={[s.goalTagline, { color: t.accent }]}>
-                {GOAL_TAGLINES[primaryGoal]}
-              </Text>
-            )}
-          </View>
-        </View>
-
         <ScrollView
           style={s.scroll}
           contentContainerStyle={s.content}
           showsVerticalScrollIndicator={false}
-          onScroll={checkVisibility}
-          scrollEventThrottle={16}
         >
-          {/* ── Reading Plan CTA ── */}
-          <ReadingPlanBanner />
+          {/* ── Hero ── */}
+          <HeroSection
+            greeting={greeting}
+            today={today}
+            tagline={tagline}
+            streak={streak}
+            total={total}
+            t={t}
+          />
 
-          {/* ── Notification reminder — only shown when notifications are off ── */}
-          <NotificationReminderBanner />
-
-          {/* ── Verse hero — the focal point of the screen ── */}
-          <VerseCard />
-
-          {/* ── Today section ── */}
-          <Text style={[s.sectionLabel, { color: t.textMuted }]}>TODAY</Text>
-
-          {/* Daily Devotion — text-forward row */}
-          <TouchableOpacity
-            style={s.listRow}
-            onPress={() => navigation.navigate('Devotion', undefined)}
-            activeOpacity={0.8}
+          {/* ── Content (animated entrance) ── */}
+          <Animated.View
+            style={[s.contentInner, {
+              opacity:   fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            }]}
           >
-            <View style={[s.listRowIconWrap, { backgroundColor: t.goldBg }]}>
-              <Ionicons name="flame-outline" size={18} color={t.gold} />
-            </View>
-            <View style={s.listRowBody}>
-              <Text style={[s.listRowTitle, { color: t.text }]}>Daily Devotion</Text>
-              <Text style={[s.listRowSub, { color: t.textMuted }]}>Finding Peace in God's Presence · 2–5 min</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={14} color={t.textMuted} />
-          </TouchableOpacity>
+            {/* Reading Plan */}
+            <ReadingPlanCard />
 
-          <View style={[s.rowDivider, { backgroundColor: t.divider }]} />
+            {/* Notification reminder */}
+            <NotificationReminderBanner />
 
-          {/* Spiritual Goals */}
-          <GoalsCard />
+            {/* Verse of the Day */}
+            <VerseCard />
 
-          <View style={[s.rowDivider, { backgroundColor: t.divider }]} />
+            {/* Today's Practice */}
+            <TodayCard />
 
-          {/* Prayer Journal */}
-          <TouchableOpacity
-            style={s.listRow}
-            onPress={() => navigation.navigate('PrayerJournal')}
-            activeOpacity={0.8}
-          >
-            <View style={[s.listRowIconWrap, { backgroundColor: '#C47B8A22' }]}>
-              <Ionicons name="heart-outline" size={18} color="#C47B8A" />
-            </View>
-            <View style={s.listRowBody}>
-              <Text style={[s.listRowTitle, { color: t.text }]}>Prayer Journal</Text>
-              <Text style={[s.listRowSub, { color: t.textMuted }]}>Record prayers, track answers, build faith</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={14} color={t.textMuted} />
-          </TouchableOpacity>
-
-          {/* ── Explore section ── */}
-          <Text style={[s.sectionLabel, { color: t.textMuted, marginTop: 28 }]}>EXPLORE</Text>
-
-          <View ref={cardSectionRef} onLayout={checkVisibility}>
-            <Animated.View
-              style={[
-                s.quickNavRow,
-                { opacity: cardOpacity, transform: [{ translateY: cardTranslateY }] },
-              ]}
-            >
-              <TouchableOpacity
-                style={s.quickNavItem}
-                onPress={() => navigation.navigate('Stories')}
-                activeOpacity={0.88}
-              >
-                <Image source={require('../../assets/group-story-by-fire.jpg')} style={s.quickNavImage} />
-                <LinearGradient
-                  colors={['transparent', 'rgba(0,0,0,0.72)']}
-                  style={StyleSheet.absoluteFillObject}
-                />
-                <Text style={s.quickNavLabel}>Stories</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={s.quickNavItem}
-                onPress={() => {
-                  const v = getTodayVerseEntry();
-                  navigation.navigate('ScriptureChat', {
-                    reference: v.label,
-                    contextType: 'verse',
-                    context: `${v.label}\n\n"${v.fallbackText}"`,
-                  });
-                }}
-                activeOpacity={0.88}
-              >
-                <Image
-                  source={require('../../assets/talk-to-scripture.jpg')}
-                  style={s.quickNavImage}
-                  resizeMode="cover"
-                />
-                <LinearGradient
-                  colors={['transparent', 'rgba(0,0,0,0.72)']}
-                  style={StyleSheet.absoluteFillObject}
-                />
-                <Text style={s.quickNavLabel}>Talk to Scripture</Text>
-              </TouchableOpacity>
-            </Animated.View>
-          </View>
+            {/* Explore */}
+            <QuickActions />
+          </Animated.View>
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -689,95 +813,8 @@ export default function HomeScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  safe:    { flex: 1 },
-  scroll:  { flex: 1 },
-  content: { paddingHorizontal: 18, paddingBottom: 120 },
-
-  // Header
-  header:        { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 18, gap: 12 },
-  greetingBlock: { flex: 1 },
-  greeting:      { fontSize: 21, fontWeight: '700', letterSpacing: -0.3 },
-  date:          { fontSize: 13, marginTop: 2 },
-  goalTagline:   { fontSize: 12, fontWeight: '500', marginTop: 4, letterSpacing: 0.1 },
-
-  // Section label
-  sectionLabel: {
-    fontSize: 10, fontWeight: '700', letterSpacing: 1.6,
-    marginBottom: 12, marginTop: 0,
-  },
-
-  // ── Today's Verse card ──
-  verseCard: {
-    borderRadius: 22, overflow: 'hidden', marginBottom: 22,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.32, shadowRadius: 18, elevation: 10,
-  },
-  verseCardBg: { width: '100%', minHeight: 380 },
-  verseCardContent: {
-    flex: 1, padding: 22, paddingTop: 26, paddingBottom: 18,
-    justifyContent: 'space-between',
-    minHeight: 380,
-  },
-  verseMeta: { gap: 4, marginBottom: 8 },
-  verseLabel: {
-    fontSize: 11, color: 'rgba(255,255,255,0.55)',
-    letterSpacing: 1.2, fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  verseRef: {
-    fontSize: 19, fontWeight: '700', color: '#fff',
-    letterSpacing: 0.2,
-  },
-  verseText: {
-    flex: 1,
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-    fontSize: 23, lineHeight: 38,
-    color: 'rgba(255,255,255,0.92)',
-    letterSpacing: 0.1,
-    paddingVertical: 14,
-  },
-  verseActions: {
-    flexDirection: 'row', justifyContent: 'space-around',
-    paddingTop: 14, marginTop: 4,
-  },
-  verseAction:      { alignItems: 'center', gap: 5 },
-  verseActionLabel: {
-    fontSize: 11, color: 'rgba(255,255,255,0.68)',
-    fontWeight: '500', letterSpacing: 0.2,
-  },
-
-  // ── List rows (Devotion, Goals) ──
-  listRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    gap: 13,
-  },
-  listRowIconWrap: {
-    width: 36, height: 36, borderRadius: 11,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  listRowBody:  { flex: 1, gap: 3 },
-  listRowTitle: { fontSize: 15, fontWeight: '600', letterSpacing: 0.1 },
-  listRowSub:   { fontSize: 12, lineHeight: 17 },
-
-  rowDivider: { height: StyleSheet.hairlineWidth, marginLeft: 49 },
-
-  // Goals progress bar
-  goalsProgressTrack: { height: 2, borderRadius: 1, marginTop: 6, marginBottom: 2 },
-  goalsProgressFill:  { height: 2, borderRadius: 1 },
-
-  // ── Quick nav ──
-  quickNavRow: { flexDirection: 'row', gap: 10, marginBottom: 8 },
-  quickNavItem: {
-    flex: 1, borderRadius: 16,
-    overflow: 'hidden', height: 110,
-    justifyContent: 'flex-end',
-  },
-  quickNavImage: { ...StyleSheet.absoluteFillObject as any, width: '100%', height: '100%' },
-  quickNavLabel: {
-    fontSize: 13, fontWeight: '700',
-    color: '#fff', padding: 12,
-    letterSpacing: 0.1,
-  },
+  safe:         { flex: 1 },
+  scroll:       { flex: 1 },
+  content:      { paddingBottom: 120 },
+  contentInner: { paddingHorizontal: 18, paddingTop: 22, gap: 20 },
 });

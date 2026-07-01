@@ -11,6 +11,7 @@ import {
   AccessibilityInfo,
   useColorScheme,
 } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
 import { isOnboardingCompleted } from './src/services/onboardingService';
 import { AppearanceProvider, useAppearance } from './src/context/AppearanceContext';
 import { ProfileProvider } from './src/context/ProfileContext';
@@ -61,6 +62,8 @@ import PrayerJournalScreen from './src/screens/Prayer/PrayerJournalScreen';
 import PrayerEditorScreen from './src/screens/Prayer/PrayerEditorScreen';
 import PrayerDetailScreen from './src/screens/Prayer/PrayerDetailScreen';
 import PrayerAnsweredScreen from './src/screens/Prayer/PrayerAnsweredScreen';
+import PrivacyPolicyScreen  from './src/screens/Legal/PrivacyPolicyScreen';
+import TermsOfServiceScreen from './src/screens/Legal/TermsOfServiceScreen';
 
 import {
   HomeStackParamList,
@@ -150,11 +153,13 @@ function CommunityStackScreen() {
 function ProfileStackScreen() {
   return (
     <ProfileStack.Navigator id="profile" screenOptions={{ headerShown: false }}>
-      <ProfileStack.Screen name="Profile"       component={ProfileScreen}       />
-      <ProfileStack.Screen name="EditProfile"   component={EditProfileScreen}   />
-      <ProfileStack.Screen name="Appearance"    component={AppearanceScreen}    />
-      <ProfileStack.Screen name="Notifications" component={NotificationsScreen} />
-      <ProfileStack.Screen name="Privacy"       component={PrivacyScreen}       />
+      <ProfileStack.Screen name="Profile"        component={ProfileScreen}        />
+      <ProfileStack.Screen name="EditProfile"    component={EditProfileScreen}    />
+      <ProfileStack.Screen name="Appearance"     component={AppearanceScreen}     />
+      <ProfileStack.Screen name="Notifications"  component={NotificationsScreen}  />
+      <ProfileStack.Screen name="Privacy"        component={PrivacyScreen}        />
+      <ProfileStack.Screen name="PrivacyPolicy"  component={PrivacyPolicyScreen}  />
+      <ProfileStack.Screen name="TermsOfService" component={TermsOfServiceScreen} />
     </ProfileStack.Navigator>
   );
 }
@@ -286,6 +291,9 @@ function AppSplashScreen({ onWillFade, onDone }: { onWillFade: () => void; onDon
         });
       });
     };
+
+    // Dismiss the native OS splash now that the branded splash is mounted.
+    SplashScreen.hideAsync().catch(() => {});
 
     // Guard: if AccessibilityInfo rejects (e.g. native bridge not ready on cold start)
     // fall back to false so the animation always runs rather than hanging forever.

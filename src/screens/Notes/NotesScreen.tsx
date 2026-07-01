@@ -9,10 +9,9 @@ import {
   ActivityIndicator,
   Animated,
 } from 'react-native';
-
-const HEADER_H = 72;
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -22,6 +21,8 @@ import { useTheme } from '../../theme';
 import PremiumSearchBar from '../../components/PremiumSearchBar';
 import ProfileAvatar from '../../components/ProfileAvatar';
 import { BOOKS } from '../../constants/books';
+
+const HERO_H = 136;
 
 function parseBibleRefForNav(ref: string): { bookIndex: number; chapter: number; verse: number } | null {
   const match = ref.match(/^(.+)\s+(\d+):(\d+)$/);
@@ -39,33 +40,72 @@ function formatDate(iso: string) {
   });
 }
 
+const HeroSection = memo(function HeroSection({
+  count, onAdd, t,
+}: { count: number; onAdd: () => void; t: any }) {
+  const isDark = t.statusBar === 'light-content';
+  return (
+    <LinearGradient
+      colors={isDark
+        ? ['rgba(19,22,38,1)', 'rgba(13,15,26,0.92)']
+        : ['rgba(237,231,217,1)', 'rgba(237,231,217,0.82)']}
+      style={hs.container}
+    >
+      <View style={hs.navRow}>
+        <ProfileAvatar size={42} />
+        <TouchableOpacity
+          onPress={onAdd}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          activeOpacity={0.7}
+          style={[hs.addBtn, { backgroundColor: t.chipBg, borderColor: t.chipBorder }]}
+        >
+          <Ionicons name="add" size={22} color={t.text} />
+        </TouchableOpacity>
+      </View>
+      <View style={hs.identRow}>
+        <Ionicons name="journal-outline" size={14} color={t.accent} />
+        <Text style={[hs.identLabel, { color: t.accent }]}>YOUR NOTES</Text>
+      </View>
+    </LinearGradient>
+  );
+});
+
+const hs = StyleSheet.create({
+  container:  { paddingHorizontal: 24, paddingTop: 14, paddingBottom: 28 },
+  navRow:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 },
+  addBtn:     { width: 38, height: 38, borderRadius: 19, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  identRow:   { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  identLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 2 },
+});
+
 const NoteCard = memo(function NoteCard({
   note, onPress, onFavorite, onOpenBible,
-  cardBg, cardBorder, text, textSub, textMuted, gold, goldBg, goldBorder, divider,
+  text, textSub, textMuted, gold, divider,
 }: {
   note: Note; onPress: () => void; onFavorite: () => void; onOpenBible?: () => void;
-  cardBg: string; cardBorder: string; text: string; textSub: string;
-  textMuted: string; gold: string; goldBg: string; goldBorder: string; divider: string;
+  text: string; textSub: string; textMuted: string; gold: string; divider: string;
+  // keep cardBg, cardBorder, goldBg, goldBorder in props signature for compatibility but unused visually
+  cardBg: string; cardBorder: string; goldBg: string; goldBorder: string;
 }) {
   return (
     <TouchableOpacity
-      style={[s.card, { borderBottomColor: divider }]}
+      style={[nc.card, { borderBottomColor: divider }]}
       onPress={onPress}
-      activeOpacity={0.78}
+      activeOpacity={0.75}
     >
-      <View style={s.cardTop}>
+      <View style={nc.topRow}>
         {note.bibleReference ? (
           <TouchableOpacity
-            style={s.refRow}
             onPress={onOpenBible}
             hitSlop={{ top: 6, bottom: 6, left: 0, right: 10 }}
             activeOpacity={0.7}
+            style={nc.refRow}
           >
-            <Text style={[s.refText, { color: gold }]}>{note.bibleReference}</Text>
-            <Ionicons name="book-outline" size={11} color={gold} style={{ marginLeft: 5, opacity: 0.7 }} />
+            <Ionicons name="book-outline" size={11} color={gold} style={{ marginRight: 5 }} />
+            <Text style={[nc.refText, { color: gold }]}>{note.bibleReference}</Text>
           </TouchableOpacity>
         ) : (
-          <Text style={[s.cardDate, { color: textMuted }]}>{formatDate(note.updatedAt)}</Text>
+          <Text style={[nc.date, { color: textMuted }]}>{formatDate(note.updatedAt)}</Text>
         )}
         <TouchableOpacity onPress={onFavorite} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Ionicons
@@ -76,14 +116,63 @@ const NoteCard = memo(function NoteCard({
         </TouchableOpacity>
       </View>
 
-      <Text style={[s.cardTitle, { color: text }]} numberOfLines={1}>{note.title}</Text>
-      <Text style={[s.cardPreview, { color: textSub }]} numberOfLines={2}>{note.content}</Text>
+      <Text style={[nc.title, { color: text }]} numberOfLines={1}>{note.title}</Text>
+      <Text style={[nc.preview, { color: textSub }]} numberOfLines={2}>{note.content}</Text>
 
       {note.bibleReference && (
-        <Text style={[s.cardDate, { color: textMuted, marginTop: 8 }]}>{formatDate(note.updatedAt)}</Text>
+        <Text style={[nc.date, { color: textMuted, marginTop: 6 }]}>{formatDate(note.updatedAt)}</Text>
       )}
     </TouchableOpacity>
   );
+});
+
+const nc = StyleSheet.create({
+  card: {
+    paddingVertical: 20,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  topRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  refRow:  { flexDirection: 'row', alignItems: 'center' },
+  refText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
+  title:   { fontSize: 17, fontWeight: '700', letterSpacing: -0.2, marginBottom: 6, lineHeight: 23 },
+  preview: { fontSize: 13, lineHeight: 21, fontStyle: 'italic' },
+  date:    { fontSize: 11 },
+});
+
+function EmptyState({ t, onAdd, isFiltered }: { t: any; onAdd: () => void; isFiltered: boolean }) {
+  return (
+    <View style={es.container}>
+      <View style={[es.iconWrap, { backgroundColor: t.filterInactiveBg }]}>
+        <Ionicons name="journal-outline" size={36} color={t.textMuted} />
+      </View>
+      <Text style={[es.title, { color: t.text }]}>
+        {isFiltered ? 'No favorites yet' : 'No notes yet'}
+      </Text>
+      <Text style={[es.body, { color: t.textSub }]}>
+        {isFiltered
+          ? 'Star a note to save it here for quick access.'
+          : 'Capture reflections, Scripture insights,\nand moments God speaks to you.'}
+      </Text>
+      {!isFiltered && (
+        <TouchableOpacity
+          style={[es.btn, { backgroundColor: t.gold }]}
+          onPress={onAdd}
+          activeOpacity={0.8}
+        >
+          <Text style={[es.btnText, { color: t.bg }]}>Write your first note</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
+const es = StyleSheet.create({
+  container: { alignItems: 'center', paddingHorizontal: 40, paddingTop: 40, paddingBottom: 40, gap: 14 },
+  iconWrap:  { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  title:     { fontSize: 20, fontWeight: '700', letterSpacing: -0.2 },
+  body:      { fontSize: 14, lineHeight: 22, textAlign: 'center' },
+  btn:       { borderRadius: 12, paddingHorizontal: 28, paddingVertical: 14, marginTop: 4 },
+  btnText:   { fontSize: 15, fontWeight: '700' },
 });
 
 export default function NotesScreen() {
@@ -148,22 +237,16 @@ export default function NotesScreen() {
         {/* Header — collapses when search is active */}
         <Animated.View
           style={{
-            height: headerAnim.interpolate({ inputRange: [0, 1], outputRange: [0, HEADER_H] }),
+            height: headerAnim.interpolate({ inputRange: [0, 1], outputRange: [0, HERO_H] }),
             opacity: headerAnim,
             overflow: 'hidden',
           }}
         >
-          <View style={s.header}>
-            <ProfileAvatar />
-            <Text style={[s.headerTitle, { color: t.text }]}>MY NOTES</Text>
-            <TouchableOpacity
-              style={[s.addBtn, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}
-              onPress={() => navigation.navigate('NoteEditor', undefined)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="add" size={22} color={t.gold} />
-            </TouchableOpacity>
-          </View>
+          <HeroSection
+            count={notes.length}
+            onAdd={() => navigation.navigate('NoteEditor', undefined)}
+            t={t}
+          />
         </Animated.View>
 
         {/* Search bar */}
@@ -188,8 +271,16 @@ export default function NotesScreen() {
               onPress={() => setFilter(f)}
               activeOpacity={0.75}
             >
-              <Text style={[s.filterTabText, { color: t.textMuted }, filter === f && { color: t.gold }]}>
-                {f === 'all' ? 'All Notes' : '★ Favorites'}
+              {f === 'favorites' && (
+                <Ionicons
+                  name="star"
+                  size={11}
+                  color={filter === f ? t.gold : t.textMuted}
+                  style={{ marginRight: 4 }}
+                />
+              )}
+              <Text style={[s.filterTabText, { color: filter === f ? t.gold : t.textMuted }]}>
+                {f === 'all' ? 'All Notes' : 'Favorites'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -202,26 +293,23 @@ export default function NotesScreen() {
           </View>
         ) : error ? (
           <View style={s.center}>
+            <View style={[s.errorIcon, { backgroundColor: t.filterInactiveBg }]}>
+              <Ionicons name="cloud-offline-outline" size={28} color={t.textMuted} />
+            </View>
             <Text style={[s.errorText, { color: t.textSub }]}>{error}</Text>
             <TouchableOpacity
-              style={[s.retryBtn, { backgroundColor: t.retryBg, borderColor: t.goldBorder }]}
+              style={[s.retryBtn, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}
               onPress={load}
             >
-              <Text style={[s.retryText, { color: t.gold }]}>Retry</Text>
+              <Text style={[s.retryText, { color: t.gold }]}>Try Again</Text>
             </TouchableOpacity>
           </View>
         ) : displayed.length === 0 ? (
-          <View style={s.center}>
-            <Text style={s.emptyIcon}>📝</Text>
-            <Text style={[s.emptyTitle, { color: t.text }]}>
-              {filter === 'favorites' ? 'No favourites yet' : 'No notes yet'}
-            </Text>
-            <Text style={[s.emptySub, { color: t.textSub }]}>
-              {filter === 'favorites'
-                ? 'Star a note to save it here'
-                : 'Tap + to write your first reflection'}
-            </Text>
-          </View>
+          <EmptyState
+            t={t}
+            onAdd={() => navigation.navigate('NoteEditor', undefined)}
+            isFiltered={filter === 'favorites'}
+          />
         ) : (
           <FlatList
             data={displayed}
@@ -269,53 +357,19 @@ export default function NotesScreen() {
 const s = StyleSheet.create({
   safe: { flex: 1 },
 
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    gap: 14,
-  },
-  headerTitle: { fontSize: 26, fontWeight: '700', letterSpacing: -0.3, flex: 1 },
-  addBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    borderWidth: 1, alignItems: 'center', justifyContent: 'center',
-  },
-
-  filterRow: { flexDirection: 'row', paddingHorizontal: 18, gap: 8, marginBottom: 16 },
+  filterRow: { flexDirection: 'row', paddingHorizontal: 18, gap: 8, marginBottom: 14 },
   filterTab: {
-    paddingHorizontal: 16, paddingVertical: 7,
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 14, paddingVertical: 7,
     borderRadius: 20, borderWidth: 1,
   },
-  filterTabText: { fontSize: 12, fontWeight: '600' },
+  filterTabText: { fontSize: 13, fontWeight: '600' },
 
-  list: { paddingHorizontal: 20, paddingBottom: 120 },
+  list:   { paddingHorizontal: 20, paddingBottom: 120 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingBottom: 80 },
 
-  card: {
-    paddingVertical: 18,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  cardTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  refRow: { flexDirection: 'row', alignItems: 'center' },
-  refText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
-
-  cardTitle: { fontSize: 16, fontWeight: '700', letterSpacing: -0.2, marginBottom: 5, lineHeight: 22 },
-  cardPreview: { fontSize: 13, lineHeight: 20, fontStyle: 'italic' },
-  cardDate: { fontSize: 11 },
-
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingBottom: 80 },
-  emptyIcon: { fontSize: 48 },
-  emptyTitle: { fontSize: 17, fontWeight: '700' },
-  emptySub: { fontSize: 13, textAlign: 'center', paddingHorizontal: 40 },
-  errorText: { fontSize: 14, textAlign: 'center' },
-  retryBtn: {
-    marginTop: 8, paddingHorizontal: 24, paddingVertical: 10,
-    borderRadius: 10, borderWidth: 1,
-  },
-  retryText: { fontWeight: '600' },
+  errorIcon:  { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  errorText:  { fontSize: 14, textAlign: 'center' },
+  retryBtn:   { marginTop: 4, paddingHorizontal: 24, paddingVertical: 11, borderRadius: 12, borderWidth: 1 },
+  retryText:  { fontWeight: '600', fontSize: 14 },
 });

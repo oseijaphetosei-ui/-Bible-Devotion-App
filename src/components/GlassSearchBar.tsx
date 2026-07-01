@@ -28,6 +28,8 @@ type Props = {
   style?: ViewStyle;
   showCancel?: boolean;
   onCancelled?: () => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
 };
 
 export default function GlassSearchBar({
@@ -42,6 +44,8 @@ export default function GlassSearchBar({
   style,
   showCancel = true,
   onCancelled,
+  onFocus: onFocusProp,
+  onBlur: onBlurProp,
 }: Props) {
   const scheme = useColorScheme();
   const isDark = dark !== undefined ? dark : scheme === 'dark';
@@ -70,6 +74,7 @@ export default function GlassSearchBar({
   // ── Handlers ─────────────────────────────────────────────────────────────
   const handleFocus = () => {
     setFocused(true);
+    onFocusProp?.();
     if (showCancel) slide(72).start();
   };
 
@@ -78,6 +83,7 @@ export default function GlassSearchBar({
     if (cancellingRef.current) return;
     if (!value) {
       setFocused(false);
+      onBlurProp?.();
       if (showCancel) slide(0).start();
     }
   };
@@ -85,6 +91,7 @@ export default function GlassSearchBar({
   const handleCancel = () => {
     cancellingRef.current = true;
     setFocused(false);
+    onBlurProp?.();
     onChangeText('');
     Keyboard.dismiss();
     onCancelled?.();
