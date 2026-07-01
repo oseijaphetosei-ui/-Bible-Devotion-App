@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, StatusBar,
-  ScrollView, Animated, Alert, Image,
+  ScrollView, Animated, Alert, Image, Pressable,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import PhotoViewer, { type PhotoViewerOrigin } from '../../components/PhotoViewer';
@@ -12,6 +12,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../../theme';
 import {
   getJoinDate, formatJoinDate, getStats, getFavoriteVerse, clearLocalProfile,
+  getAbout, getUsername,
 } from '../../services/profileService';
 import { getSavedDisplayName } from '../../services/chatService';
 import { getNotes } from '../../services/notesService';
@@ -20,6 +21,8 @@ import { ProfileStackParamList } from '../../types/navigation';
 import { useProfilePicture } from '../../context/ProfileContext';
 
 type NavProp = NativeStackNavigationProp<ProfileStackParamList, 'Profile'>;
+
+const AVATAR_SIZE = 144;
 
 // ── Stat item ─────────────────────────────────────────────────────────────────
 
@@ -35,76 +38,91 @@ const StatItem = memo(function StatItem({ value, label, text, textMuted }: {
 });
 
 const sc = StyleSheet.create({
-  item: { alignItems: 'center', flex: 1 },
+  item:  { alignItems: 'center', flex: 1 },
   value: { fontSize: 26, fontWeight: '800', letterSpacing: -0.8, marginBottom: 3 },
   label: { fontSize: 10, fontWeight: '600', textAlign: 'center', letterSpacing: 0.3 },
 });
 
 // ── Setting row ───────────────────────────────────────────────────────────────
 
-function SettingRow({
-  icon, label, value, onPress, text, textMuted, divider, isLast = false,
+const SettingRow = memo(function SettingRow({
+  ionIcon, iconBg, iconColor,
+  label, value, onPress,
+  text, textMuted, divider, isLast = false,
 }: {
-  icon: string; label: string; value?: string;
+  ionIcon: string; iconBg: string; iconColor: string;
+  label: string; value?: string;
   onPress: () => void;
   text: string; textMuted: string; divider: string; isLast?: boolean;
 }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const pressIn  = () => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, tension: 300, friction: 14 }).start();
+  const pressOut = () => Animated.spring(scale, { toValue: 1,    useNativeDriver: true, tension: 300, friction: 14 }).start();
+
   return (
     <>
-      <TouchableOpacity style={sr.row} onPress={onPress} activeOpacity={0.75}>
-        <Text style={sr.icon}>{icon}</Text>
-        <Text style={[sr.label, { color: text }]}>{label}</Text>
-        <View style={sr.right}>
-          {value ? <Text style={[sr.value, { color: textMuted }]}>{value}</Text> : null}
-          <Ionicons name="chevron-forward" size={16} color={textMuted} />
-        </View>
-      </TouchableOpacity>
+      <Pressable onPress={onPress} onPressIn={pressIn} onPressOut={pressOut} accessibilityRole="button">
+        <Animated.View style={[sr.row, { transform: [{ scale }] }]}>
+          <View style={[sr.iconBox, { backgroundColor: iconBg }]}>
+            <Ionicons name={ionIcon as any} size={16} color={iconColor} />
+          </View>
+          <Text style={[sr.label, { color: text }]}>{label}</Text>
+          <View style={sr.right}>
+            {value ? <Text style={[sr.value, { color: textMuted }]}>{value}</Text> : null}
+            <Ionicons name="chevron-forward" size={15} color={textMuted} />
+          </View>
+        </Animated.View>
+      </Pressable>
       {!isLast && <View style={[sr.divider, { backgroundColor: divider }]} />}
     </>
   );
-}
+});
 
 const sr = StyleSheet.create({
-  row:     { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
-  icon:    { fontSize: 18, width: 24, textAlign: 'center' },
+  row:     { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 13, gap: 14 },
+  iconBox: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   label:   { flex: 1, fontSize: 15, fontWeight: '500' },
   right:   { flexDirection: 'row', alignItems: 'center', gap: 6 },
   value:   { fontSize: 13 },
-  divider: { height: 1, marginHorizontal: 16 },
+  divider: { height: StyleSheet.hairlineWidth, marginLeft: 62 },
 });
-
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 
 export default function ProfileScreen() {
-  const t   = useTheme();
-  const nav = useNavigation<NavProp>();
+  const t       = useTheme();
+  const nav     = useNavigation<NavProp>();
   const rootNav = useNavigation<any>();
   const { picture } = useProfilePicture();
 
-  const [displayName,   setDisplayName]   = useState('Believer');
-  const [joinDate,      setJoinDate]      = useState('');
-  const [initial,       setInitial]       = useState('J');
-  const [stats,         setStats]         = useState<Stats>({ streak: 0, chaptersRead: 0, notesCreated: 0, scriptureChats: 0, prayersCompleted: 0 });
-  const [favoriteVerse, setFavoriteVerseState] = useState<FavoriteVerse | null>(null);
+  const [displayName,   setDisplayName]        = useState('Believer');
+  const [username,      setUsernameState]       = useState('');
+  const [about,         setAboutState]          = useState('');
+  const [joinDate,      setJoinDate]            = useState('');
+  const [initial,       setInitial]             = useState('J');
+  const [stats,         setStats]               = useState<Stats>({
+    streak: 0, chaptersRead: 0, notesCreated: 0, scriptureChats: 0, prayersCompleted: 0,
+  });
+  const [favoriteVerse, setFavoriteVerseState]  = useState<FavoriteVerse | null>(null);
 
   const [viewerOpen,   setViewerOpen]   = useState(false);
   const [viewerOrigin, setViewerOrigin] = useState<PhotoViewerOrigin | null>(null);
 
   const avatarViewRef = useRef<View>(null);
-  const avatarAnim    = useRef(new Animated.Value(0.7)).current;
+  const avatarAnim    = useRef(new Animated.Value(0.85)).current;
   const contentAnim   = useRef(new Animated.Value(0)).current;
 
   const load = useCallback(async () => {
-    const [name, joinIso, fav] = await Promise.all([
+    const [name, joinIso, fav, uname, bio] = await Promise.all([
       getSavedDisplayName(),
       getJoinDate(),
       getFavoriteVerse(),
+      getUsername(),
+      getAbout(),
     ]);
 
     let notesCount = 0;
     try { const notes = await getNotes(); notesCount = notes.length; } catch { /* offline */ }
-
     const s = await getStats(notesCount);
 
     if (name?.trim()) {
@@ -114,13 +132,15 @@ export default function ProfileScreen() {
     setJoinDate(formatJoinDate(joinIso));
     setStats(s);
     setFavoriteVerseState(fav);
+    if (uname?.trim()) setUsernameState(uname.trim());
+    if (bio?.trim())   setAboutState(bio.trim());
   }, []);
 
   useEffect(() => {
     load();
     Animated.parallel([
-      Animated.spring(avatarAnim, { toValue: 1, tension: 60, friction: 9, useNativeDriver: true }),
-      Animated.timing(contentAnim, { toValue: 1, duration: 350, delay: 100, useNativeDriver: true }),
+      Animated.spring(avatarAnim, { toValue: 1, tension: 55, friction: 9,  useNativeDriver: true }),
+      Animated.timing(contentAnim, { toValue: 1, duration: 380, delay: 130, useNativeDriver: true }),
     ]).start();
   }, []);
 
@@ -145,8 +165,8 @@ export default function ProfileScreen() {
     );
   }, [rootNav]);
 
-  const navigateToTab = useCallback((tabName: string) => {
-    rootNav.navigate('MainTabs', { screen: tabName });
+  const goHome = useCallback((screen: string) => {
+    rootNav.navigate('MainTabs', { screen: 'HomeTab', params: { screen } });
   }, [rootNav]);
 
   const handleAvatarPress = useCallback(() => {
@@ -165,41 +185,42 @@ export default function ProfileScreen() {
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <StatusBar barStyle={t.statusBar} backgroundColor="transparent" translucent />
 
-        {/* Header */}
+        {/* Header — no title; back + pencil */}
         <View style={s.header}>
-          {/* Glass back button */}
           <TouchableOpacity
             onPress={() => rootNav.goBack()}
             style={[s.glassCircle, { borderColor: t.cardBorder }]}
             activeOpacity={0.75}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Go back"
           >
             <BlurView intensity={18} tint="default" style={StyleSheet.absoluteFillObject} />
             <Ionicons name="chevron-back" size={22} color={t.text} />
           </TouchableOpacity>
 
-          {/* Title — centered in the flex row */}
-          <Text style={[s.headerTitle, { color: t.text }]}>Profile</Text>
+          <View style={{ flex: 1 }} />
 
-          {/* Glass edit pill */}
           <TouchableOpacity
             onPress={() => nav.navigate('EditProfile')}
-            style={[s.glassPill, { borderColor: t.cardBorder }]}
+            style={[s.glassCircle, { borderColor: t.cardBorder }]}
             activeOpacity={0.75}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Edit profile"
           >
             <BlurView intensity={18} tint="default" style={StyleSheet.absoluteFillObject} />
-            <Text style={[s.editBtnText, { color: t.gold }]}>Edit</Text>
+            <Ionicons name="pencil-outline" size={17} color={t.text} />
           </TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
-          {/* Hero: avatar + name + join date */}
+          {/* ── Hero ── */}
           <View style={s.hero}>
-            <Animated.View style={[s.avatarWrap, { transform: [{ scale: avatarAnim }] }]}>
+            <Animated.View style={{ transform: [{ scale: avatarAnim }], marginBottom: 20 }}>
               <TouchableOpacity
                 onPress={handleAvatarPress}
                 activeOpacity={picture?.type === 'photo' ? 0.92 : 0.78}
+                accessibilityLabel="Profile photo"
               >
                 <View
                   ref={avatarViewRef}
@@ -210,17 +231,27 @@ export default function ProfileScreen() {
                   ]}
                 >
                   {picture?.type === 'photo' ? (
-                    <Image source={{ uri: picture.uri }} style={{ width: 120, height: 120, borderRadius: 60 }} />
+                    <Image
+                      source={{ uri: picture.uri }}
+                      style={{ width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: AVATAR_SIZE / 2 }}
+                    />
                   ) : picture?.type === 'avatar' ? (
-                    <Text style={{ fontSize: 56 }}>{picture.avatar.emoji}</Text>
+                    <Text style={{ fontSize: 66 }}>{picture.avatar.emoji}</Text>
                   ) : (
                     <Text style={[s.avatarLetter, { color: t.gold }]}>{initial}</Text>
                   )}
                 </View>
               </TouchableOpacity>
             </Animated.View>
-            <Animated.View style={{ opacity: contentAnim }}>
+
+            <Animated.View style={[s.heroText, { opacity: contentAnim }]}>
               <Text style={[s.displayName, { color: t.text }]}>{displayName}</Text>
+              {username ? (
+                <Text style={[s.usernameLabel, { color: t.textMuted }]}>@{username}</Text>
+              ) : null}
+              {about ? (
+                <Text style={[s.aboutLabel, { color: t.textSub }]}>{about}</Text>
+              ) : null}
               {joinDate ? (
                 <Text style={[s.joinDate, { color: t.textMuted }]}>Member since {joinDate}</Text>
               ) : null}
@@ -229,13 +260,13 @@ export default function ProfileScreen() {
 
           <Animated.View style={{ opacity: contentAnim }}>
 
-            {/* ── Stats row ── */}
+            {/* ── Stats ── */}
             <View style={[s.statsRow, { borderTopColor: t.divider, borderBottomColor: t.divider }]}>
-              <StatItem value={stats.streak} label="Day Streak" text={t.text} textMuted={t.textMuted} />
+              <StatItem value={stats.streak}      label="Day Streak"    text={t.text} textMuted={t.textMuted} />
               <View style={[s.statDivider, { backgroundColor: t.divider }]} />
               <StatItem value={stats.chaptersRead} label="Chapters Read" text={t.text} textMuted={t.textMuted} />
               <View style={[s.statDivider, { backgroundColor: t.divider }]} />
-              <StatItem value={stats.notesCreated} label="Notes" text={t.text} textMuted={t.textMuted} />
+              <StatItem value={stats.notesCreated} label="Notes"         text={t.text} textMuted={t.textMuted} />
             </View>
 
             {/* ── Favorite Verse ── */}
@@ -264,13 +295,33 @@ export default function ProfileScreen() {
             <Text style={[s.sectionTitle, { color: t.textMuted }]}>QUICK ACCESS</Text>
             <View style={[s.settingsCard, { borderColor: t.divider }]}>
               <SettingRow
-                icon="📝" label="My Notes"
-                onPress={() => navigateToTab('NotesTab')}
+                ionIcon="document-text-outline" iconBg="#5B6EAE22" iconColor="#5B6EAE"
+                label="My Notes"
+                onPress={() => rootNav.navigate('MainTabs', { screen: 'NotesTab' })}
                 text={t.text} textMuted={t.textMuted} divider={t.divider}
               />
               <SettingRow
-                icon="💬" label="Scripture Chat"
-                onPress={() => navigateToTab('HomeTab')}
+                ionIcon="chatbubble-ellipses-outline" iconBg="#6C8AB022" iconColor="#6C8AB0"
+                label="Scripture Chat"
+                onPress={() => goHome('ScriptureChat')}
+                text={t.text} textMuted={t.textMuted} divider={t.divider}
+              />
+              <SettingRow
+                ionIcon="heart-outline" iconBg="#C47B8A22" iconColor="#C47B8A"
+                label="Prayer Journal"
+                onPress={() => goHome('PrayerJournal')}
+                text={t.text} textMuted={t.textMuted} divider={t.divider}
+              />
+              <SettingRow
+                ionIcon="flame-outline" iconBg="#C9A96B22" iconColor="#C9A96B"
+                label="Daily Devotion"
+                onPress={() => goHome('Devotion')}
+                text={t.text} textMuted={t.textMuted} divider={t.divider}
+              />
+              <SettingRow
+                ionIcon="trophy-outline" iconBg="#6E8B7422" iconColor="#6E8B74"
+                label="Spiritual Goals"
+                onPress={() => goHome('Goals')}
                 text={t.text} textMuted={t.textMuted} divider={t.divider}
                 isLast
               />
@@ -280,22 +331,20 @@ export default function ProfileScreen() {
             <Text style={[s.sectionTitle, { color: t.textMuted }]}>ACCOUNT</Text>
             <View style={[s.settingsCard, { borderColor: t.divider }]}>
               <SettingRow
-                icon="✏️" label="Edit Profile"
-                onPress={() => nav.navigate('EditProfile')}
-                text={t.text} textMuted={t.textMuted} divider={t.divider}
-              />
-              <SettingRow
-                icon="🎨" label="Appearance"
+                ionIcon="color-palette-outline" iconBg="#8A7AB022" iconColor="#8A7AB0"
+                label="Appearance"
                 onPress={() => nav.navigate('Appearance')}
                 text={t.text} textMuted={t.textMuted} divider={t.divider}
               />
               <SettingRow
-                icon="🔔" label="Notifications"
+                ionIcon="notifications-outline" iconBg="#C47B7B22" iconColor="#C47B7B"
+                label="Notifications"
                 onPress={() => nav.navigate('Notifications')}
                 text={t.text} textMuted={t.textMuted} divider={t.divider}
               />
               <SettingRow
-                icon="🔒" label="Privacy"
+                ionIcon="lock-closed-outline" iconBg="#6B8B8A22" iconColor="#6B8B8A"
+                label="Privacy"
                 onPress={() => nav.navigate('Privacy')}
                 text={t.text} textMuted={t.textMuted} divider={t.divider}
                 isLast
@@ -307,6 +356,7 @@ export default function ProfileScreen() {
               style={s.signOutBtn}
               onPress={handleSignOut}
               activeOpacity={0.8}
+              accessibilityLabel="Sign out"
             >
               <Ionicons name="log-out-outline" size={16} color="#C87B7B" />
               <Text style={s.signOutText}>Sign Out</Text>
@@ -317,7 +367,6 @@ export default function ProfileScreen() {
           </Animated.View>
         </ScrollView>
 
-        {/* Full-screen photo viewer */}
         {picture?.type === 'photo' && (
           <PhotoViewer
             uri={picture.uri}
@@ -332,48 +381,50 @@ export default function ProfileScreen() {
   );
 }
 
+// ── Styles ────────────────────────────────────────────────────────────────────
+
 const s = StyleSheet.create({
   header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  headerTitle: { flex: 1, fontSize: 17, fontWeight: '700', textAlign: 'center' },
-
   glassCircle: {
     width: 40, height: 40, borderRadius: 20,
     overflow: 'hidden',
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1,
   },
-  glassPill: {
-    height: 36, borderRadius: 18,
-    paddingHorizontal: 16,
-    overflow: 'hidden',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1,
-  },
-  editBtnText: { fontSize: 14, fontWeight: '600' },
 
   scroll: { paddingBottom: 60 },
 
-  hero: { alignItems: 'center', paddingVertical: 28, paddingBottom: 24 },
-  avatarWrap: { marginBottom: 16 },
+  // Hero
+  hero: { alignItems: 'center', paddingTop: 20, paddingBottom: 28 },
   avatarCircle: {
-    width: 110, height: 110, borderRadius: 55,
+    width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: AVATAR_SIZE / 2,
     alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.14,
+    shadowRadius: 18,
+    elevation: 8,
   },
-  avatarLetter: { fontSize: 42, fontWeight: '700', letterSpacing: 1 },
-  displayName:  { fontSize: 22, fontWeight: '800', textAlign: 'center', letterSpacing: -0.4, marginBottom: 4 },
-  joinDate:     { fontSize: 12, textAlign: 'center' },
+  avatarLetter:  { fontSize: 56, fontWeight: '700', letterSpacing: 1 },
+  heroText:      { alignItems: 'center', paddingHorizontal: 32, gap: 4 },
+  displayName:   { fontSize: 24, fontWeight: '800', textAlign: 'center', letterSpacing: -0.5 },
+  usernameLabel: { fontSize: 13, textAlign: 'center' },
+  aboutLabel:    { fontSize: 14, textAlign: 'center', lineHeight: 20, marginTop: 2 },
+  joinDate:      { fontSize: 11, textAlign: 'center', marginTop: 4 },
 
   sectionTitle: {
     fontSize: 10, fontWeight: '700', letterSpacing: 1.6,
-    paddingHorizontal: 20, marginBottom: 4, marginTop: 24,
+    paddingHorizontal: 20, marginBottom: 4, marginTop: 28,
   },
 
   statsRow: {
     flexDirection: 'row',
-    paddingVertical: 24,
+    paddingVertical: 26,
     marginHorizontal: 20,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -399,8 +450,8 @@ const s = StyleSheet.create({
   signOutBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 8,
-    marginHorizontal: 20, paddingVertical: 16,
-    marginTop: 16, marginBottom: 8,
+    marginHorizontal: 20, paddingVertical: 18,
+    marginTop: 20, marginBottom: 8,
   },
   signOutText: { color: '#C87B7B', fontSize: 15, fontWeight: '600' },
   versionText: { fontSize: 11, textAlign: 'center', marginBottom: 24, marginTop: 4 },

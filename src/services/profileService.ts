@@ -175,6 +175,31 @@ export async function setPrivacySettings(s: PrivacySettings): Promise<void> {
   } catch { /* offline */ }
 }
 
+// ── Extended profile fields ───────────────────────────────────────────────────
+
+const ABOUT_KEY    = '@profile_about';
+const USERNAME_KEY = '@profile_username';
+const EMAIL_KEY    = '@profile_email';
+
+export async function getAbout(): Promise<string> {
+  return (await AsyncStorage.getItem(ABOUT_KEY)) ?? '';
+}
+export async function setAbout(bio: string): Promise<void> {
+  await AsyncStorage.setItem(ABOUT_KEY, bio);
+}
+export async function getUsername(): Promise<string> {
+  return (await AsyncStorage.getItem(USERNAME_KEY)) ?? '';
+}
+export async function setUsername(username: string): Promise<void> {
+  await AsyncStorage.setItem(USERNAME_KEY, username);
+}
+export async function getEmail(): Promise<string> {
+  return (await AsyncStorage.getItem(EMAIL_KEY)) ?? '';
+}
+export async function setEmail(email: string): Promise<void> {
+  await AsyncStorage.setItem(EMAIL_KEY, email);
+}
+
 // ── Sign out ──────────────────────────────────────────────────────────────────
 
 export async function clearLocalProfile(): Promise<void> {
@@ -182,6 +207,7 @@ export async function clearLocalProfile(): Promise<void> {
     JOIN_DATE_KEY, CHAPTERS_KEY, CHATS_KEY, PRAYERS_KEY,
     STREAK_KEY, STREAK_LAST_KEY, STREAK_LONGEST_KEY, FAVORITE_VERSE_KEY,
     NOTIF_SETTINGS_KEY, PRIVACY_SETTINGS_KEY,
+    ABOUT_KEY, USERNAME_KEY, EMAIL_KEY,
     '@chat_display_name', '@community_prayed', '@community_joined', '@community_reacted',
     '@chat_favorites',
   ];
