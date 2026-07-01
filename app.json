@@ -29,10 +29,6 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0D0A07"
       },
-      "notification": {
-        "icon": "./assets/notification-icon.png",
-        "color": "#C9A96B"
-      },
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
@@ -49,7 +45,13 @@
         }
       ],
       "expo-font",
-      "expo-notifications"
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#C9A96B"
+        }
+      ]
     ]
   }
 }
