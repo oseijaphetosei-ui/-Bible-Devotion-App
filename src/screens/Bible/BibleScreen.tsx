@@ -39,6 +39,16 @@ import GlassSearchBar from '../../components/GlassSearchBar';
 import { speakText } from '../../services/ttsService';
 import { getNotes, createNote, type Note } from '../../services/notesService';
 
+// ─── Font sizes ───────────────────────────────────────────────────────────────
+type BibleFontSize = 'sm' | 'md' | 'lg' | 'xl';
+const BIBLE_FONT_SIZES: Record<BibleFontSize, number> = {
+  sm: 15,
+  md: 19.5,
+  lg: 23,
+  xl: 27,
+};
+const BIBLE_FONT_ORDER: BibleFontSize[] = ['sm', 'md', 'lg', 'xl'];
+
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const GOLD        = '#C9A96B';
 const GOLD_DIM    = 'rgba(201,169,107,0.09)';
@@ -110,10 +120,11 @@ type VerseRowProps = {
   isPlaying: boolean;
   isTarget: boolean;
   hasNote: boolean;
+  fontSize: number;
   onLongPress: () => void;
 };
 
-const VerseRow = memo(function VerseRow({ item, isPlaying, isTarget, hasNote, onLongPress }: VerseRowProps) {
+const VerseRow = memo(function VerseRow({ item, isPlaying, isTarget, hasNote, fontSize, onLongPress }: VerseRowProps) {
   return (
     <TouchableOpacity
       onLongPress={onLongPress}
@@ -127,7 +138,7 @@ const VerseRow = memo(function VerseRow({ item, isPlaying, isTarget, hasNote, on
     >
       {/* Slim gold left-margin marker — appears when a note is attached */}
       {hasNote && <View style={s.noteMarker} />}
-      <Text style={s.verseContent}>
+      <Text style={[s.verseContent, { fontSize, lineHeight: fontSize * 1.82 }]}>
         <Text style={s.verseNum}>{item.verse}{'  '}</Text>
         {item.text}
       </Text>
@@ -194,6 +205,12 @@ export default function BibleScreen() {
   const [noteText,        setNoteText]        = useState('');
   const [noteSaving,      setNoteSaving]      = useState(false);
   const noteInputRef = useRef<TextInput>(null);
+
+  // ── Font size ──────────────────────────────────────────────────────────────
+  const [bibleFont, setBibleFont] = useState<BibleFontSize>('md');
+  const cycleBibleFont = useCallback(() => {
+    setBibleFont(prev => BIBLE_FONT_ORDER[(BIBLE_FONT_ORDER.indexOf(prev) + 1) % BIBLE_FONT_ORDER.length]);
+  }, []);
 
   const book = BOOKS[bookIndex];
 
@@ -563,9 +580,10 @@ export default function BibleScreen() {
       isPlaying={playingVerse === item.verse}
       isTarget={params.verseToScroll === item.verse}
       hasNote={noteVerseSet.has(item.verse)}
+      fontSize={BIBLE_FONT_SIZES[bibleFont]}
       onLongPress={() => openVerseActions(item)}
     />
-  ), [playingVerse, params.verseToScroll, noteVerseSet, openVerseActions]);
+  ), [playingVerse, params.verseToScroll, noteVerseSet, bibleFont, openVerseActions]);
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -594,7 +612,7 @@ export default function BibleScreen() {
           ref={flatListRef}
           data={verses}
           keyExtractor={v => String(v.verse)}
-          extraData={[playingVerse, params.verseToScroll, noteVerseSet]}
+          extraData={[playingVerse, params.verseToScroll, noteVerseSet, bibleFont]}
           ListHeaderComponent={
             <ChapterHeader bookName={book.name} chapter={chapter} />
           }
@@ -780,6 +798,14 @@ export default function BibleScreen() {
             <TouchableOpacity onPress={openAsk} style={s.ctrlAskBtn}>
               <Ionicons name="chatbubble-ellipses-outline" size={14} color={GOLD} />
               <Text style={s.ctrlAskText}>Ask</Text>
+            </TouchableOpacity>
+
+            <View style={s.ctrlSep} />
+
+            {/* Font size */}
+            <TouchableOpacity onPress={cycleBibleFont} style={s.ctrlFontBtn}>
+              <Text style={s.ctrlFontAa}>Aa</Text>
+              <Text style={s.ctrlFontSz}>{bibleFont.toUpperCase()}</Text>
             </TouchableOpacity>
 
             <View style={s.ctrlSep} />
@@ -1334,6 +1360,26 @@ const s = StyleSheet.create({
     color: GOLD,
     fontSize: 13,
     fontWeight: '600',
+  },
+  ctrlFontBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  ctrlFontAa: {
+    color: T_PRIMARY,
+    fontFamily: SERIF,
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 16,
+  },
+  ctrlFontSz: {
+    color: GOLD,
+    fontSize: 8,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    lineHeight: 11,
   },
   ctrlNavBtn: {
     flex: 1,

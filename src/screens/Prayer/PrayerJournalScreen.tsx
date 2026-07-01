@@ -21,7 +21,11 @@ type Nav = NativeStackNavigationProp<HomeStackParamList>;
 
 // ─── Hero Section ─────────────────────────────────────────────────────────────
 
-const HeroSection = memo(function HeroSection({ stats }: { stats: PrayerStats }) {
+const HeroSection = memo(function HeroSection({
+  stats, onBack, onAdd,
+}: {
+  stats: PrayerStats; onBack: () => void; onAdd: () => void;
+}) {
   const t = useTheme();
   const isDark = t.statusBar === 'light-content';
 
@@ -32,9 +36,27 @@ const HeroSection = memo(function HeroSection({ stats }: { stats: PrayerStats })
         : ['rgba(237,231,217,1)', 'rgba(237,231,217,0.82)']}
       style={hs.container}
     >
+      {/* Nav row */}
+      <View style={hs.navRow}>
+        <TouchableOpacity
+          onPress={onBack}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="chevron-back" size={26} color={t.text} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={onAdd}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="add" size={26} color={t.text} />
+        </TouchableOpacity>
+      </View>
+
       {/* Journal identity */}
       <View style={hs.topRow}>
-        <Ionicons name="book-outline" size={18} color={t.accent} />
+        <Ionicons name="book-outline" size={15} color={t.accent} />
         <Text style={[hs.label, { color: t.accent }]}>PRAYER JOURNAL</Text>
       </View>
 
@@ -71,9 +93,15 @@ const HeroSection = memo(function HeroSection({ stats }: { stats: PrayerStats })
 const hs = StyleSheet.create({
   container: {
     paddingHorizontal: 24,
-    paddingTop: 28,
+    paddingTop: 14,
     paddingBottom: 0,
     marginBottom: 0,
+  },
+  navRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 26,
   },
   topRow: {
     flexDirection: 'row',
@@ -341,31 +369,16 @@ export default function PrayerJournalScreen() {
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <StatusBar barStyle={t.statusBar} backgroundColor="transparent" translucent />
 
-        {/* Sticky header */}
-        <View style={[sc.header, { borderBottomColor: t.divider }]}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            hitSlop={12}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="chevron-back" size={22} color={t.text} />
-          </TouchableOpacity>
-          <Text style={[sc.headerTitle, { color: t.text }]}>Prayer Journal</Text>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('PrayerEditor', undefined)}
-            hitSlop={12}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="add" size={24} color={t.accent} />
-          </TouchableOpacity>
-        </View>
-
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 120 }}
         >
           {/* Hero */}
-          <HeroSection stats={stats} />
+          <HeroSection
+            stats={stats}
+            onBack={() => navigation.goBack()}
+            onAdd={() => navigation.navigate('PrayerEditor', undefined)}
+          />
 
           {/* Filter */}
           <FilterRow active={filter} onChange={setFilter} />
@@ -434,15 +447,6 @@ export default function PrayerJournalScreen() {
 }
 
 const sc = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  headerTitle: { fontSize: 17, fontWeight: '600' },
   list: {
     marginHorizontal: 16,
     borderRadius: 16,

@@ -815,7 +815,7 @@ export default function App() {
     <AppearanceProvider>
       <AuthProvider>
         <ProfileProvider>
-          <SafeAreaProvider>
+          <SafeAreaProvider style={{ flex: 1, backgroundColor: '#080A12' }}>
             {navReady && (
               <ErrorBoundary label="NavigationContainer">
                 <NavigationContainer ref={navigationRef} onReady={flushPendingNavigation}>

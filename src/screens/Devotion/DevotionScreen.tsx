@@ -3,6 +3,7 @@ import React, {
   useEffect,
   useRef,
   useCallback,
+  memo,
 } from 'react';
 import {
   View,
@@ -16,21 +17,114 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { HomeStackParamList } from '../../types/navigation';
 import { fetchDevotion, getTodayFallback } from '../../services/devotionService';
 import { useDevotionReader } from '../../hooks/useDevotionReader';
-import { Devotion, QUICK_TAGS, TRANSLATIONS, BibleTranslation } from '../../types/devotion';
+import { Devotion, QUICK_TAGS } from '../../types/devotion';
 import GlassSearchBar from '../../components/GlassSearchBar';
 import { markTodayComplete, getStreakData } from '../../services/devotionStreakService';
 import { maybePromptPermission } from '../../services/notificationService';
 import { useTheme } from '../../theme';
+import type { AppTheme } from '../../theme';
 
 type NavProp = NativeStackNavigationProp<HomeStackParamList, 'Devotion'>;
-type RouteP = RouteProp<HomeStackParamList, 'Devotion'>;
+type RouteP  = RouteProp<HomeStackParamList, 'Devotion'>;
 
-// ─── Breathing Timer ─────────────────────────────────────────────────────────
+// ─── Hero Section ─────────────────────────────────────────────────────────────
+
+const HeroSection = memo(function HeroSection({
+  streak, total, markedToday, t, onBack,
+}: {
+  streak: number; total: number; markedToday: boolean;
+  t: AppTheme; onBack: () => void;
+}) {
+  const isDark = t.statusBar === 'light-content';
+
+  return (
+    <LinearGradient
+      colors={isDark
+        ? ['rgba(19,22,38,1)', 'rgba(13,15,26,0.92)']
+        : ['rgba(237,231,217,1)', 'rgba(237,231,217,0.82)']}
+      style={hs.container}
+    >
+      {/* Nav row */}
+      <View style={hs.navRow}>
+        <TouchableOpacity
+          onPress={onBack}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="chevron-back" size={26} color={t.text} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Identity */}
+      <View style={hs.identRow}>
+        <Ionicons name="sunny-outline" size={15} color={t.accent} />
+        <Text style={[hs.identLabel, { color: t.accent }]}>DAILY DEVOTION</Text>
+      </View>
+
+      <Text style={[hs.heading, { color: t.text }]}>
+        Nourish Your{'\n'}Soul Today
+      </Text>
+
+      <Text style={[hs.quote, { color: t.textMuted }]}>
+        {"\"Your word is a lamp to my feet\nand a light to my path.\"\n— Psalm 119:105"}
+      </Text>
+
+      {/* Stats */}
+      <View style={[hs.statsRow, { borderTopColor: t.divider }]}>
+        <View style={hs.statItem}>
+          <Text style={[hs.statValue, { color: t.text }]}>{streak}</Text>
+          <Text style={[hs.statLabel, { color: t.textMuted }]}>Day Streak</Text>
+        </View>
+        <View style={[hs.statDivider, { backgroundColor: t.divider }]} />
+        <View style={hs.statItem}>
+          <Text style={[hs.statValue, { color: t.text }]}>{total}</Text>
+          <Text style={[hs.statLabel, { color: t.textMuted }]}>Devotions</Text>
+        </View>
+        <View style={[hs.statDivider, { backgroundColor: t.divider }]} />
+        <View style={hs.statItem}>
+          <Ionicons
+            name={markedToday ? 'checkmark-circle' : 'ellipse-outline'}
+            size={22}
+            color={markedToday ? t.gold : t.textMuted}
+          />
+          <Text style={[hs.statLabel, { color: t.textMuted }]}>Today</Text>
+        </View>
+      </View>
+    </LinearGradient>
+  );
+});
+
+const hs = StyleSheet.create({
+  container:  { paddingHorizontal: 24, paddingTop: 14, paddingBottom: 0, marginBottom: 0 },
+  navRow: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'flex-start', marginBottom: 26,
+  },
+  identRow:   { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+  identLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 2 },
+  heading: {
+    fontSize: 28, fontWeight: '700', letterSpacing: -0.4,
+    lineHeight: 36, marginBottom: 14,
+  },
+  quote:      { fontSize: 13, lineHeight: 20, fontStyle: 'italic', marginBottom: 24 },
+  statsRow: {
+    flexDirection: 'row', alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 20, paddingBottom: 20,
+  },
+  statItem:    { flex: 1, alignItems: 'center', gap: 4 },
+  statValue:   { fontSize: 22, fontWeight: '700', letterSpacing: -0.5 },
+  statLabel:   { fontSize: 10, fontWeight: '500', letterSpacing: 0.5 },
+  statDivider: { width: StyleSheet.hairlineWidth, height: 32, marginHorizontal: 4 },
+});
+
+// ─── Breathing Timer ──────────────────────────────────────────────────────────
 
 const BREATH_PHASES = [
   { label: 'Inhale', seconds: 4, toScale: 1.45 },
@@ -39,17 +133,14 @@ const BREATH_PHASES = [
   { label: 'Hold',   seconds: 4, toScale: 1.0  },
 ];
 
-function BreathingTimer({ gold, goldBg, goldBorder, card, text, textMuted }: {
-  gold: string; goldBg: string; goldBorder: string;
-  card: string; text: string; textMuted: string;
-}) {
-  const [active, setActive] = useState(false);
-  const [phaseIdx, setPhaseIdx] = useState(0);
+function BreathingTimer({ t }: { t: AppTheme }) {
+  const [active,    setActive]    = useState(false);
+  const [phaseIdx,  setPhaseIdx]  = useState(0);
   const [countdown, setCountdown] = useState(BREATH_PHASES[0].seconds);
-  const scale = useRef(new Animated.Value(1)).current;
+  const scale       = useRef(new Animated.Value(1)).current;
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const timeRef = useRef(BREATH_PHASES[0].seconds);
-  const phaseRef = useRef(0);
+  const timeRef     = useRef(BREATH_PHASES[0].seconds);
+  const phaseRef    = useRef(0);
 
   const runPhase = useCallback((idx: number) => {
     phaseRef.current = idx;
@@ -84,28 +175,36 @@ function BreathingTimer({ gold, goldBg, goldBorder, card, text, textMuted }: {
   const phase = BREATH_PHASES[phaseIdx];
 
   return (
-    <View style={[s.card, { backgroundColor: card }]}>
-      <Text style={[s.sectionLabel, { color: textMuted }]}>PRAYER BREATHING</Text>
-      <Text style={[s.breathSubtitle, { color: textMuted }]}>Box breathing · 4-4-4-4</Text>
+    <View style={[s.card, { backgroundColor: t.card }]}>
+      <Text style={[s.sectionLabel, { color: t.textMuted }]}>PRAYER BREATHING</Text>
+      <Text style={[s.breathSubtitle, { color: t.textMuted }]}>Box breathing · 4-4-4-4</Text>
 
       <View style={s.breathCircleWrap}>
-        <View style={[s.breathRingOuter, { borderColor: goldBorder }]} />
-        <Animated.View style={[s.breathCircle, { transform: [{ scale }], backgroundColor: goldBg, borderColor: goldBorder }]}>
-          <Text style={[s.breathPhaseLabel, { color: text }]}>{active ? phase.label : 'Begin'}</Text>
-          {active && <Text style={[s.breathCountdown, { color: gold }]}>{countdown}</Text>}
+        <View style={[s.breathRingOuter, { borderColor: t.goldBorder }]} />
+        <Animated.View style={[s.breathCircle, {
+          transform: [{ scale }],
+          backgroundColor: t.goldBg,
+          borderColor: t.goldBorder,
+        }]}>
+          <Text style={[s.breathPhaseLabel, { color: t.text }]}>
+            {active ? phase.label : 'Begin'}
+          </Text>
+          {active && (
+            <Text style={[s.breathCountdown, { color: t.gold }]}>{countdown}</Text>
+          )}
         </Animated.View>
       </View>
 
       <TouchableOpacity
         style={[
           s.breathBtn,
-          { backgroundColor: goldBg, borderColor: goldBorder },
+          { backgroundColor: t.goldBg, borderColor: t.goldBorder },
           active && { backgroundColor: 'rgba(220,38,38,0.08)', borderColor: 'rgba(220,38,38,0.2)' },
         ]}
         onPress={active ? stop : start}
         activeOpacity={0.8}
       >
-        <Text style={[s.breathBtnText, { color: active ? '#DC2626' : gold }]}>
+        <Text style={[s.breathBtnText, { color: active ? '#DC2626' : t.gold }]}>
           {active ? 'Stop' : 'Start'}
         </Text>
       </TouchableOpacity>
@@ -115,51 +214,61 @@ function BreathingTimer({ gold, goldBg, goldBorder, card, text, textMuted }: {
 
 // ─── Streak Board ─────────────────────────────────────────────────────────────
 
-type WeekDay = { dateStr: string; label: string; dayNum: number; completed: boolean; isToday: boolean };
+type WeekDay = {
+  dateStr: string; label: string; dayNum: number;
+  completed: boolean; isToday: boolean;
+};
 
-function StreakBoard({ refreshTrigger, gold, goldBg, goldBorder, text, textMuted, weekCircleBg, weekCircleBorder, weekCircleActiveBg, card, cardBorder }: {
-  refreshTrigger: number;
-  gold: string; goldBg: string; goldBorder: string;
-  text: string; textMuted: string;
-  weekCircleBg: string; weekCircleBorder: string; weekCircleActiveBg: string;
-  card: string; cardBorder: string;
-}) {
-  const [streak, setStreak] = useState(0);
-  const [total, setTotal] = useState(0);
+function StreakBoard({ refreshTrigger, t }: { refreshTrigger: number; t: AppTheme }) {
+  const [streak,   setStreak]   = useState(0);
+  const [total,    setTotal]    = useState(0);
   const [weekDays, setWeekDays] = useState<WeekDay[]>([]);
 
   useEffect(() => {
-    getStreakData().then(d => { setStreak(d.streak); setTotal(d.total); setWeekDays(d.weekDays); });
+    getStreakData().then(d => {
+      setStreak(d.streak);
+      setTotal(d.total);
+      setWeekDays(d.weekDays);
+    });
   }, [refreshTrigger]);
 
   return (
     <View style={s.bareSection}>
       <View style={s.streakTopRow}>
         <View>
-          <Text style={[s.sectionLabel, { color: textMuted }]}>THIS WEEK</Text>
-          <Text style={[s.streakLine, { color: text }]}>
-            {streak > 0 ? `🔥 ${streak}-day streak` : 'Start your streak today'}
-          </Text>
+          <Text style={[s.sectionLabel, { color: t.textMuted }]}>THIS WEEK</Text>
+          <View style={s.streakLineRow}>
+            {streak > 0 ? (
+              <>
+                <Ionicons name="flame" size={14} color={t.gold} />
+                <Text style={[s.streakLine, { color: t.text }]}>{streak}-day streak</Text>
+              </>
+            ) : (
+              <Text style={[s.streakLine, { color: t.textSub }]}>Start your streak today</Text>
+            )}
+          </View>
         </View>
-        <View style={[s.streakBadge, { backgroundColor: card, borderColor: cardBorder }]}>
-          <Text style={[s.streakBadgeNum, { color: text }]}>{total}</Text>
-          <Text style={[s.streakBadgeLbl, { color: textMuted }]}>total</Text>
+        <View style={[s.streakBadge, { backgroundColor: t.card, borderColor: t.divider }]}>
+          <Text style={[s.streakBadgeNum, { color: t.text }]}>{total}</Text>
+          <Text style={[s.streakBadgeLbl, { color: t.textMuted }]}>total</Text>
         </View>
       </View>
 
       <View style={s.weekRow}>
         {weekDays.map(day => (
           <View key={day.dateStr} style={s.dayCol}>
-            <Text style={[s.dayLabel, { color: textMuted }]}>{day.label}</Text>
+            <Text style={[s.dayLabel, { color: t.textMuted }]}>{day.label}</Text>
             <View style={[
               s.dayCircle,
-              { backgroundColor: weekCircleBg, borderColor: weekCircleBorder },
-              day.isToday && { backgroundColor: weekCircleActiveBg, borderColor: goldBorder },
-              day.completed && { backgroundColor: goldBg, borderColor: goldBorder },
+              { backgroundColor: t.weekCircleBg, borderColor: t.weekCircleBorder },
+              day.isToday   && { backgroundColor: t.weekCircleActiveBg, borderColor: t.goldBorder },
+              day.completed && { backgroundColor: t.goldBg, borderColor: t.goldBorder },
             ]}>
               {day.completed
-                ? <Text style={[s.dayCheck, { color: gold }]}>✓</Text>
-                : <Text style={[s.dayNum, { color: textMuted }, day.isToday && { color: gold }]}>{day.dayNum}</Text>
+                ? <Ionicons name="checkmark" size={14} color={t.gold} />
+                : <Text style={[s.dayNum, { color: t.textMuted }, day.isToday && { color: t.gold }]}>
+                    {day.dayNum}
+                  </Text>
               }
             </View>
           </View>
@@ -169,54 +278,68 @@ function StreakBoard({ refreshTrigger, gold, goldBg, goldBorder, text, textMuted
   );
 }
 
-// ─── Reader Controls ─────────────────────────────────────────────────────────
+// ─── Reader Controls ──────────────────────────────────────────────────────────
 
 function ReaderControls({
-  fontSz, speaking, copied, gold, goldBg, textMuted,
-  onFont, onTTS, onShare, onCopy,
+  fontSz, speaking, copied, t, onFont, onTTS, onShare, onCopy,
 }: {
   fontSz: string; speaking: boolean; copied: boolean;
-  gold: string; goldBg: string; textMuted: string;
+  t: AppTheme;
   onFont: () => void; onTTS: () => void; onShare: () => void; onCopy: () => void;
 }) {
   const items = [
-    { icon: 'text', label: fontSz.toUpperCase(), onPress: onFont },
-    { icon: speaking ? 'pause-circle' : 'volume-medium', label: speaking ? 'Stop' : 'Listen', onPress: onTTS },
-    { icon: copied ? 'checkmark' : 'copy-outline', label: copied ? 'Copied!' : 'Copy', onPress: onCopy },
-    { icon: 'share-outline', label: 'Share', onPress: onShare },
+    { icon: 'text',                                      label: fontSz.toUpperCase(), onPress: onFont,  active: false },
+    { icon: speaking ? 'pause-circle' : 'volume-medium', label: speaking ? 'Stop' : 'Listen', onPress: onTTS,   active: speaking },
+    { icon: copied ? 'checkmark' : 'copy-outline',       label: copied ? 'Copied!' : 'Copy',  onPress: onCopy,  active: copied },
+    { icon: 'share-outline',                             label: 'Share',              onPress: onShare, active: false },
   ] as const;
 
   return (
-    <View style={[s.readerControls, { backgroundColor: goldBg }]}>
+    <View style={[s.readerControls, { backgroundColor: t.chipBg, borderColor: t.chipBorder }]}>
       {items.map(item => (
-        <TouchableOpacity key={item.label} style={s.readerBtn} onPress={item.onPress} activeOpacity={0.75}>
-          <Ionicons name={item.icon as any} size={18} color={gold} />
-          <Text style={[s.readerBtnLabel, { color: textMuted }]}>{item.label}</Text>
+        <TouchableOpacity
+          key={item.label}
+          style={s.readerBtn}
+          onPress={item.onPress}
+          activeOpacity={0.75}
+        >
+          <Ionicons
+            name={item.icon as any}
+            size={18}
+            color={item.active ? t.gold : t.textSub}
+          />
+          <Text style={[s.readerBtnLabel, { color: item.active ? t.gold : t.textMuted }]}>
+            {item.label}
+          </Text>
         </TouchableOpacity>
       ))}
     </View>
   );
 }
 
-// ─── Main Screen ─────────────────────────────────────────────────────────────
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function DevotionScreen() {
   const navigation = useNavigation<NavProp>();
-  const route = useRoute<RouteP>();
-  const t = useTheme();
+  const route      = useRoute<RouteP>();
+  const t          = useTheme();
 
   const initialTopic = route.params?.topic ?? '';
-  const [topic, setTopic] = useState(initialTopic);
-  const [translation, setTranslation] = useState<BibleTranslation>('KJV');
-  const [devotion, setDevotion] = useState<Devotion | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [topic,         setTopic]         = useState(initialTopic);
+  const [devotion,      setDevotion]      = useState<Devotion | null>(null);
+  const [loading,       setLoading]       = useState(false);
+  const [error,         setError]         = useState<string | null>(null);
   const [streakTrigger, setStreakTrigger] = useState(0);
-  const [markedToday, setMarkedToday] = useState(false);
+  const [markedToday,   setMarkedToday]   = useState(false);
+  const [streakData,    setStreakData]    = useState({ streak: 0, total: 0 });
 
   const reader = useDevotionReader(devotion);
 
   useEffect(() => { setDevotion(getTodayFallback()); }, []);
+
+  useEffect(() => {
+    getStreakData().then(d => setStreakData({ streak: d.streak, total: d.total }));
+  }, [streakTrigger]);
 
   async function generate() {
     if (!topic.trim()) return;
@@ -224,7 +347,7 @@ export default function DevotionScreen() {
     setLoading(true);
     setError(null);
     try {
-      setDevotion(await fetchDevotion(topic.trim(), translation));
+      setDevotion(await fetchDevotion(topic.trim(), 'KJV'));
     } catch {
       setError('Using a local reading instead.');
       setDevotion(getTodayFallback());
@@ -257,319 +380,296 @@ export default function DevotionScreen() {
       <SafeAreaView style={s.safe} edges={['top']}>
         <StatusBar barStyle={t.statusBar} backgroundColor="transparent" translucent />
 
-        {/* Header */}
-        <View style={[s.header, { borderBottomColor: t.divider }]}>
-          <TouchableOpacity
-            style={[s.backBtn, { backgroundColor: t.inputBg, borderColor: t.cardBorder }]}
-            onPress={() => navigation.goBack()} activeOpacity={0.7}
-          >
-            <Ionicons name="chevron-back" size={20} color={t.text} />
-          </TouchableOpacity>
-          <Text style={[s.headerTitle, { color: t.textMuted }]}>DAILY DEVOTION</Text>
-          <View style={{ width: 36 }} />
-        </View>
-
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={s.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* ── Topic Input ── */}
-          <View style={[s.card, { backgroundColor: t.card }]}>
-            <Text style={[s.topicCardLabel, { color: t.textMuted }]}>WHAT'S ON YOUR HEART?</Text>
+          {/* ── Hero ── */}
+          <HeroSection
+            streak={streakData.streak}
+            total={streakData.total}
+            markedToday={markedToday}
+            t={t}
+            onBack={() => navigation.goBack()}
+          />
 
-            <GlassSearchBar
-              value={topic}
-              onChangeText={setTopic}
-              placeholder="peace, anxiety, forgiveness…"
-              returnKeyType="go"
-              onSubmitEditing={generate}
-              showCancel={false}
-            />
+          {/* ── Content area ── */}
+          <View style={s.contentArea}>
 
-            {/* Quick tags */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tagsScroll} contentContainerStyle={s.tagsRow}>
-              {QUICK_TAGS.map(tag => {
-                const isActive = topic.toLowerCase() === tag.toLowerCase();
-                return (
-                  <TouchableOpacity
-                    key={tag}
-                    style={[
-                      s.tagChip,
-                      { borderColor: t.chipBorder, backgroundColor: t.chipBg },
-                      isActive && { borderColor: t.goldBorder, backgroundColor: t.goldBg },
-                    ]}
-                    onPress={() => setTopic(tag)}
-                    activeOpacity={0.75}
-                  >
-                    <Text style={[s.tagChipText, { color: t.textMuted }, isActive && { color: t.gold }]}>{tag}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+            {/* ── Devotion Content ── */}
+            {devotion && (
+              <>
+                {/* Scripture card */}
+                <View style={[s.scriptureCard, { backgroundColor: t.card }]}>
+                  <Text style={[s.devotionTitle, { color: t.text }]}>{devotion.title}</Text>
 
-            {/* Translation */}
-            <View style={s.translationRow}>
-              <Text style={[s.translationLabel, { color: t.textMuted }]}>Translation</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                {TRANSLATIONS.map(tr => (
-                  <TouchableOpacity
-                    key={tr}
-                    style={[
-                      s.transBtn,
-                      { borderColor: t.chipBorder, backgroundColor: t.chipBg },
-                      translation === tr && { borderColor: t.goldBorder, backgroundColor: t.goldBg },
-                    ]}
-                    onPress={() => setTranslation(tr)}
-                    activeOpacity={0.75}
-                  >
-                    <Text style={[s.transBtnText, { color: t.textMuted }, translation === tr && { color: t.gold }]}>{tr}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
+                  <View style={[s.themeBadge, { backgroundColor: t.accentBg, borderColor: t.accentBorder }]}>
+                    <Text style={[s.themeBadgeText, { color: t.accent }]}>{devotion.keyTheme}</Text>
+                  </View>
 
-            <TouchableOpacity
-              style={[s.generateBtn, { backgroundColor: t.gold }, (!topic.trim() || loading) && s.generateBtnDisabled]}
-              onPress={generate}
-              disabled={!topic.trim() || loading}
-              activeOpacity={0.8}
-            >
-              {loading
-                ? <ActivityIndicator color={t.bg} size="small" />
-                : <Text style={[s.generateBtnText, { color: t.bg }]}>✦  Generate Devotion</Text>
-              }
-            </TouchableOpacity>
-
-            {error ? <Text style={[s.errorNote, { color: t.textMuted }]}>{error}</Text> : null}
-          </View>
-
-          {/* ── Devotion Content ── */}
-          {devotion && (
-            <>
-              {/* Scripture card */}
-              <View style={[s.scriptureCard, { backgroundColor: t.card }]}>
-                <Text style={[s.devotionTitle, { color: t.text }]}>{devotion.title}</Text>
-                <View style={[s.themeBadge, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}>
-                  <Text style={[s.themeBadgeText, { color: t.gold }]}>{devotion.keyTheme}</Text>
+                  <Text style={[s.refText, { color: t.gold }]}>{devotion.scriptureReference}</Text>
+                  <Text style={[s.scriptureBody, { color: t.textSub }]}>
+                    "{devotion.scriptureText}"
+                  </Text>
                 </View>
-                <Text style={[s.refText, { color: t.gold }]}>{devotion.scriptureReference}</Text>
-                <Text style={[s.scriptureBody, { color: t.textSub }]}>"{devotion.scriptureText}"</Text>
-              </View>
 
-              {/* Reader controls */}
-              <ReaderControls
-                fontSz={reader.fontSz}
-                speaking={reader.speaking}
-                copied={reader.copied}
-                gold={t.gold}
-                goldBg={t.goldBg}
-                textMuted={t.textMuted}
-                onFont={reader.cycleFontSize}
-                onTTS={reader.toggleTTS}
-                onShare={reader.shareScripture}
-                onCopy={reader.copyScripture}
+                {/* Reader controls */}
+                <ReaderControls
+                  fontSz={reader.fontSz}
+                  speaking={reader.speaking}
+                  copied={reader.copied}
+                  t={t}
+                  onFont={reader.cycleFontSize}
+                  onTTS={reader.toggleTTS}
+                  onShare={reader.shareScripture}
+                  onCopy={reader.copyScripture}
+                />
+
+                {/* Talk to Scripture */}
+                <TouchableOpacity
+                  style={[s.talkBtn, { backgroundColor: t.card, borderColor: t.divider }]}
+                  onPress={() => {
+                    const context = [
+                      `Title: ${devotion.title}`,
+                      `Key Theme: ${devotion.keyTheme}`,
+                      `Scripture: ${devotion.scriptureText}`,
+                      `Devotional:\n${devotion.devotionalBody.join('\n\n')}`,
+                      `Life Application: ${devotion.lifeApplication}`,
+                    ].join('\n\n');
+                    navigation.navigate('ScriptureChat', {
+                      reference:   devotion.scriptureReference,
+                      contextType: 'devotion',
+                      context,
+                    });
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="chatbubbles-outline" size={17} color={t.textSub} />
+                  <Text style={[s.talkBtnText, { color: t.text }]}>Talk to the Scripture</Text>
+                </TouchableOpacity>
+
+                {/* Devotional body */}
+                <View style={s.bareSection}>
+                  {devotion.devotionalBody.map((para, i) => (
+                    <Text
+                      key={i}
+                      style={[
+                        s.bodyPara,
+                        { fontSize: reader.fontSize, color: t.text },
+                        i < devotion.devotionalBody.length - 1 && s.bodyParaGap,
+                      ]}
+                    >
+                      {para}
+                    </Text>
+                  ))}
+                </View>
+
+                <View style={[s.divider, { backgroundColor: t.divider }]} />
+
+                {/* Life Application */}
+                <View style={s.bareSection}>
+                  <View style={s.sectionTitleRow}>
+                    <Ionicons name="leaf-outline" size={13} color={t.accent} />
+                    <Text style={[s.sectionTitle, { color: t.textMuted }]}>LIFE APPLICATION</Text>
+                  </View>
+                  <Text style={[s.sectionBody, { fontSize: reader.fontSize, color: t.text }]}>
+                    {devotion.lifeApplication}
+                  </Text>
+                </View>
+
+                <View style={[s.divider, { backgroundColor: t.divider }]} />
+
+                {/* Reflection */}
+                <View style={s.bareSection}>
+                  <View style={s.sectionTitleRow}>
+                    <Ionicons name="help-circle-outline" size={13} color={t.accent} />
+                    <Text style={[s.sectionTitle, { color: t.textMuted }]}>REFLECT</Text>
+                  </View>
+                  <Text style={[s.sectionBody, { fontSize: reader.fontSize, color: t.textSub, fontStyle: 'italic' }]}>
+                    {devotion.reflectionQuestion}
+                  </Text>
+                </View>
+
+                <View style={[s.divider, { backgroundColor: t.divider }]} />
+
+                {/* Guided Prayer */}
+                <View style={s.bareSection}>
+                  <View style={s.sectionTitleRow}>
+                    <Ionicons name="heart-outline" size={13} color={t.accent} />
+                    <Text style={[s.sectionTitle, { color: t.textMuted }]}>GUIDED PRAYER</Text>
+                  </View>
+                  <Text style={[s.sectionBody, { fontSize: reader.fontSize, color: t.textSub, fontStyle: 'italic' }]}>
+                    {devotion.guidedPrayer}
+                  </Text>
+                </View>
+
+                {/* Shareable quote */}
+                <View style={[s.quoteBlock, { borderLeftColor: t.goldBorder }]}>
+                  <Text style={[s.quoteText, { color: t.textSub }]}>
+                    {devotion.shareableQuote}
+                  </Text>
+                </View>
+
+                {/* Action row */}
+                <View style={s.actionRow}>
+                  <TouchableOpacity
+                    style={[s.completeBtn, { borderColor: t.cardBorder, backgroundColor: t.card }]}
+                    onPress={handleMarkComplete}
+                    disabled={markedToday}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name={markedToday ? 'checkmark-circle' : 'checkmark-circle-outline'}
+                      size={18}
+                      color={markedToday ? t.gold : t.textSub}
+                    />
+                    <Text style={[s.completeBtnText, { color: markedToday ? t.gold : t.text }]}>
+                      {markedToday ? 'Completed ✓' : 'Mark Complete'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[s.journalBtn, { borderColor: t.cardBorder, backgroundColor: t.card }]}
+                    onPress={saveToJournal}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="journal-outline" size={18} color={t.textSub} />
+                    <Text style={[s.journalBtnText, { color: t.text }]}>Save to Journal</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+
+            {/* Streak + Breathing */}
+            <StreakBoard refreshTrigger={streakTrigger} t={t} />
+            <BreathingTimer t={t} />
+
+            {/* ── Topic Input (bottom) ── */}
+            <View style={[s.card, { backgroundColor: t.card }]}>
+              <Text style={[s.topicCardLabel, { color: t.textMuted }]}>WHAT'S ON YOUR HEART?</Text>
+
+              <GlassSearchBar
+                value={topic}
+                onChangeText={setTopic}
+                placeholder="peace, anxiety, forgiveness…"
+                returnKeyType="go"
+                onSubmitEditing={generate}
+                showCancel={false}
               />
 
-              {/* Talk to the Scripture — visible right after scripture card */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={s.tagsScroll}
+                contentContainerStyle={s.tagsRow}
+              >
+                {QUICK_TAGS.map(tag => {
+                  const isActive = topic.toLowerCase() === tag.toLowerCase();
+                  return (
+                    <TouchableOpacity
+                      key={tag}
+                      style={[
+                        s.tagChip,
+                        { borderColor: t.chipBorder, backgroundColor: t.chipBg },
+                        isActive && { borderColor: t.goldBorder, backgroundColor: t.goldBg },
+                      ]}
+                      onPress={() => setTopic(tag)}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={[
+                        s.tagChipText,
+                        { color: t.textMuted },
+                        isActive && { color: t.gold },
+                      ]}>
+                        {tag}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
               <TouchableOpacity
-                style={[s.talkBtn, { backgroundColor: t.goldBg }]}
-                onPress={() => {
-                  const context = [
-                    `Title: ${devotion.title}`,
-                    `Key Theme: ${devotion.keyTheme}`,
-                    `Scripture: ${devotion.scriptureText}`,
-                    `Devotional:\n${devotion.devotionalBody.join('\n\n')}`,
-                    `Life Application: ${devotion.lifeApplication}`,
-                  ].join('\n\n');
-                  navigation.navigate('ScriptureChat', {
-                    reference: devotion.scriptureReference,
-                    contextType: 'devotion',
-                    context,
-                  });
-                }}
+                style={[
+                  s.generateBtn,
+                  { backgroundColor: t.gold },
+                  (!topic.trim() || loading) && s.generateBtnDisabled,
+                ]}
+                onPress={generate}
+                disabled={!topic.trim() || loading}
                 activeOpacity={0.8}
               >
-                <Ionicons name="chatbubbles-outline" size={18} color={t.gold} />
-                <Text style={[s.talkBtnText, { color: t.gold }]}>Talk to the Scripture</Text>
+                {loading
+                  ? <ActivityIndicator color={t.bg} size="small" />
+                  : <Text style={[s.generateBtnText, { color: t.bg }]}>✦  Generate Devotion</Text>
+                }
               </TouchableOpacity>
 
-              {/* Body — directly on background */}
-              <View style={s.bareSection}>
-                {devotion.devotionalBody.map((para, i) => (
-                  <Text
-                    key={i}
-                    style={[s.bodyPara, { fontSize: reader.fontSize, color: t.text }, i < devotion.devotionalBody.length - 1 && s.bodyParaGap]}
-                  >{para}</Text>
-                ))}
-              </View>
+              {error ? (
+                <Text style={[s.errorNote, { color: t.textMuted }]}>{error}</Text>
+              ) : null}
+            </View>
 
-              <View style={[s.divider, { backgroundColor: t.divider }]} />
-
-              {/* Life Application — directly on background */}
-              <View style={s.bareSection}>
-                <View style={s.sectionTitleRow}>
-                  <Text style={s.sectionIcon}>🌱</Text>
-                  <Text style={[s.sectionTitle, { color: t.textMuted }]}>LIFE APPLICATION</Text>
-                </View>
-                <Text style={[s.sectionBody, { fontSize: reader.fontSize, color: t.text }]}>{devotion.lifeApplication}</Text>
-              </View>
-
-              <View style={[s.divider, { backgroundColor: t.divider }]} />
-
-              {/* Reflection — directly on background */}
-              <View style={s.bareSection}>
-                <View style={s.sectionTitleRow}>
-                  <Text style={s.sectionIcon}>💭</Text>
-                  <Text style={[s.sectionTitle, { color: t.gold }]}>REFLECT</Text>
-                </View>
-                <Text style={[s.sectionBody, { fontSize: reader.fontSize, color: t.textSub, fontStyle: 'italic' }]}>
-                  {devotion.reflectionQuestion}
-                </Text>
-              </View>
-
-              <View style={[s.divider, { backgroundColor: t.divider }]} />
-
-              {/* Prayer — directly on background */}
-              <View style={s.bareSection}>
-                <View style={s.sectionTitleRow}>
-                  <Text style={s.sectionIcon}>🙏</Text>
-                  <Text style={[s.sectionTitle, { color: t.textMuted }]}>GUIDED PRAYER</Text>
-                </View>
-                <Text style={[s.sectionBody, { fontSize: reader.fontSize, color: t.textSub, fontStyle: 'italic' }]}>
-                  {devotion.guidedPrayer}
-                </Text>
-              </View>
-
-              {/* Quote — inline gold text, no card */}
-              <Text style={[s.quoteText, { color: t.gold }]}>{devotion.shareableQuote}</Text>
-
-              {/* Actions */}
-              <View style={s.actionRow}>
-                <TouchableOpacity
-                  style={[
-                    s.completeBtn,
-                    { borderColor: t.cardBorder, backgroundColor: t.card },
-                  ]}
-                  onPress={handleMarkComplete}
-                  disabled={markedToday}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons
-                    name={markedToday ? 'checkmark-circle' : 'checkmark-circle-outline'}
-                    size={18}
-                    color={markedToday ? t.gold : t.textSub}
-                  />
-                  <Text style={[s.completeBtnText, { color: markedToday ? t.gold : t.text }]}>
-                    {markedToday ? 'Completed ✓' : 'Mark Complete'}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[s.journalBtn, { borderColor: t.cardBorder, backgroundColor: t.card }]}
-                  onPress={saveToJournal}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="journal-outline" size={18} color={t.textSub} />
-                  <Text style={[s.journalBtnText, { color: t.text }]}>Save to Journal</Text>
-                </TouchableOpacity>
-              </View>
-
-            </>
-          )}
-
-          {/* Streak + Breathing */}
-          <StreakBoard
-            refreshTrigger={streakTrigger}
-            gold={t.gold} goldBg={t.goldBg} goldBorder={t.goldBorder}
-            text={t.text} textMuted={t.textMuted}
-            weekCircleBg={t.weekCircleBg} weekCircleBorder={t.weekCircleBorder}
-            weekCircleActiveBg={t.weekCircleActiveBg}
-            card={t.card} cardBorder={t.cardBorder}
-          />
-          <BreathingTimer
-            gold={t.gold} goldBg={t.goldBg} goldBorder={t.goldBorder}
-            card={t.card} text={t.text} textMuted={t.textMuted}
-          />
+          </View>
         </ScrollView>
       </SafeAreaView>
     </View>
   );
 }
 
-// ─── Styles ──────────────────────────────────────────────────────────────────
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  safe: { flex: 1 },
+  safe:        { flex: 1 },
+  scrollContent: { paddingBottom: 130 },
+  contentArea:   { paddingHorizontal: 18, paddingTop: 24, gap: 20 },
 
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  backBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    borderWidth: 1, alignItems: 'center', justifyContent: 'center',
-  },
-  headerTitle: {
-    flex: 1, textAlign: 'center',
-    fontSize: 11, fontWeight: '700', letterSpacing: 1.8,
-  },
+  // Bare sections — no card, sits directly on background
+  bareSection: { gap: 16 },
+  divider:     { height: StyleSheet.hairlineWidth, marginVertical: 4 },
 
-  scrollContent: { paddingHorizontal: 18, paddingBottom: 130, gap: 14 },
-
-  // Bare content — no card, sits directly on background
-  bareSection: { gap: 10 },
-  divider: { height: StyleSheet.hairlineWidth, marginVertical: 2 },
-
-  // Shared card base
+  // Shared card
   card: {
-    borderRadius: 16, padding: 18,
-    gap: 12,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
+    borderRadius: 16, padding: 18, gap: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
   },
 
   // Topic
   topicCardLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1.6 },
-  tagsScroll: { marginHorizontal: -18 },
-  tagsRow: { paddingHorizontal: 18, gap: 8 },
+  tagsScroll:     { marginHorizontal: -18 },
+  tagsRow:        { paddingHorizontal: 18, gap: 8 },
   tagChip: {
     paddingHorizontal: 14, paddingVertical: 7,
     borderRadius: 20, borderWidth: 1,
   },
-  tagChipText: { fontSize: 13, fontWeight: '600' },
-  translationRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  translationLabel: { fontSize: 11, fontWeight: '600' },
-  transBtn: {
-    paddingHorizontal: 14, paddingVertical: 6,
-    borderRadius: 10, borderWidth: 1,
-  },
-  transBtnText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.4 },
-  generateBtn: { borderRadius: 14, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
+  tagChipText:         { fontSize: 13, fontWeight: '600' },
+  generateBtn:         { borderRadius: 14, paddingVertical: 15, alignItems: 'center', justifyContent: 'center' },
   generateBtnDisabled: { opacity: 0.4 },
-  generateBtnText: { fontSize: 15, fontWeight: '700', letterSpacing: 0.3 },
-  errorNote: { fontSize: 12, textAlign: 'center' },
+  generateBtnText:     { fontSize: 15, fontWeight: '700', letterSpacing: 0.3 },
+  errorNote:           { fontSize: 12, textAlign: 'center' },
 
   // Scripture card
   scriptureCard: {
-    borderRadius: 16, padding: 20, gap: 12,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
+    borderRadius: 16, padding: 20, gap: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
   },
-  devotionTitle: { fontSize: 20, fontWeight: '700', lineHeight: 27 },
+  devotionTitle: { fontSize: 21, fontWeight: '700', lineHeight: 28, letterSpacing: -0.3 },
   themeBadge: {
     alignSelf: 'flex-start', borderRadius: 6, borderWidth: 1,
     paddingHorizontal: 10, paddingVertical: 4,
   },
   themeBadgeText: { fontSize: 10, fontWeight: '800', letterSpacing: 1.2 },
-  refText: { fontSize: 13, fontWeight: '700' },
-  scriptureBody: { fontSize: 15, lineHeight: 24, fontStyle: 'italic' },
+  refText:        { fontSize: 13, fontWeight: '700' },
+  scriptureBody:  { fontSize: 15, lineHeight: 26, fontStyle: 'italic' },
 
   // Reader controls
   readerControls: {
-    flexDirection: 'row', borderRadius: 14,
+    flexDirection: 'row', borderRadius: 14, borderWidth: StyleSheet.hairlineWidth,
   },
   readerBtn: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
@@ -577,25 +677,29 @@ const s = StyleSheet.create({
   },
   readerBtnLabel: { fontSize: 10, fontWeight: '600', letterSpacing: 0.4 },
 
-  // Body
-  bodyPara: { lineHeight: 26 },
-  bodyParaGap: { marginBottom: 14 },
+  // Talk to Scripture
+  talkBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 14,
+  },
+  talkBtnText: { fontSize: 15, fontWeight: '600', letterSpacing: 0.2 },
 
-  // Sections
-  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionIcon: { fontSize: 16 },
-  sectionTitle: { fontSize: 10, fontWeight: '800', letterSpacing: 1.6 },
-  sectionBody: { lineHeight: 24 },
+  // Body text
+  bodyPara:    { lineHeight: 27 },
+  bodyParaGap: { marginBottom: 16 },
+
+  // Section labels
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  sectionTitle:    { fontSize: 10, fontWeight: '800', letterSpacing: 1.6 },
+  sectionBody:     { lineHeight: 25 },
 
   // Quote
-  quoteCard: {
-    borderRadius: 16, borderWidth: 1, padding: 18,
-    alignItems: 'center',
-  },
-  quoteText: { fontSize: 14, lineHeight: 22, textAlign: 'center', fontStyle: 'italic' },
+  quoteBlock: { borderLeftWidth: 2, paddingLeft: 18, paddingVertical: 4 },
+  quoteText:  { fontSize: 14, lineHeight: 22, fontStyle: 'italic' },
 
-  // Action row
-  actionRow: { flexDirection: 'row', gap: 10 },
+  // Action buttons
+  actionRow:   { flexDirection: 'row', gap: 10 },
   completeBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center',
     justifyContent: 'center', gap: 8, borderWidth: 1,
@@ -609,45 +713,43 @@ const s = StyleSheet.create({
   },
   journalBtnText: { fontSize: 14, fontWeight: '600' },
 
-  talkBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, borderRadius: 14,
-    paddingVertical: 14, marginTop: 10,
-  },
-  talkBtnText: { fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },
-
   // Streak
-  streakTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sectionLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1.6 },
-  streakLine: { fontSize: 14, fontWeight: '600', marginTop: 4 },
+  streakTopRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  streakLineRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4 },
+  sectionLabel:  { fontSize: 10, fontWeight: '700', letterSpacing: 1.6 },
+  streakLine:    { fontSize: 14, fontWeight: '600' },
   streakBadge: {
-    alignItems: 'center', borderRadius: 10, borderWidth: 1,
+    alignItems: 'center', borderRadius: 10, borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 14, paddingVertical: 6,
   },
   streakBadgeNum: { fontSize: 20, fontWeight: '800' },
   streakBadgeLbl: { fontSize: 9, fontWeight: '600', letterSpacing: 0.8 },
-  weekRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  dayCol: { alignItems: 'center', gap: 6 },
-  dayLabel: { fontSize: 10, fontWeight: '600' },
+  weekRow:        { flexDirection: 'row', justifyContent: 'space-between' },
+  dayCol:         { alignItems: 'center', gap: 6 },
+  dayLabel:       { fontSize: 10, fontWeight: '600' },
   dayCircle: {
     width: 34, height: 34, borderRadius: 17,
     borderWidth: 1, alignItems: 'center', justifyContent: 'center',
   },
   dayNum: { fontSize: 12, fontWeight: '600' },
-  dayCheck: { fontSize: 14 },
 
   // Breathing
-  breathSubtitle: { fontSize: 12, marginTop: 2, marginBottom: 8 },
-  breathCircleWrap: { width: 140, height: 140, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginVertical: 8 },
+  breathSubtitle:   { fontSize: 12, marginTop: 2, marginBottom: 8 },
+  breathCircleWrap: {
+    width: 140, height: 140,
+    alignItems: 'center', justifyContent: 'center',
+    alignSelf: 'center', marginVertical: 8,
+  },
   breathRingOuter: {
-    position: 'absolute', width: 140, height: 140, borderRadius: 70, borderWidth: 1,
+    position: 'absolute', width: 140, height: 140,
+    borderRadius: 70, borderWidth: 1,
   },
   breathCircle: {
     width: 90, height: 90, borderRadius: 45,
     borderWidth: 1, alignItems: 'center', justifyContent: 'center',
   },
   breathPhaseLabel: { fontSize: 13, fontWeight: '700' },
-  breathCountdown: { fontSize: 24, fontWeight: '800', marginTop: -2 },
+  breathCountdown:  { fontSize: 24, fontWeight: '800', marginTop: -2 },
   breathBtn: {
     alignSelf: 'center', marginTop: 8,
     paddingHorizontal: 36, paddingVertical: 11,
