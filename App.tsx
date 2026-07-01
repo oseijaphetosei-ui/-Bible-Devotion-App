@@ -25,6 +25,7 @@ import { BlurView } from 'expo-blur';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { navigationRef } from './src/navigation/navigationRef';
 import { initializeNotifications } from './src/services/notificationService';
+import { flushPendingNavigation } from './src/services/NotificationNavigationService';
 import OnboardingFlow from './src/screens/Onboarding/OnboardingFlow';
 
 import HomeScreen from './src/screens/Home/HomeScreen';
@@ -52,10 +53,10 @@ import NoteEditorScreen from './src/screens/Notes/NoteEditorScreen';
 import DevotionScreen from './src/screens/Devotion/DevotionScreen';
 import ScriptureChatScreen from './src/screens/ScriptureChat/ScriptureChatScreen';
 import ScriptureInsightsScreen from './src/screens/ScriptureInsights/ScriptureInsightsScreen';
-import TodayJourneyScreen from './src/screens/Use/TodayJourneyScreen';
-import ReadingScreen from './src/screens/Use/ReadingScreen';
-import ReflectionScreen from './src/screens/Use/ReflectionScreen';
-import PlanLibraryScreen from './src/screens/Use/PlanLibraryScreen';
+import TodayJourneyScreen from './src/screens/ReadingPlan/TodayJourneyScreen';
+import ReadingScreen from './src/screens/ReadingPlan/ReadingScreen';
+import ReflectionScreen from './src/screens/ReadingPlan/ReflectionScreen';
+import PlanLibraryScreen from './src/screens/ReadingPlan/PlanLibraryScreen';
 import PrayerJournalScreen from './src/screens/Prayer/PrayerJournalScreen';
 import PrayerEditorScreen from './src/screens/Prayer/PrayerEditorScreen';
 import PrayerDetailScreen from './src/screens/Prayer/PrayerDetailScreen';
@@ -217,6 +218,18 @@ async function playChime() {
   // } catch {}
 }
 
+function CrossMark({ size = 52, color = GOLD }: { size?: number; color?: string }) {
+  const thick = Math.round(size * 0.108);
+  const hLen  = Math.round(size * 0.70);
+  const br    = thick / 2;
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ position: 'absolute', width: hLen, height: thick, backgroundColor: color, borderRadius: br }} />
+      <View style={{ position: 'absolute', width: thick, height: size, backgroundColor: color, borderRadius: br }} />
+    </View>
+  );
+}
+
 function AppSplashScreen({ onWillFade, onDone }: { onWillFade: () => void; onDone: () => void }) {
   // All native-driver: opacity + transform only
   const logoOpacity    = useRef(new Animated.Value(0)).current;
@@ -317,7 +330,7 @@ function AppSplashScreen({ onWillFade, onDone }: { onWillFade: () => void; onDon
         {/* Logo — bulges then settles downward */}
         <Animated.View style={{ opacity: logoOpacity, transform: [{ scale: logoScale }, { translateY: logoTranslateY }] }}>
           <View style={sp.iconWrap}>
-            <Ionicons name="book" size={52} color={GOLD} />
+            <CrossMark size={52} />
           </View>
         </Animated.View>
 
@@ -805,7 +818,7 @@ export default function App() {
           <SafeAreaProvider>
             {navReady && (
               <ErrorBoundary label="NavigationContainer">
-                <NavigationContainer ref={navigationRef}>
+                <NavigationContainer ref={navigationRef} onReady={flushPendingNavigation}>
                   <RootNavigator onboardingCompleted={onboardingCompleted!} />
                 </NavigationContainer>
               </ErrorBoundary>

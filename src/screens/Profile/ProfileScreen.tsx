@@ -165,8 +165,18 @@ export default function ProfileScreen() {
     );
   }, [rootNav]);
 
+  // Navigate to a specific HomeStack screen (must have valid params at the call site).
   const goHome = useCallback((screen: string) => {
     rootNav.navigate('MainTabs', { screen: 'HomeTab', params: { screen } });
+  }, [rootNav]);
+
+  // Navigate to the Home tab root — used when the target screen requires params
+  // that the caller cannot supply (e.g. ScriptureChat). Drop the nested `screen`
+  // so React Navigation resets to the tab's initial route rather than trying to
+  // mount a screen with missing props. When a parameter-free ScriptureChat entry
+  // point exists, swap this for a goHome('ScriptureChatLanding') call.
+  const goHomeTab = useCallback(() => {
+    rootNav.navigate('MainTabs', { screen: 'HomeTab' });
   }, [rootNav]);
 
   const handleAvatarPress = useCallback(() => {
@@ -303,7 +313,7 @@ export default function ProfileScreen() {
               <SettingRow
                 ionIcon="chatbubble-ellipses-outline" iconBg="#6C8AB022" iconColor="#6C8AB0"
                 label="Scripture Chat"
-                onPress={() => goHome('ScriptureChat')}
+                onPress={goHomeTab}
                 text={t.text} textMuted={t.textMuted} divider={t.divider}
               />
               <SettingRow

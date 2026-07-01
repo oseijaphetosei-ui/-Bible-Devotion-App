@@ -3,17 +3,13 @@ import type { AppRootParamList } from '../types/navigation';
 
 export const navigationRef = createNavigationContainerRef<AppRootParamList>();
 
-export type NotifScreen = 'Verse' | 'TodayJourney' | 'Devotion';
-
-export function navigateFromNotification(screen: NotifScreen) {
-  if (!navigationRef.isReady()) return;
-  navigationRef.dispatch(
-    CommonActions.navigate('MainTabs', {
-      screen: 'HomeTab',
-      params: { screen },
-    })
-  );
-}
+export type NotifScreen =
+  | 'Home'
+  | 'Verse'
+  | 'TodayJourney'
+  | 'Devotion'
+  | 'PrayerJournal'
+  | 'ScriptureInsights';
 
 export function navigateToNotificationSettings() {
   if (!navigationRef.isReady()) return;

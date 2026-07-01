@@ -6,12 +6,16 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
+    "icon": "./assets/icon.png",
     "splash": {
-      "backgroundColor": "#1F1C19"
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0D0A07"
     },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.japhet.dailydevotion",
+      "icon": "./assets/icon.png",
       "infoPlist": {
         "NSCameraUsageDescription": "Daily Devotion uses your camera to set your profile photo.",
         "NSPhotoLibraryUsageDescription": "Daily Devotion accesses your photo library so you can set a profile picture.",
@@ -21,7 +25,12 @@
     "android": {
       "package": "com.japhet.dailydevotion",
       "adaptiveIcon": {
-        "backgroundColor": "#1F1C19"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0D0A07"
+      },
+      "notification": {
+        "icon": "./assets/notification-icon.png",
+        "color": "#C9A96B"
       },
       "permissions": [
         "android.permission.CAMERA",

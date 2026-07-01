@@ -15,7 +15,8 @@ import {
   cancelAll,
 } from './notificationScheduler';
 import { getActivePlan, getPlanById, getTodayReading, isTodayCompleted } from './readingPlanService';
-import { navigateFromNotification, type NotifScreen } from '../navigation/navigationRef';
+import type { NotifScreen } from '../navigation/navigationRef';
+import { handleNotifNavigation } from './NotificationNavigationService';
 
 // ─── Foreground notification behaviour ───────────────────────────────────────
 
@@ -146,7 +147,7 @@ export function handleNotificationResponse(
   response: Notifications.NotificationResponse,
 ): void {
   const screen = response.notification.request.content.data?.screen as NotifScreen | undefined;
-  if (screen) navigateFromNotification(screen);
+  if (screen) handleNotifNavigation(screen);
 }
 
 // ─── Initialization (call once in App) ───────────────────────────────────────

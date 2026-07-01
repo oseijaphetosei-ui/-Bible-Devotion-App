@@ -117,7 +117,7 @@ export async function scheduleStreakReminder(
   }
 
   const payload = pickStreakTemplate(streak);
-  const content = makeContent(payload, 'TodayJourney', prefs.sound);
+  const content = makeContent(payload, 'Home', prefs.sound);
   await scheduleDaily(NOTIF_ID.streak, content, time.hour, time.minute);
 }
 
@@ -128,7 +128,7 @@ export async function schedulePrayerReminder(prefs: NotificationPrefs) {
     return;
   }
   const payload = pickPrayerTemplate();
-  const content = makeContent(payload, 'Devotion', prefs.sound);
+  const content = makeContent(payload, 'PrayerJournal', prefs.sound);
   await scheduleDaily(NOTIF_ID.prayer, content, time.hour, time.minute);
 }
 
