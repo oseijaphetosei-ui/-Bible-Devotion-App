@@ -6,8 +6,8 @@ import { ttsSpeak } from './appApi';
 // Must match the voice configured in functions/src/index.ts → ttsSpeak.
 // Bump TTS_CACHE_VERSION whenever the server voice or audio config changes so
 // stale cached files from the previous voice are never served again.
-export const TTS_VOICE_ID      = 'en-US-Neural2-D'; // warm, calm, masculine
-export const TTS_CACHE_VERSION = 'n2d';              // short token embedded in every filename
+export const TTS_VOICE_ID      = 'en-US-Studio-Q'; // natural male baritone (Studio tier)
+export const TTS_CACHE_VERSION = 'stq1';            // bump so old Neural2-D cache is discarded
 
 function safeName(key: string): string {
   return key.replace(/[^a-z0-9._-]/gi, '_');

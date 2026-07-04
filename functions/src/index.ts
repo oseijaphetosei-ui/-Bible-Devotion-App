@@ -240,14 +240,15 @@ Return ONLY valid JSON in this exact structure:
 // When changing the voice, also bump TTS_CACHE_VERSION in src/services/ttsService.ts
 // so clients discard cached audio from the previous voice.
 //
-// Voice profile: en-US-Neural2-D — warm, calm, masculine, professional.
-// Neural2 voices are high-fidelity WaveNet-based and sound natural for scripture reading.
+// Voice profile: en-US-Studio-Q — natural male baritone, clear and compassionate.
+// Studio voices are Google's highest-quality tier, purpose-built for long-form audio
+// (audiobooks, scripture) with natural prosody and accurate proper-noun pronunciation.
 // See: https://cloud.google.com/text-to-speech/docs/voices
 
 const TTS_VOICE_LANGUAGE = 'en-US';
-const TTS_VOICE_NAME     = 'en-US-Neural2-D'; // masculine; matches TTS_VOICE_ID in ttsService.ts
-const TTS_SPEAKING_RATE  = 0.92;              // slightly slower than default for clarity
-const TTS_PITCH          = -2.0;              // slightly lower for warmth and authority
+const TTS_VOICE_NAME     = 'en-US-Studio-Q';  // male Studio baritone for scripture; matches TTS_VOICE_ID in ttsService.ts
+const TTS_SPEAKING_RATE  = 0.87;              // measured pace for reflection
+const TTS_PITCH          = -3.0;              // baritone depth
 
 const ttsClient = new TextToSpeechClient();
 
