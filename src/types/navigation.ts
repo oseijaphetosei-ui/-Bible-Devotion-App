@@ -20,6 +20,8 @@ export type HomeStackParamList = {
   PrayerEditor: { prayerId?: string; prefillVerse?: { label: string; text: string }; prefillContent?: string } | undefined;
   PrayerDetail: { prayerId: string };
   PrayerAnswered: { prayerId: string };
+  Hymns: undefined;
+  HymnReader: { hymnId: string };
 };
 
 export type BibleStackParamList = {

@@ -24,12 +24,33 @@ type NavProp = NativeStackNavigationProp<CommunityStackParamList, 'Community'>;
 
 const HEADER_H = 60;
 
+const SECTION_TITLES: Record<FeedFilter, string> = {
+  all:       'COMMUNITY FEED',
+  trending:  'TRENDING',
+  recent:    'RECENT',
+  prayer:    'PRAYER REQUESTS',
+  bible:     'BIBLE DISCUSSIONS',
+  testimony: 'TESTIMONIES',
+  question:  'QUESTIONS & ANSWERS',
+  groups:    'COMMUNITY FEED',
+};
+
+const CATEGORY_FILTER_MAP: Record<string, FeedFilter> = {
+  prayer:        'prayer',
+  bible:         'bible',
+  testimonies:   'testimony',
+  encouragement: 'all',
+  questions:     'question',
+  challenges:    'all',
+  groups:        'groups',
+};
+
 // ── Time formatting ────────────────────────────────────────────────────────────
 
 function relativeTime(ts: number): string {
   const diff = (Date.now() - ts) / 1000;
-  if (diff < 60)   return 'just now';
-  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+  if (diff < 60)    return 'just now';
+  if (diff < 3600)  return `${Math.floor(diff / 60)}m`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
   return `${Math.floor(diff / 86400)}d`;
 }
@@ -37,17 +58,28 @@ function relativeTime(ts: number): string {
 // ── Category card ──────────────────────────────────────────────────────────────
 
 const CategoryCard = memo(function CategoryCard({
-  cat, cardBg, cardBorder, text,
-}: { cat: typeof COMMUNITY_CATEGORIES[number]; cardBg: string; cardBorder: string; text: string }) {
+  cat, cardBg, cardBorder, text, active, onPress,
+}: {
+  cat: typeof COMMUNITY_CATEGORIES[number];
+  cardBg: string; cardBorder: string; text: string;
+  active: boolean;
+  onPress: () => void;
+}) {
   return (
     <TouchableOpacity
-      style={[cc.card, { backgroundColor: cardBg, borderColor: cardBorder }]}
-      activeOpacity={0.78}
+      style={[
+        cc.card,
+        { backgroundColor: cardBg, borderColor: active ? cat.color + 'BB' : cardBorder },
+      ]}
+      activeOpacity={0.72}
+      onPress={onPress}
     >
       <View style={[cc.iconCircle, { backgroundColor: cat.color + '22', borderColor: cat.color + '44' }]}>
         <Text style={cc.icon}>{cat.icon}</Text>
       </View>
-      <Text style={[cc.label, { color: text }]} numberOfLines={2}>{cat.label}</Text>
+      <Text style={[cc.label, { color: active ? cat.color : text }]} numberOfLines={2}>
+        {cat.label}
+      </Text>
     </TouchableOpacity>
   );
 });
@@ -127,12 +159,10 @@ const PostCard = memo(function PostCard({
         </View>
       ) : null}
 
-      {/* Divider */}
       <View style={[pc.divider, { backgroundColor: divider }]} />
 
       {/* Action bar */}
       <View style={pc.actions}>
-        {/* React toggle */}
         <TouchableOpacity
           style={[pc.actionBtn, post.userReaction && { backgroundColor: goldBg }]}
           onPress={() => setShowReactions(v => !v)}
@@ -148,7 +178,6 @@ const PostCard = memo(function PostCard({
           )}
         </TouchableOpacity>
 
-        {/* Prayer (for prayer posts) */}
         {post.type === 'prayer' && (
           <TouchableOpacity
             style={[pc.actionBtn, post.userPraying && { backgroundColor: '#7BA8C822' }]}
@@ -164,7 +193,6 @@ const PostCard = memo(function PostCard({
           </TouchableOpacity>
         )}
 
-        {/* Comment */}
         <TouchableOpacity style={pc.actionBtn} onPress={onPress} activeOpacity={0.7}>
           <Ionicons name="chatbubble-outline" size={16} color={textMuted} />
           {post.commentCount > 0 && (
@@ -217,32 +245,29 @@ const pc = StyleSheet.create({
   scriptureRef: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     borderWidth: 1, borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 5,
-    marginBottom: 10,
+    paddingHorizontal: 10, paddingVertical: 5, marginBottom: 10,
   },
   scriptureIcon: { fontSize: 12 },
   scriptureText: { fontSize: 12, fontWeight: '700' },
-  content: { fontSize: 14, lineHeight: 22 },
+  content:      { fontSize: 14, lineHeight: 22 },
   answeredBadge: {
     marginTop: 8, borderWidth: 1, borderRadius: 8,
     paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start',
   },
-  divider: { height: 1, marginVertical: 12 },
-  actions: { flexDirection: 'row', gap: 6 },
+  divider:     { height: 1, marginVertical: 12 },
+  actions:     { flexDirection: 'row', gap: 6 },
   actionBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 10, paddingVertical: 6,
-    borderRadius: 20,
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20,
   },
-  actionEmoji: { fontSize: 15 },
-  actionCount: { fontSize: 12, fontWeight: '600' },
+  actionEmoji:  { fontSize: 15 },
+  actionCount:  { fontSize: 12, fontWeight: '600' },
   reactionRow: {
     flexDirection: 'row', gap: 4,
     marginTop: 8, borderWidth: 1,
-    borderRadius: 24, padding: 6,
-    alignSelf: 'flex-start',
+    borderRadius: 24, padding: 6, alignSelf: 'flex-start',
   },
-  reactionBtn: { padding: 6, borderRadius: 18 },
+  reactionBtn:   { padding: 6, borderRadius: 18 },
   reactionEmoji: { fontSize: 20 },
 });
 
@@ -257,7 +282,7 @@ const GroupCard = memo(function GroupCard({
 }) {
   return (
     <View style={[gc.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-      <View style={gc.iconWrap}>
+      <View style={[gc.iconWrap, { backgroundColor: gold + '18' }]}>
         <Text style={gc.icon}>{group.icon}</Text>
       </View>
       <View style={gc.info}>
@@ -266,15 +291,17 @@ const GroupCard = memo(function GroupCard({
         <Text style={[gc.count, { color: textMuted }]}>{group.memberCount.toLocaleString()} members</Text>
       </View>
       <TouchableOpacity
-        style={[gc.joinBtn,
+        style={[
+          gc.joinBtn,
           group.joined
-            ? { backgroundColor: goldBg, borderColor: goldBorder }
-            : { backgroundColor: goldBg, borderColor: goldBorder }
+            ? { backgroundColor: 'transparent', borderColor: cardBorder }
+            : { backgroundColor: goldBg, borderColor: goldBorder },
         ]}
         onPress={onJoin}
-        activeOpacity={0.78}
+        activeOpacity={group.joined ? 1 : 0.78}
+        disabled={group.joined}
       >
-        <Text style={[gc.joinText, { color: gold }]}>
+        <Text style={[gc.joinText, { color: group.joined ? textMuted : gold }]}>
           {group.joined ? 'Joined ✓' : 'Join'}
         </Text>
       </TouchableOpacity>
@@ -290,9 +317,9 @@ const gc = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 3, elevation: 1,
   },
-  iconWrap: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(201,169,107,0.15)', alignItems: 'center', justifyContent: 'center' },
-  icon: { fontSize: 22 },
-  info: { flex: 1 },
+  iconWrap: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  icon:  { fontSize: 22 },
+  info:  { flex: 1 },
   name:  { fontSize: 14, fontWeight: '700' },
   desc:  { fontSize: 12, marginTop: 2 },
   count: { fontSize: 11, marginTop: 2 },
@@ -303,37 +330,36 @@ const gc = StyleSheet.create({
   joinText: { fontSize: 12, fontWeight: '700' },
 });
 
-// ── Compose dropdown ───────────────────────────────────────────────────────────
+// ── Compose options ────────────────────────────────────────────────────────────
 
 const POST_OPTIONS: { key: string; label: string; icon: string }[] = [
-  { key: 'post',      label: 'Share a Thought',         icon: '💬' },
-  { key: 'testimony', label: 'Share Testimony',          icon: '✨' },
-  { key: 'prayer',    label: 'Prayer Request',           icon: '🙏' },
-  { key: 'question',  label: 'Ask a Question',           icon: '❓' },
-  { key: 'scripture', label: 'Scripture Discussion',     icon: '📖' },
+  { key: 'post',      label: 'Share a Thought',     icon: '💬' },
+  { key: 'testimony', label: 'Share Testimony',      icon: '✨' },
+  { key: 'prayer',    label: 'Prayer Request',       icon: '🙏' },
+  { key: 'question',  label: 'Ask a Question',       icon: '❓' },
+  { key: 'scripture', label: 'Scripture Discussion', icon: '📖' },
 ];
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 
 export default function CommunityScreen() {
-  const t  = useTheme();
+  const t          = useTheme();
   const navigation = useNavigation<NavProp>();
 
-  const [posts,     setPosts]     = useState<Post[]>([]);
-  const [groups,    setGroups]    = useState<Group[]>([]);
-  const [filter,    setFilter]    = useState<FeedFilter>('all');
-  const [loading,   setLoading]   = useState(true);
-  const [query,     setQuery]     = useState('');
-  const [isSearching, setIsSearching] = useState(false);
+  const [posts,         setPosts]         = useState<Post[]>([]);
+  const [groups,        setGroups]        = useState<Group[]>([]);
+  const [filter,        setFilter]        = useState<FeedFilter>('all');
+  const [loading,       setLoading]       = useState(true);
+  const [query,         setQuery]         = useState('');
+  const [isSearching,   setIsSearching]   = useState(false);
   const [searchResults, setSearchResults] = useState<Post[]>([]);
-  const [showCompose, setShowCompose] = useState(false);
+  const [showCompose,   setShowCompose]   = useState(false);
 
-  const headerAnim    = useRef(new Animated.Value(1)).current;
-  const composeAnim   = useRef(new Animated.Value(0)).current;
+  const headerAnim     = useRef(new Animated.Value(1)).current;
+  const composeAnim    = useRef(new Animated.Value(0)).current;
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const unsubRef      = useRef<(() => void) | null>(null);
+  const unsubRef       = useRef<(() => void) | null>(null);
 
-  // Subscribe to posts
   useEffect(() => {
     if (filter === 'groups') {
       setLoading(true);
@@ -342,8 +368,7 @@ export default function CommunityScreen() {
     }
     setLoading(true);
     if (unsubRef.current) { unsubRef.current(); unsubRef.current = null; }
-    const filterArg = (filter === 'recent' ? 'recent' : filter) as any;
-    unsubRef.current = subscribeToPosts(filterArg, (data) => {
+    unsubRef.current = subscribeToPosts(filter as any, (data) => {
       setPosts(data);
       setLoading(false);
     });
@@ -351,11 +376,7 @@ export default function CommunityScreen() {
   }, [filter]);
 
   const onSearchActiveChange = useCallback((active: boolean) => {
-    Animated.timing(headerAnim, {
-      toValue: active ? 0 : 1,
-      duration: 250,
-      useNativeDriver: false,
-    }).start();
+    Animated.timing(headerAnim, { toValue: active ? 0 : 1, duration: 250, useNativeDriver: false }).start();
     setIsSearching(active);
     if (!active) { setQuery(''); setSearchResults([]); }
   }, [headerAnim]);
@@ -365,8 +386,7 @@ export default function CommunityScreen() {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     if (!text.trim()) { setSearchResults([]); return; }
     searchTimerRef.current = setTimeout(async () => {
-      const results = await searchPosts(text);
-      setSearchResults(results);
+      setSearchResults(await searchPosts(text));
     }, 300);
   }, []);
 
@@ -375,19 +395,17 @@ export default function CommunityScreen() {
     setPosts(prev => prev.map(p => {
       if (p.id !== postId) return p;
       const prev2 = p.userReaction;
-      const newReactions = { ...p.reactions };
-      if (prev2 === reaction) { newReactions[prev2] = Math.max(0, newReactions[prev2] - 1); return { ...p, reactions: newReactions, userReaction: undefined }; }
-      if (prev2) newReactions[prev2] = Math.max(0, newReactions[prev2] - 1);
-      newReactions[reaction as any] = (newReactions[reaction as any] ?? 0) + 1;
-      return { ...p, reactions: newReactions, userReaction: reaction as any };
+      const updated = { ...p.reactions };
+      if (prev2 === reaction) { updated[prev2] = Math.max(0, updated[prev2] - 1); return { ...p, reactions: updated, userReaction: undefined }; }
+      if (prev2) updated[prev2] = Math.max(0, updated[prev2] - 1);
+      updated[reaction as any] = (updated[reaction as any] ?? 0) + 1;
+      return { ...p, reactions: updated, userReaction: reaction as any };
     }));
   }, []);
 
   const handlePray = useCallback(async (postId: string) => {
     const wasNew = await prayForPost(postId);
-    if (wasNew) {
-      setPosts(prev => prev.map(p => p.id !== postId ? p : { ...p, prayerCount: p.prayerCount + 1, userPraying: true }));
-    }
+    if (wasNew) setPosts(prev => prev.map(p => p.id !== postId ? p : { ...p, prayerCount: p.prayerCount + 1, userPraying: true }));
   }, []);
 
   const handleJoinGroup = useCallback(async (groupId: string) => {
@@ -396,11 +414,9 @@ export default function CommunityScreen() {
   }, []);
 
   const toggleCompose = useCallback(() => {
-    const toValue = showCompose ? 0 : 1;
-    setShowCompose(v => !v);
-    Animated.spring(composeAnim, {
-      toValue, tension: 200, friction: 20, useNativeDriver: true,
-    }).start();
+    const next = !showCompose;
+    setShowCompose(next);
+    Animated.spring(composeAnim, { toValue: next ? 1 : 0, tension: 200, friction: 20, useNativeDriver: true }).start();
   }, [showCompose, composeAnim]);
 
   const closeCompose = useCallback(() => {
@@ -408,12 +424,53 @@ export default function CommunityScreen() {
     Animated.spring(composeAnim, { toValue: 0, tension: 200, friction: 20, useNativeDriver: true }).start();
   }, [composeAnim]);
 
+  const handleCategoryPress = useCallback((categoryId: string) => {
+    setFilter(CATEGORY_FILTER_MAP[categoryId] ?? 'all');
+  }, []);
+
   const displayedPosts = isSearching && query ? searchResults : posts;
 
-  // ── ListHeaderComponent ──
+  // ── Empty states ──────────────────────────────────────────────────────────
+
+  const PostEmptyState = useCallback(() => {
+    const icons: Partial<Record<FeedFilter, string>> = {
+      prayer: '🙏', testimony: '✨', question: '❓', bible: '📖',
+    };
+    const emoji = isSearching ? '🔍' : (icons[filter] ?? '🌿');
+    const title = isSearching ? 'No results found' : 'Be the first to share';
+    const sub   = isSearching
+      ? `Nothing matched "${query}". Try different words.`
+      : 'Share a prayer, testimony, or thought with the community.';
+    return (
+      <View style={s.emptyState}>
+        <View style={[s.emptyIconWrap, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}>
+          <Text style={s.emptyEmoji}>{emoji}</Text>
+        </View>
+        <Text style={[s.emptyTitle, { color: t.text }]}>{title}</Text>
+        <Text style={[s.emptySub, { color: t.textSub }]}>{sub}</Text>
+        {!isSearching && (
+          <Text style={[s.emptyHint, { color: t.textMuted }]}>Tap + to start a conversation</Text>
+        )}
+      </View>
+    );
+  }, [t, filter, isSearching, query, toggleCompose]);
+
+  const GroupEmptyState = useCallback(() => (
+    <View style={s.emptyState}>
+      <View style={[s.emptyIconWrap, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}>
+        <Text style={s.emptyEmoji}>👥</Text>
+      </View>
+      <Text style={[s.emptyTitle, { color: t.text }]}>No groups yet</Text>
+      <Text style={[s.emptySub, { color: t.textSub }]}>
+        Groups are coming soon. Check back to find communities to join.
+      </Text>
+    </View>
+  ), [t]);
+
+  // ── List header (category grid + section title) ────────────────────────────
+
   const ListHeader = useCallback(() => (
     <View>
-      {/* Category grid */}
       <Text style={[s.sectionTitle, { color: t.textMuted }]}>EXPLORE TOPICS</Text>
       <FlatList
         data={COMMUNITY_CATEGORIES}
@@ -421,20 +478,26 @@ export default function CommunityScreen() {
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={s.catList}
-        renderItem={({ item }) => (
-          <CategoryCard
-            cat={item}
-            cardBg={t.card}
-            cardBorder={t.cardBorder}
-            text={t.text}
-          />
-        )}
+        renderItem={({ item }) => {
+          const mapped = CATEGORY_FILTER_MAP[item.id] ?? 'all';
+          const active = filter === mapped && mapped !== 'all';
+          return (
+            <CategoryCard
+              cat={item}
+              cardBg={t.card}
+              cardBorder={t.cardBorder}
+              text={t.text}
+              active={active}
+              onPress={() => handleCategoryPress(item.id)}
+            />
+          );
+        }}
       />
       <Text style={[s.sectionTitle, { color: t.textMuted, marginTop: 20 }]}>
-        {filter === 'trending' ? 'TRENDING' : filter === 'prayer' ? 'PRAYER REQUESTS' : filter === 'bible' ? 'BIBLE DISCUSSIONS' : 'COMMUNITY FEED'}
+        {SECTION_TITLES[filter]}
       </Text>
     </View>
-  ), [t, filter]);
+  ), [t, filter, handleCategoryPress]);
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
@@ -471,7 +534,7 @@ export default function CommunityScreen() {
           style={{ marginBottom: 4 }}
         />
 
-        {/* Filter chips (hidden when searching) */}
+        {/* Filter chips */}
         {!isSearching && (
           <View style={s.filterScroll}>
             <FlatList
@@ -516,6 +579,7 @@ export default function CommunityScreen() {
             ListHeaderComponent={() => (
               <Text style={[s.sectionTitle, { color: t.textMuted }]}>DISCOVER GROUPS</Text>
             )}
+            ListEmptyComponent={<GroupEmptyState />}
             renderItem={({ item }) => (
               <GroupCard
                 group={item}
@@ -539,14 +603,7 @@ export default function CommunityScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             ListHeaderComponent={!isSearching ? ListHeader : undefined}
-            ListEmptyComponent={
-              <View style={s.center}>
-                <Text style={s.emptyIcon}>🌟</Text>
-                <Text style={[s.emptyTitle, { color: t.text }]}>
-                  {isSearching ? 'No results found' : 'Be the first to post'}
-                </Text>
-              </View>
-            }
+            ListEmptyComponent={<PostEmptyState />}
             renderItem={({ item }) => (
               <PostCard
                 post={item}
@@ -609,8 +666,7 @@ const s = StyleSheet.create({
 
   header: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 20, paddingVertical: 10,
-    gap: 14,
+    paddingHorizontal: 20, paddingVertical: 10, gap: 14,
   },
   headerTitle: { fontSize: 26, fontWeight: '700', letterSpacing: -0.3, flex: 1 },
   composeBtn: {
@@ -619,36 +675,40 @@ const s = StyleSheet.create({
   },
 
   filterScroll: { marginBottom: 8 },
-  filterList:  { paddingHorizontal: 18, gap: 8 },
+  filterList:   { paddingHorizontal: 18, gap: 8 },
   chip: {
     paddingHorizontal: 14, paddingVertical: 7,
     borderRadius: 20, borderWidth: 1,
   },
   chipText: { fontSize: 12, fontWeight: '600' },
 
-  list: { paddingHorizontal: 18, paddingBottom: 120 },
+  list:         { paddingHorizontal: 18, paddingBottom: 120 },
+  sectionTitle: { fontSize: 10, fontWeight: '800', letterSpacing: 1.2, paddingHorizontal: 2, marginBottom: 12 },
+  catList:      { paddingBottom: 4, gap: 10 },
+  center:       { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
 
-  sectionTitle: {
-    fontSize: 10, fontWeight: '800', letterSpacing: 1.2,
-    paddingHorizontal: 2, marginBottom: 12,
+  // ── Empty states ──────────────────────────────────────────────────────────
+  emptyState: {
+    alignItems: 'center', paddingTop: 56,
+    paddingHorizontal: 36, paddingBottom: 40,
   },
-  catList: { paddingBottom: 4, gap: 10 },
+  emptyIconWrap: {
+    width: 72, height: 72, borderRadius: 36,
+    borderWidth: 1, alignItems: 'center', justifyContent: 'center',
+    marginBottom: 20,
+  },
+  emptyEmoji:   { fontSize: 30 },
+  emptyTitle:   { fontSize: 20, fontWeight: '700', marginBottom: 8, textAlign: 'center' },
+  emptySub:  { fontSize: 14, lineHeight: 22, textAlign: 'center', marginBottom: 8 },
+  emptyHint: { fontSize: 13, textAlign: 'center' },
 
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
-  emptyIcon:  { fontSize: 44, marginBottom: 8 },
-  emptyTitle: { fontSize: 16, fontWeight: '700' },
-
+  // ── Compose dropdown ──────────────────────────────────────────────────────
   dropBackdrop: { ...StyleSheet.absoluteFillObject, zIndex: 100 },
   dropdown: {
-    position: 'absolute',
-    top: HEADER_H - 8,
-    right: 20,
-    borderRadius: 14, borderWidth: 1,
-    paddingVertical: 6,
-    minWidth: 200,
+    position: 'absolute', top: HEADER_H - 8, right: 20,
+    borderRadius: 14, borderWidth: 1, paddingVertical: 6, minWidth: 200,
     shadowColor: '#000', shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12, shadowRadius: 16, elevation: 10,
-    zIndex: 101,
+    shadowOpacity: 0.12, shadowRadius: 16, elevation: 10, zIndex: 101,
   },
   dropItem: {
     flexDirection: 'row', alignItems: 'center', gap: 12,

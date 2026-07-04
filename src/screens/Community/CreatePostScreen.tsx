@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, Alert,
   StatusBar, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -39,8 +39,12 @@ export default function CreatePostScreen() {
         scriptureRef: type === 'scripture' ? scripture.trim() : undefined,
       });
       navigation.goBack();
-    } catch {
+    } catch (err: any) {
       setPosting(false);
+      const msg = err?.code === 'permission-denied'
+        ? 'Sign-in is still loading. Wait a moment and try again.'
+        : 'Could not post. Please check your connection and try again.';
+      Alert.alert('Post failed', msg);
     }
   };
 

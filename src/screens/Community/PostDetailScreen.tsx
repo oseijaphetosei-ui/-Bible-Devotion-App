@@ -7,8 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useTheme } from '../../theme';
-import { subscribeToComments, addComment, reactToPost, prayForPost, markAnswered } from '../../services/communityService';
-import { SAMPLE_POSTS } from '../../types/community';
+import { subscribeToPost, subscribeToComments, addComment, reactToPost, prayForPost, markAnswered } from '../../services/communityService';
 import { REACTIONS, REACTION_META, POST_TYPE_META } from '../../types/community';
 import type { Post, Comment, ReactionType } from '../../types/community';
 import { CommunityStackParamList } from '../../types/navigation';
@@ -39,16 +38,18 @@ export default function PostDetailScreen() {
   const inputRef = useRef<TextInput>(null);
   const unsubRef = useRef<(() => void) | null>(null);
 
-  useEffect(() => {
-    // Load post from sample data (would be Firestore in production)
-    const found = SAMPLE_POSTS.find(p => p.id === postId);
-    if (found) setPost(found);
+  const postUnsubRef = useRef<(() => void) | null>(null);
 
+  useEffect(() => {
+    postUnsubRef.current = subscribeToPost(postId, (data) => setPost(data));
     unsubRef.current = subscribeToComments(postId, (data) => {
       setComments(data);
       setLoading(false);
     });
-    return () => { unsubRef.current?.(); };
+    return () => {
+      postUnsubRef.current?.();
+      unsubRef.current?.();
+    };
   }, [postId]);
 
   const handleReact = useCallback(async (reaction: ReactionType) => {

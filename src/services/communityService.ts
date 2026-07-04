@@ -3,10 +3,16 @@ import {
   query, where, orderBy, limit, onSnapshot, increment, Timestamp, writeBatch,
 } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { db } from '../config/firebaseConfig';
+import { db, auth } from '../config/firebaseConfig';
+import { signInAnonymously } from 'firebase/auth';
 import { getDeviceId } from './notesService';
+
+async function ensureAuth(): Promise<void> {
+  if (!auth.currentUser) {
+    await signInAnonymously(auth);
+  }
+}
 import type { Post, Comment, Group, PostType, ReactionType } from '../types/community';
-import { SAMPLE_POSTS, SAMPLE_GROUPS, SAMPLE_COMMENTS } from '../types/community';
 import { AVATAR_COLORS } from '../types/chat';
 import { getSavedDisplayName } from './chatService';
 
@@ -74,16 +80,19 @@ async function getLocalJoined(): Promise<Set<string>> {
 // ── Posts: subscribe ──────────────────────────────────────────────────────────
 
 export function subscribeToPosts(
-  filter: 'all' | 'trending' | 'recent' | 'prayer' | 'bible',
+  filter: 'all' | 'trending' | 'recent' | 'prayer' | 'bible' | 'testimony' | 'question',
   onUpdate: (posts: Post[]) => void,
 ): () => void {
-  // Build query
   let q = query(collection(db, 'communityPosts'), orderBy('createdAt', 'desc'), limit(40));
 
   if (filter === 'prayer') {
     q = query(collection(db, 'communityPosts'), where('type', '==', 'prayer'), orderBy('createdAt', 'desc'), limit(40));
   } else if (filter === 'bible') {
     q = query(collection(db, 'communityPosts'), where('type', '==', 'scripture'), orderBy('createdAt', 'desc'), limit(40));
+  } else if (filter === 'testimony') {
+    q = query(collection(db, 'communityPosts'), where('type', '==', 'testimony'), orderBy('createdAt', 'desc'), limit(40));
+  } else if (filter === 'question') {
+    q = query(collection(db, 'communityPosts'), where('type', '==', 'question'), orderBy('createdAt', 'desc'), limit(40));
   } else if (filter === 'trending') {
     q = query(collection(db, 'communityPosts'), orderBy('commentCount', 'desc'), limit(40));
   }
@@ -91,19 +100,31 @@ export function subscribeToPosts(
   const unsub = onSnapshot(
     q,
     async (snap) => {
-      if (snap.empty) {
-        // Seed with sample data
-        onUpdate(SAMPLE_POSTS);
-        return;
-      }
       const reacted = await getLocalReacted();
       const prayed  = await getLocalPrayed();
-      const posts = snap.docs.map(d => docToPost(d.id, d.data(), reacted[d.id] as ReactionType | undefined, prayed.has(d.id)));
-      onUpdate(posts);
+      onUpdate(snap.docs.map(d => docToPost(d.id, d.data(), reacted[d.id] as ReactionType | undefined, prayed.has(d.id))));
     },
-    () => onUpdate(SAMPLE_POSTS), // on error, use sample
+    () => onUpdate([]),
   );
   return unsub;
+}
+
+// ── Posts: fetch single ───────────────────────────────────────────────────────
+
+export function subscribeToPost(
+  postId: string,
+  onUpdate: (post: Post | null) => void,
+): () => void {
+  return onSnapshot(
+    doc(db, 'communityPosts', postId),
+    async (snap) => {
+      if (!snap.exists()) { onUpdate(null); return; }
+      const reacted = await getLocalReacted();
+      const prayed  = await getLocalPrayed();
+      onUpdate(docToPost(snap.id, snap.data(), reacted[snap.id] as ReactionType | undefined, prayed.has(snap.id)));
+    },
+    () => onUpdate(null),
+  );
 }
 
 // ── Posts: create ─────────────────────────────────────────────────────────────
@@ -114,6 +135,7 @@ export async function createPost(data: {
   scriptureRef?: string;
   category?: string;
 }): Promise<string> {
+  await ensureAuth();
   const userId = await getDeviceId();
   const name   = await getSavedDisplayName() ?? 'Believer';
   const idx    = Math.abs(userId.charCodeAt(0) % AVATAR_COLORS.length);
@@ -135,6 +157,7 @@ export async function createPost(data: {
 // ── Reactions ─────────────────────────────────────────────────────────────────
 
 export async function reactToPost(postId: string, reaction: ReactionType): Promise<void> {
+  await ensureAuth();
   const reacted = await getLocalReacted();
   const prev    = reacted[postId] as ReactionType | undefined;
   const postRef = doc(db, 'communityPosts', postId);
@@ -158,6 +181,7 @@ export async function reactToPost(postId: string, reaction: ReactionType): Promi
 // ── Prayer requests ───────────────────────────────────────────────────────────
 
 export async function prayForPost(postId: string): Promise<boolean> {
+  await ensureAuth();
   const prayed = await getLocalPrayed();
   const already = prayed.has(postId);
 
@@ -190,18 +214,13 @@ export function subscribeToComments(
 
   return onSnapshot(
     q,
-    (snap) => {
-      if (snap.empty) {
-        onUpdate(SAMPLE_COMMENTS.filter(c => c.postId === postId));
-        return;
-      }
-      onUpdate(snap.docs.map(d => docToComment(d.id, d.data())));
-    },
-    () => onUpdate(SAMPLE_COMMENTS.filter(c => c.postId === postId)),
+    (snap) => { onUpdate(snap.docs.map(d => docToComment(d.id, d.data()))); },
+    () => onUpdate([]),
   );
 }
 
 export async function addComment(postId: string, content: string, parentId?: string): Promise<void> {
+  await ensureAuth();
   const userId = await getDeviceId();
   const name   = await getSavedDisplayName() ?? 'Believer';
   const idx    = Math.abs(userId.charCodeAt(0) % AVATAR_COLORS.length);
@@ -223,7 +242,6 @@ export async function getGroups(): Promise<Group[]> {
   const joined  = await getLocalJoined();
   try {
     const snap = await getDocs(collection(db, 'communityGroups'));
-    if (snap.empty) return SAMPLE_GROUPS.map(g => ({ ...g, joined: joined.has(g.id) }));
     return snap.docs.map(d => {
       const data = d.data();
       return {
@@ -233,11 +251,12 @@ export async function getGroups(): Promise<Group[]> {
       };
     });
   } catch {
-    return SAMPLE_GROUPS.map(g => ({ ...g, joined: joined.has(g.id) }));
+    return [];
   }
 }
 
 export async function joinGroup(groupId: string): Promise<void> {
+  await ensureAuth();
   const joined = await getLocalJoined();
   const userId = await getDeviceId();
 
@@ -264,19 +283,13 @@ export async function searchPosts(term: string): Promise<Post[]> {
 
   try {
     const snap = await getDocs(query(collection(db, 'communityPosts'), orderBy('createdAt', 'desc'), limit(100)));
-    const all  = snap.empty
-      ? SAMPLE_POSTS
-      : snap.docs.map(d => docToPost(d.id, d.data(), reacted[d.id] as ReactionType | undefined, prayed.has(d.id)));
+    const all  = snap.docs.map(d => docToPost(d.id, d.data(), reacted[d.id] as ReactionType | undefined, prayed.has(d.id)));
     return all.filter(p =>
       p.content.toLowerCase().includes(lower) ||
       p.authorName.toLowerCase().includes(lower) ||
       (p.scriptureRef ?? '').toLowerCase().includes(lower),
     );
   } catch {
-    return SAMPLE_POSTS.filter(p =>
-      p.content.toLowerCase().includes(lower) ||
-      p.authorName.toLowerCase().includes(lower) ||
-      (p.scriptureRef ?? '').toLowerCase().includes(lower),
-    );
+    return [];
   }
 }

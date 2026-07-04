@@ -64,6 +64,8 @@ import PrayerDetailScreen from './src/screens/Prayer/PrayerDetailScreen';
 import PrayerAnsweredScreen from './src/screens/Prayer/PrayerAnsweredScreen';
 import PrivacyPolicyScreen  from './src/screens/Legal/PrivacyPolicyScreen';
 import TermsOfServiceScreen from './src/screens/Legal/TermsOfServiceScreen';
+import HymnsScreen      from './src/screens/Hymns/HymnsScreen';
+import HymnReaderScreen from './src/screens/Hymns/HymnReaderScreen';
 
 import {
   HomeStackParamList,
@@ -105,6 +107,8 @@ function HomeStackScreen() {
       <HomeStack.Screen name="PrayerEditor"   component={PrayerEditorScreen}   />
       <HomeStack.Screen name="PrayerDetail"   component={PrayerDetailScreen}   />
       <HomeStack.Screen name="PrayerAnswered" component={PrayerAnsweredScreen} />
+      <HomeStack.Screen name="Hymns"          component={HymnsScreen}          />
+      <HomeStack.Screen name="HymnReader"     component={HymnReaderScreen}     />
     </HomeStack.Navigator>
   );
 }

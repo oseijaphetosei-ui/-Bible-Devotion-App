@@ -2,7 +2,7 @@ import React, {
   useRef, useState, useCallback, useEffect, memo, useMemo,
 } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, TouchableOpacity,
+  View, Text, ScrollView, StyleSheet, TouchableOpacity, Pressable,
   StatusBar, Animated, Easing, Platform,
   ImageBackground, Share as RNShare, Linking,
   LayoutAnimation, UIManager,
@@ -268,6 +268,7 @@ const VerseCard = memo(function VerseCard() {
   const [speaking, setSpeaking]     = useState(false);
   const speakingRef = useRef(false);
   const soundRef    = useRef<Audio.Sound | null>(null);
+  const cardScale   = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     return () => {
@@ -320,8 +321,20 @@ const VerseCard = memo(function VerseCard() {
     });
   }, [navigation, verse]);
 
+  const cardPressIn  = useCallback(() =>
+    Animated.spring(cardScale, { toValue: 0.97, useNativeDriver: true, tension: 300, friction: 20 }).start(),
+  [cardScale]);
+  const cardPressOut = useCallback(() =>
+    Animated.spring(cardScale, { toValue: 1, useNativeDriver: true, tension: 300, friction: 20 }).start(),
+  [cardScale]);
+
   return (
-    <View style={vc.card}>
+    <Pressable
+      onPress={() => navigation.navigate('Verse')}
+      onPressIn={cardPressIn}
+      onPressOut={cardPressOut}
+    >
+    <Animated.View style={[vc.card, { transform: [{ scale: cardScale }] }]}>
       <ImageBackground
         source={require('../../assets/today-verse.jpg')}
         style={vc.bg}
@@ -367,7 +380,8 @@ const VerseCard = memo(function VerseCard() {
           </View>
         </View>
       </ImageBackground>
-    </View>
+    </Animated.View>
+    </Pressable>
   );
 });
 
@@ -681,11 +695,11 @@ const QuickActions = memo(function QuickActions() {
       }),
     },
     {
-      icon: 'document-text-outline'  as const,
-      label: 'Notes',
-      color: '#8A7AB0',
-      bg:    '#8A7AB022',
-      onPress: () => (navigation as any).navigate('MainTabs', { screen: 'NotesTab' }),
+      icon: 'musical-notes-outline'  as const,
+      label: 'Hymnal',
+      color: '#B07A3A',
+      bg:    '#B07A3A22',
+      onPress: () => navigation.navigate('Hymns'),
     },
   ];
 
