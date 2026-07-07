@@ -41,6 +41,7 @@ import ChatListScreen from './src/screens/Chat/ChatListScreen';
 import DirectMessageScreen from './src/screens/Chat/DirectMessageScreen';
 import GroupChatScreen from './src/screens/Chat/GroupChatScreen';
 import NewChatScreen from './src/screens/Chat/NewChatScreen';
+import ContactProfileScreen from './src/screens/Chat/ContactProfileScreen';
 import CommunityScreen from './src/screens/Community/CommunityScreen';
 import CreatePostScreen from './src/screens/Community/CreatePostScreen';
 import PostDetailScreen from './src/screens/Community/PostDetailScreen';
@@ -71,7 +72,6 @@ import {
   HomeStackParamList,
   BibleStackParamList,
   NotesStackParamList,
-  ChatStackParamList,
   CommunityStackParamList,
   ProfileStackParamList,
   AppRootParamList,
@@ -80,7 +80,6 @@ import {
 
 const HomeStack      = createNativeStackNavigator<HomeStackParamList>();
 const BibleStack     = createNativeStackNavigator<BibleStackParamList>();
-const ChatStack      = createNativeStackNavigator<ChatStackParamList>();
 const NotesStack     = createNativeStackNavigator<NotesStackParamList>();
 const CommunityStack = createNativeStackNavigator<CommunityStackParamList>();
 const ProfileStack   = createNativeStackNavigator<ProfileStackParamList>();
@@ -124,16 +123,6 @@ function BibleStackScreen() {
   );
 }
 
-function ChatStackScreen() {
-  return (
-    <ChatStack.Navigator id="chat" screenOptions={{ headerShown: false }}>
-      <ChatStack.Screen name="ChatList"        component={ChatListScreen} />
-      <ChatStack.Screen name="DirectMessage"   component={DirectMessageScreen} />
-      <ChatStack.Screen name="GroupChat"       component={GroupChatScreen} />
-      <ChatStack.Screen name="NewChat"         component={NewChatScreen} />
-    </ChatStack.Navigator>
-  );
-}
 
 function NotesStackScreen() {
   return (
@@ -182,6 +171,12 @@ function RootNavigator({ onboardingCompleted }: { onboardingCompleted: boolean }
         component={ProfileStackScreen}
         options={{ presentation: 'modal' }}
       />
+      {/* Conversation screens live here — outside the Tab Navigator so the
+          bottom bar is never mounted when a conversation is open. */}
+      <AppRoot.Screen name="DirectMessage"  component={DirectMessageScreen} />
+      <AppRoot.Screen name="GroupChat"      component={GroupChatScreen} />
+      <AppRoot.Screen name="NewChat"        component={NewChatScreen} />
+      <AppRoot.Screen name="ContactProfile" component={ContactProfileScreen} />
     </AppRoot.Navigator>
   );
 }
@@ -194,7 +189,7 @@ function TabNavigatorComponent() {
       screenOptions={{ headerShown: false }}
       initialRouteName="HomeTab"
     >
-      <Tab.Screen name="ChatTab"      component={ChatStackScreen}      />
+      <Tab.Screen name="ChatTab"      component={ChatListScreen}       />
       <Tab.Screen name="CommunityTab" component={CommunityStackScreen} />
       <Tab.Screen name="HomeTab"      component={HomeStackScreen}      />
       <Tab.Screen name="BibleTab"     component={BibleStackScreen}     />

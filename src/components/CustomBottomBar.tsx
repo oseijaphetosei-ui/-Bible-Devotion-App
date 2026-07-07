@@ -52,11 +52,10 @@ const getTabLayout = (index: number) => {
 export default function CustomBottomBar({ state, navigation }: BottomTabBarProps) {
   const activeTabIndex = state.index;
 
+  // Hooks must all come before any conditional return.
   const init       = getTabLayout(activeTabIndex);
   const pillX      = useRef(new Animated.Value(init.x)).current;
   const pillW      = useRef(new Animated.Value(init.width)).current;
-  // scaleY stretches the pill symmetrically from its center (which sits
-  // exactly at the bar's vertical midpoint), so it grows up AND down at once.
   const pillScaleY = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {

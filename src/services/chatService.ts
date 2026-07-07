@@ -188,6 +188,23 @@ export async function createGroup(name: string, memberIds: string[]): Promise<st
   return ref.id;
 }
 
+// ── Typing indicator ──────────────────────────────────────────────────────────
+
+export function subscribeToTyping(
+  chatId: string,
+  currentUserId: string,
+  onUpdate: (isOtherTyping: boolean) => void,
+): () => void {
+  return onSnapshot(
+    doc(db, 'chats', chatId),
+    snap => {
+      const ids: string[] = snap.data()?.typingUserIds ?? [];
+      onUpdate(ids.some(id => id !== currentUserId));
+    },
+    () => onUpdate(false),
+  );
+}
+
 // ── Messages ──────────────────────────────────────────────────────────────────
 
 export function subscribeToMessages(

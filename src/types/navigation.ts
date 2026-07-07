@@ -38,9 +38,6 @@ export type NotesStackParamList = {
 
 export type ChatStackParamList = {
   ChatList: undefined;
-  DirectMessage: { chatId: string; otherUserId: string; otherName: string };
-  GroupChat: { chatId: string; groupName: string };
-  NewChat: undefined;
 };
 
 export type CommunityStackParamList = {
@@ -68,9 +65,13 @@ export type RootTabParamList = {
 };
 
 export type AppRootParamList = {
-  Onboarding:   undefined;
-  MainTabs:     NavigatorScreenParams<RootTabParamList> | undefined;
-  ProfileModal: NavigatorScreenParams<ProfileStackParamList> | undefined;
+  Onboarding:     undefined;
+  MainTabs:       NavigatorScreenParams<RootTabParamList> | undefined;
+  ProfileModal:   NavigatorScreenParams<ProfileStackParamList> | undefined;
+  DirectMessage:  { chatId: string; otherUserId: string; otherName: string };
+  GroupChat:      { chatId: string; groupName: string };
+  NewChat:        undefined;
+  ContactProfile: { chatId: string; otherName: string; otherUserId?: string };
 };
 
 // Alias used by all existing screen components — points to the home stack

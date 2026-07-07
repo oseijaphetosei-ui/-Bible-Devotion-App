@@ -1,542 +1,896 @@
-import React, { useEffect, useRef, useState, useCallback, memo } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet,
-  StatusBar, Animated, KeyboardAvoidingView, Platform, Modal,
-  Pressable, Keyboard, Alert,
+  ActivityIndicator,
+  Alert,
+  Animated,
+  FlatList,
+  KeyboardAvoidingView,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Platform,
+  Pressable,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../theme';
-import { ChatStackParamList } from '../../types/navigation';
-import type { ChatMessage, ScripturePayload } from '../../types/chat';
-import { REACTIONS } from '../../types/chat';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+
+import { useTheme, AppTheme } from '../../theme';
+import { ChatMessage, REACTIONS } from '../../types/chat';
 import {
-  subscribeToMessages, sendMessage, sendScripture,
-  markRead, setTyping, toggleReaction, deleteMessage,
-  getOrCreateProfile, getSavedDisplayName,
+  deleteMessage,
+  getSavedDisplayName,
+  markRead,
+  sendMessage,
+  setTyping,
+  subscribeToMessages,
+  subscribeToTyping,
+  toggleReaction,
 } from '../../services/chatService';
 import { getDeviceId } from '../../services/notesService';
-import { getTodayVerseEntry } from '../../services/verseService';
 
-type RouteT = RouteProp<ChatStackParamList, 'DirectMessage'>;
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-// ── Typing dots animation ─────────────────────────────────────────────────────
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
-function TypingIndicator() {
-  const t = useTheme();
-  const dots = [useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current];
+function startOfDay(ts: number): number {
+  const d = new Date(ts);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+function dayLabel(ts: number): string {
+  const today = startOfDay(Date.now());
+  const day = startOfDay(ts);
+  if (day === today) return 'Today';
+  if (day === today - 24 * 60 * 60 * 1000) return 'Yesterday';
+  const d = new Date(ts);
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  });
+}
+
+function timeLabel(ts: number): string {
+  return new Date(ts).toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+// ─── List item model ─────────────────────────────────────────────────────────
+
+type ListItem =
+  | { kind: 'msg'; key: string; msg: ChatMessage }
+  | { kind: 'sep'; key: string; label: string };
+
+/**
+ * Build list data for a non-inverted FlatList (oldest → newest, top → bottom).
+ * messages must be sorted ascending (oldest first).
+ * A day separator is inserted before the first message of each new day.
+ */
+function buildList(messages: ChatMessage[]): ListItem[] {
+  const out: ListItem[] = [];
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
+    const prev = messages[i - 1];
+    const isNewDay = !prev || startOfDay(prev.createdAt) !== startOfDay(m.createdAt);
+    if (isNewDay) {
+      out.push({ kind: 'sep', key: `sep_${startOfDay(m.createdAt)}`, label: dayLabel(m.createdAt) });
+    }
+    out.push({ kind: 'msg', key: m.id, msg: m });
+  }
+  return out;
+}
+
+// ─── Typing dots ─────────────────────────────────────────────────────────────
+
+const TypingDots = React.memo(function TypingDots({ color }: { color: string }) {
+  const anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const anim = Animated.loop(
-      Animated.stagger(160, dots.map(d =>
-        Animated.sequence([
-          Animated.timing(d, { toValue: 1, duration: 300, useNativeDriver: true }),
-          Animated.timing(d, { toValue: 0, duration: 300, useNativeDriver: true }),
-        ])
-      ))
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(anim, { toValue: 1, duration: 600, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: 0, duration: 600, useNativeDriver: true }),
+      ]),
     );
-    anim.start();
-    return () => anim.stop();
-  }, []);
+    loop.start();
+    return () => loop.stop();
+  }, [anim]);
+
+  const dots = [0, 1, 2].map(i => {
+    const opacity = anim.interpolate({
+      inputRange: [0, 0.5, 1],
+      outputRange: i === 0 ? [1, 0.3, 1] : i === 1 ? [0.3, 1, 0.3] : [0.6, 0.3, 1],
+    });
+    return (
+      <Animated.View
+        key={i}
+        style={{
+          width: 4,
+          height: 4,
+          borderRadius: 2,
+          marginLeft: 3,
+          backgroundColor: color,
+          opacity,
+        }}
+      />
+    );
+  });
 
   return (
-    <View style={[ty.wrap, { backgroundColor: t.card, borderColor: t.cardBorder }]}>
-      {dots.map((d, i) => (
-        <Animated.View key={i} style={[ty.dot, { backgroundColor: t.textMuted, opacity: d, transform: [{ translateY: d.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) }] }]} />
-      ))}
-    </View>
-  );
-}
-
-// ── Scripture picker modal ────────────────────────────────────────────────────
-
-function ScripturePicker({ visible, onClose, onSelect }: {
-  visible: boolean;
-  onClose: () => void;
-  onSelect: (s: ScripturePayload) => void;
-}) {
-  const t = useTheme();
-  const verse = getTodayVerseEntry();
-
-  const quick: ScripturePayload[] = [
-    { reference: verse.label, text: verse.fallbackText, bookIndex: 0, chapter: 0, verse: 0 },
-    { reference: 'John 3:16', text: 'For God so loved the world that he gave his one and only Son, that whoever believes in him shall not perish but have eternal life.', bookIndex: 42, chapter: 3, verse: 16 },
-    { reference: 'Romans 8:28', text: 'And we know that in all things God works for the good of those who love him, who have been called according to his purpose.', bookIndex: 44, chapter: 8, verse: 28 },
-    { reference: 'Psalm 23:1', text: 'The Lord is my shepherd, I lack nothing.', bookIndex: 18, chapter: 23, verse: 1 },
-    { reference: 'Philippians 4:13', text: 'I can do all this through him who gives me strength.', bookIndex: 49, chapter: 4, verse: 13 },
-    { reference: 'Isaiah 40:31', text: 'But those who hope in the Lord will renew their strength. They will soar on wings like eagles.', bookIndex: 22, chapter: 40, verse: 31 },
-  ];
-
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={sp.backdrop} onPress={onClose} />
-      <View style={[sp.sheet, { backgroundColor: t.bg, borderColor: t.cardBorder }]}>
-        <View style={[sp.handle, { backgroundColor: t.textMuted }]} />
-        <Text style={[sp.title, { color: t.text }]}>Share Scripture</Text>
-        <Text style={[sp.sub, { color: t.textSub }]}>Today's verse &amp; popular passages</Text>
-        {quick.map((s, i) => (
-          <TouchableOpacity
-            key={i}
-            style={[sp.item, { borderColor: t.cardBorder, backgroundColor: i === 0 ? t.goldBg : t.card }]}
-            onPress={() => { onSelect(s); onClose(); }}
-            activeOpacity={0.78}
-          >
-            <View style={sp.itemTop}>
-              <Text style={[sp.itemRef, { color: t.gold }]}>{s.reference}</Text>
-              {i === 0 && (
-                <View style={[sp.todayBadge, { backgroundColor: t.gold }]}>
-                  <Text style={sp.todayText}>TODAY</Text>
-                </View>
-              )}
-            </View>
-            <Text style={[sp.itemText, { color: t.textSub }]} numberOfLines={2}>{s.text}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    </Modal>
-  );
-}
-
-// ── Scripture card (inside message) ──────────────────────────────────────────
-
-const ScriptureCard = memo(function ScriptureCard({ scripture, isOutgoing, t }: {
-  scripture: ScripturePayload; isOutgoing: boolean; t: any;
-}) {
-  return (
-    <View style={[sc.card, { borderColor: t.goldBorder, backgroundColor: isOutgoing ? 'rgba(201,169,107,0.18)' : t.cardAlt }]}>
-      <Text style={[sc.ref, { color: t.gold }]}>📖 {scripture.reference}</Text>
-      <Text style={[sc.text, { color: t.text }]} numberOfLines={4}>{scripture.text}</Text>
-      <View style={[sc.divider, { backgroundColor: t.goldBorder }]} />
-      <Text style={[sc.cta, { color: t.gold }]}>Open verse →</Text>
+    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      <Text style={{ color, fontSize: 12 }}>typing</Text>
+      {dots}
     </View>
   );
 });
 
-// ── Reaction bar ──────────────────────────────────────────────────────────────
+// ─── Message bubble ──────────────────────────────────────────────────────────
 
-function ReactionBar({ messageId, chatId, onDismiss }: { messageId: string; chatId: string; onDismiss: () => void }) {
-  const t = useTheme();
-  return (
-    <View style={[rb.wrap, { backgroundColor: t.card, borderColor: t.cardBorder, shadowColor: '#000' }]}>
-      {REACTIONS.map(emoji => (
-        <TouchableOpacity
-          key={emoji}
-          style={rb.btn}
-          onPress={() => { toggleReaction(chatId, messageId, emoji); onDismiss(); }}
-          activeOpacity={0.7}
-        >
-          <Text style={rb.emoji}>{emoji}</Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-}
+const OUTGOING_TEXT = '#08071A';
+const READ_TICK_BLUE = '#34B7F1';
+const SENT_TICK_COLOR = 'rgba(8,7,26,0.55)';
 
-// ── Single message bubble ─────────────────────────────────────────────────────
+type BubbleProps = {
+  msg: ChatMessage;
+  mine: boolean;
+  t: AppTheme;
+  onLongPress: (msg: ChatMessage) => void;
+};
 
-const MessageBubble = memo(function MessageBubble({
-  msg, isOutgoing, chatId, userId, onLongPress, showName,
-}: {
-  msg: ChatMessage; isOutgoing: boolean; chatId: string;
-  userId: string; onLongPress: () => void; showName: boolean;
-}) {
-  const t = useTheme();
-  const enterAnim = useRef(new Animated.Value(0)).current;
+const Bubble = React.memo(function Bubble({ msg, mine, t, onLongPress }: BubbleProps) {
+  const deleted = !!msg.deletedAt;
+  const pending = msg.id.startsWith('pending_');
+  const readByOthers = (msg.readBy?.length ?? 0) > 1;
 
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(enterAnim, { toValue: 1, duration: 280, useNativeDriver: true }),
-    ]).start();
-  }, []);
+  const activeReactions = (msg.reactions ?? []).filter(r => r.userIds.length > 0);
 
-  const isDeleted = !!msg.deletedAt;
-  const isSystem = msg.type === 'system' || isDeleted;
-
-  if (isSystem) {
-    return (
-      <Animated.View style={[mb.systemWrap, { opacity: enterAnim }]}>
-        <Text style={[mb.systemText, { color: t.textMuted }]}>{msg.text}</Text>
-      </Animated.View>
-    );
-  }
-
-  const bubbleStyle = isOutgoing
-    ? [mb.bubble, mb.outBubble, { backgroundColor: t.gold + 'EE' }]
-    : [mb.bubble, mb.inBubble, { backgroundColor: t.card, borderColor: t.cardBorder }];
-
-  const textColor = isOutgoing ? '#08071A' : t.text;
+  const metaColor = mine ? 'rgba(8,7,26,0.50)' : t.textMuted;
+  const tickChar  = pending ? '○' : readByOthers ? '✓✓' : '✓';
+  const tickColor = readByOthers ? READ_TICK_BLUE : SENT_TICK_COLOR;
 
   return (
-    <Animated.View style={[
-      mb.row,
-      isOutgoing ? mb.rowOut : mb.rowIn,
-      { opacity: enterAnim, transform: [{ translateY: enterAnim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }] },
-    ]}>
-      <TouchableOpacity onLongPress={onLongPress} activeOpacity={0.85} delayLongPress={350}>
-        <View>
-          {showName && !isOutgoing && (
-            <Text style={[mb.senderName, { color: t.gold }]}>{msg.senderName}</Text>
-          )}
-          {msg.replyToText && (
-            <View style={[mb.replyBar, { borderColor: isOutgoing ? 'rgba(8,7,26,0.3)' : t.goldBorder, backgroundColor: isOutgoing ? 'rgba(8,7,26,0.15)' : t.goldBg }]}>
-              <Text style={[mb.replyText, { color: isOutgoing ? '#08071A' : t.textSub }]} numberOfLines={1}>{msg.replyToText}</Text>
-            </View>
-          )}
-          <View style={bubbleStyle}>
-            {msg.type === 'scripture' && msg.scripture ? (
-              <ScriptureCard scripture={msg.scripture} isOutgoing={isOutgoing} t={t} />
-            ) : (
-              <Text style={[mb.msgText, { color: textColor }]}>{msg.text}</Text>
-            )}
-            <Text style={[mb.time, { color: isOutgoing ? 'rgba(8,7,26,0.5)' : t.textMuted }]}>
-              {new Date(msg.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-              {isOutgoing && (
-                <Text> {msg.readBy.length > 1 ? '✓✓' : '✓'}</Text>
-              )}
+    <View style={[styles.bubbleRow, mine ? styles.rowRight : styles.rowLeft]}>
+      <Pressable
+        onLongPress={() => { if (!deleted) onLongPress(msg); }}
+        delayLongPress={300}
+        style={[
+          styles.bubble,
+          mine
+            ? { backgroundColor: t.gold, borderBottomRightRadius: 4 }
+            : {
+                backgroundColor: t.card,
+                borderBottomLeftRadius: 4,
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: t.divider,
+              },
+        ]}
+      >
+        {!deleted && !!msg.replyToText && (
+          <View
+            style={[
+              styles.replyQuote,
+              {
+                backgroundColor: mine ? 'rgba(8,7,26,0.10)' : t.goldBg,
+                borderLeftColor: mine ? OUTGOING_TEXT : t.gold,
+              },
+            ]}
+          >
+            <Text numberOfLines={2} style={{ fontSize: 12, color: mine ? 'rgba(8,7,26,0.75)' : t.textSub }}>
+              {msg.replyToText}
             </Text>
           </View>
-          {msg.reactions.length > 0 && (
-            <View style={mb.reactionsRow}>
-              {msg.reactions.map(r => (
-                <TouchableOpacity
-                  key={r.emoji}
-                  style={[mb.reactionPill, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}
-                  onPress={() => toggleReaction(chatId, msg.id, r.emoji)}
-                  activeOpacity={0.75}
-                >
-                  <Text style={mb.reactionEmoji}>{r.emoji}</Text>
-                  {r.userIds.length > 1 && <Text style={[mb.reactionCount, { color: t.gold }]}>{r.userIds.length}</Text>}
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
+        )}
+
+        {/*
+          Nested inline Text: timestamp + ticks sit at the end of the last word.
+          Short message → all on one line.
+          Long message  → timestamp wraps naturally onto its own line at the right.
+          Two non-breaking spaces before the meta create a visual gap without a
+          separate View, so React Native's text layout handles everything.
+        */}
+        {deleted ? (
+          <Text style={{ fontStyle: 'italic', fontSize: 14, color: mine ? 'rgba(8,7,26,0.55)' : t.textMuted }}>
+            {'This message was deleted  '}
+            <Text style={{ fontStyle: 'normal', fontSize: 11, color: metaColor }}>
+              {timeLabel(msg.createdAt)}
+            </Text>
+          </Text>
+        ) : (
+          <Text style={{ fontSize: 15, lineHeight: 22, color: mine ? OUTGOING_TEXT : t.text }}>
+            {msg.text}
+            {'  '}
+            <Text style={{ fontSize: 11, color: metaColor }}>
+              {timeLabel(msg.createdAt)}
+              {mine ? ' ' : ''}
+            </Text>
+            {mine && (
+              <Text style={{ fontSize: 12, color: tickColor }}>{tickChar}</Text>
+            )}
+          </Text>
+        )}
+      </Pressable>
+
+      {!deleted && activeReactions.length > 0 && (
+        <View
+          style={[
+            styles.reactionsPill,
+            {
+              backgroundColor: t.card,
+              borderColor: t.divider,
+              alignSelf: mine ? 'flex-end' : 'flex-start',
+            },
+          ]}
+        >
+          {activeReactions.map(r => (
+            <Text key={r.emoji} style={{ fontSize: 12 }}>
+              {r.emoji}
+              {r.userIds.length > 1 ? ` ${r.userIds.length}` : ''}
+            </Text>
+          ))}
         </View>
-      </TouchableOpacity>
-    </Animated.View>
+      )}
+    </View>
   );
 });
 
-// ── Main screen ────────────────────────────────────────────────────────────────
+// ─── Screen ──────────────────────────────────────────────────────────────────
 
 export default function DirectMessageScreen() {
-  const navigation = useNavigation();
-  const route = useRoute<RouteT>();
-  const { chatId, otherUserId, otherName } = route.params;
   const t = useTheme();
+  const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
+  const route = useRoute<any>();
 
+  const chatId: string = route.params?.chatId ?? '';
+  const otherName: string = route.params?.otherName ?? route.params?.groupName ?? 'Chat';
+  const otherUserId: string = route.params?.otherUserId ?? '';
+
+  // messages stored in ascending order (oldest first = top of screen)
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [text, setText] = useState('');
-  const [userId, setUserId] = useState('');
-  const [myName, setMyName] = useState('');
-  const [isOtherTyping, setIsOtherTyping] = useState(false);
-  const [showScripturePicker, setShowScripturePicker] = useState(false);
-  const [activeMsg, setActiveMsg] = useState<ChatMessage | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isTyping, setIsTyping] = useState(false);
+  const [myId, setMyId] = useState('');
+  const [myName, setMyName] = useState('Someone');
+  const [input, setInput] = useState('');
   const [replyTo, setReplyTo] = useState<{ id: string; text: string } | null>(null);
+  const [actionMsg, setActionMsg] = useState<ChatMessage | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<FlatList>(null);
+  const inputRef = useRef<TextInput>(null);
+  const searchInputRef = useRef<TextInput>(null);
+  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track whether the user is scrolled near the bottom so we only auto-scroll
+  // when they're already at the bottom (don't yank them away from history).
+  const isNearBottom = useRef(true);
 
+  // Identity.
   useEffect(() => {
-    (async () => {
-      const id = await getDeviceId();
-      setUserId(id);
-      const name = await getSavedDisplayName();
-      setMyName(name ?? 'Me');
-    })();
+    let alive = true;
+    getDeviceId().then(id => { if (alive) setMyId(id); }).catch(() => {});
+    getSavedDisplayName().then(name => { if (alive && name) setMyName(name); }).catch(() => {});
+    return () => { alive = false; };
   }, []);
 
+  // Open search mode if navigated here with openSearch: true.
   useEffect(() => {
-    if (!userId) return;
-    markRead(chatId);
-    const unsub = subscribeToMessages(chatId, msgs => {
-      setMessages(msgs);
-      markRead(chatId);
+    if (route.params?.openSearch) {
+      setIsSearching(true);
+      setTimeout(() => searchInputRef.current?.focus(), 300);
+    }
+  }, []);
+
+  const openSearch = useCallback(() => {
+    setIsSearching(true);
+    setSearchQuery('');
+    setTimeout(() => searchInputRef.current?.focus(), 100);
+  }, []);
+
+  const closeSearch = useCallback(() => {
+    setIsSearching(false);
+    setSearchQuery('');
+  }, []);
+
+  // Messages subscription — store ascending (oldest first) for natural top→bottom display.
+  useEffect(() => {
+    if (!chatId) { setLoading(false); return; }
+    const unsub = subscribeToMessages(chatId, incomingDesc => {
+      // incomingDesc is newest-first; reverse to ascending for display
+      const incomingAsc = [...incomingDesc].reverse();
+      setMessages(prev => {
+        const latestServerTs = incomingDesc[0]?.createdAt ?? 0;
+        // Keep any optimistic messages that are newer than the latest server snapshot
+        const stillPending = prev.filter(
+          m => m.id.startsWith('pending_') && m.createdAt > latestServerTs,
+        );
+        return [...incomingAsc, ...stillPending];
+      });
+      setLoading(false);
+      markRead(chatId).catch(() => {});
     });
-    return () => unsub();
-  }, [chatId, userId]);
+    return unsub;
+  }, [chatId]);
 
-  const handleTextChange = (val: string) => {
-    setText(val);
-    setTyping(chatId, val.length > 0);
-    if (typingTimer.current) clearTimeout(typingTimer.current);
-    typingTimer.current = setTimeout(() => setTyping(chatId, false), 3000);
-  };
+  // Typing subscription (needs myId to exclude self).
+  useEffect(() => {
+    if (!chatId || !myId) return;
+    return subscribeToTyping(chatId, myId, setIsTyping);
+  }, [chatId, myId]);
 
-  const handleSend = useCallback(async () => {
-    const trimmed = text.trim();
-    if (!trimmed || !userId) return;
-    setText('');
+  // Clear my typing flag on unmount.
+  useEffect(() => {
+    return () => {
+      if (typingTimer.current) clearTimeout(typingTimer.current);
+      if (chatId) setTyping(chatId, false).catch(() => {});
+    };
+  }, [chatId]);
+
+  // Auto-scroll to bottom on initial load and when new messages arrive (if near bottom).
+  const scrollToBottom = useCallback((animated: boolean) => {
+    listRef.current?.scrollToEnd({ animated });
+  }, []);
+
+  const handleScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+      isNearBottom.current =
+        contentOffset.y >= contentSize.height - layoutMeasurement.height - 120;
+    },
+    [],
+  );
+
+  const handleContentSizeChange = useCallback(() => {
+    if (isNearBottom.current) scrollToBottom(true);
+  }, [scrollToBottom]);
+
+  const handleLayout = useCallback(() => {
+    scrollToBottom(false);
+  }, [scrollToBottom]);
+
+  const handleChangeText = useCallback(
+    (text: string) => {
+      setInput(text);
+      if (!chatId) return;
+      setTyping(chatId, true).catch(() => {});
+      if (typingTimer.current) clearTimeout(typingTimer.current);
+      typingTimer.current = setTimeout(() => {
+        setTyping(chatId, false).catch(() => {});
+      }, 3000);
+    },
+    [chatId],
+  );
+
+  const handleSend = useCallback(() => {
+    const text = input.trim();
+    if (!text || !chatId) return;
+
+    if (typingTimer.current) { clearTimeout(typingTimer.current); typingTimer.current = null; }
+    setTyping(chatId, false).catch(() => {});
+
+    const reply = replyTo;
+    const tempId = `pending_${Date.now()}`;
+    const temp: ChatMessage = {
+      id: tempId, chatId,
+      senderId: myId, senderName: myName,
+      type: 'text', text,
+      reactions: [], readBy: myId ? [myId] : [],
+      replyToId: reply?.id, replyToText: reply?.text,
+      createdAt: Date.now(),
+    };
+
+    // Append to end (ascending order — newest at bottom)
+    setMessages(prev => [...prev, temp]);
+    setInput('');
     setReplyTo(null);
-    setTyping(chatId, false);
-    await sendMessage(chatId, trimmed, myName, replyTo ?? undefined);
-  }, [text, userId, chatId, myName, replyTo]);
+    isNearBottom.current = true; // ensure auto-scroll after send
 
-  const handleSendScripture = async (scripture: ScripturePayload) => {
-    await sendScripture(chatId, myName, scripture);
-  };
+    sendMessage(chatId, text, myName, reply ?? undefined).catch(() => {
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+      Alert.alert('Not sent', 'Your message could not be sent. Please try again.');
+    });
+  }, [input, chatId, myId, myName, replyTo]);
 
-  const handleLongPress = (msg: ChatMessage) => {
-    setActiveMsg(msg);
-  };
+  const handleLongPress = useCallback((msg: ChatMessage) => setActionMsg(msg), []);
 
-  const handleDelete = () => {
-    if (!activeMsg) return;
-    Alert.alert('Delete Message', 'Remove this message for everyone?', [
+  const handleReact = useCallback(
+    (emoji: string) => {
+      const msg = actionMsg;
+      setActionMsg(null);
+      if (!msg || msg.id.startsWith('pending_')) return;
+      toggleReaction(chatId, msg.id, emoji).catch(() => {});
+    },
+    [actionMsg, chatId],
+  );
+
+  const handleReply = useCallback(() => {
+    const msg = actionMsg;
+    setActionMsg(null);
+    if (!msg) return;
+    setReplyTo({ id: msg.id, text: msg.text });
+    setTimeout(() => inputRef.current?.focus(), 100);
+  }, [actionMsg]);
+
+  const handleDelete = useCallback(() => {
+    const msg = actionMsg;
+    setActionMsg(null);
+    if (!msg || msg.id.startsWith('pending_')) return;
+    Alert.alert('Delete message?', 'This will be removed for everyone.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => { deleteMessage(chatId, activeMsg.id); setActiveMsg(null); } },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => deleteMessage(chatId, msg.id).catch(() => {}),
+      },
     ]);
-  };
+  }, [actionMsg, chatId]);
 
-  const handleReply = () => {
-    if (!activeMsg) return;
-    setReplyTo({ id: activeMsg.id, text: activeMsg.text });
-    setActiveMsg(null);
-  };
+  const listData = useMemo(() => buildList(messages), [messages]);
+
+  const filteredData = useMemo<ListItem[]>(() => {
+    if (!isSearching || !searchQuery.trim()) return isSearching ? [] : listData;
+    const q = searchQuery.trim().toLowerCase();
+    return messages
+      .filter(m => !m.deletedAt && m.text?.toLowerCase().includes(q))
+      .map(m => ({ kind: 'msg' as const, key: m.id, msg: m }));
+  }, [isSearching, searchQuery, listData, messages]);
+
+  const keyExtractor = useCallback((item: ListItem) => item.key, []);
+
+  const renderItem = useCallback(
+    ({ item }: { item: ListItem }) => {
+      if (item.kind === 'sep') {
+        return (
+          <View style={styles.sepWrap}>
+            <View style={[styles.sepPill, { backgroundColor: t.filterInactiveBg }]}>
+              <Text style={{ fontSize: 11, fontWeight: '600', color: t.textSub }}>
+                {item.label}
+              </Text>
+            </View>
+          </View>
+        );
+      }
+      return (
+        <Bubble
+          msg={item.msg}
+          mine={!!myId && item.msg.senderId === myId}
+          t={t}
+          onLongPress={handleLongPress}
+        />
+      );
+    },
+    [t, myId, handleLongPress],
+  );
+
+  const canSend = input.trim().length > 0;
+  const initials = getInitials(otherName);
+
+  const goToProfile = useCallback(() => {
+    navigation.navigate('ContactProfile', { chatId, otherName, otherUserId: otherUserId || undefined });
+  }, [navigation, chatId, otherName, otherUserId]);
+
+  const handleVideoCall = useCallback(() => {
+    Alert.alert('Video Call', 'Video calls are not available yet.');
+  }, []);
+
+  const handleVoiceCall = useCallback(() => {
+    Alert.alert('Voice Call', 'Voice calls are not available yet.');
+  }, []);
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-        <StatusBar barStyle={t.statusBar} backgroundColor="transparent" translucent />
+      <StatusBar barStyle={t.statusBar} />
 
-        {/* Header */}
-        <View style={[dm.header, { borderBottomColor: t.divider }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={dm.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Ionicons name="chevron-back" size={24} color={t.gold} />
+      {/* ── Header (outside the KAV so it never moves with the keyboard) ── */}
+      <SafeAreaView edges={['top']} style={{ backgroundColor: t.bg }}>
+        <View style={[styles.header, { borderBottomColor: t.divider }]}>
+          <TouchableOpacity
+            onPress={isSearching ? closeSearch : () => navigation.goBack()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={styles.headerBtn}
+          >
+            <Ionicons name="chevron-back" size={26} color={t.text} />
           </TouchableOpacity>
-          <View style={[dm.avatar, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}>
-            <Text style={[dm.avatarText, { color: t.gold }]}>
-              {otherName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
-            </Text>
-          </View>
-          <View style={dm.headerInfo}>
-            <Text style={[dm.headerName, { color: t.text }]}>{otherName}</Text>
-          </View>
-          <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Ionicons name="ellipsis-horizontal" size={20} color={t.textMuted} />
-          </TouchableOpacity>
-        </View>
 
-        {/* Messages */}
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={0}
-        >
-          <FlatList
-            ref={listRef}
-            data={messages}
-            keyExtractor={m => m.id}
-            inverted
-            renderItem={({ item, index }) => {
-              const isOut = item.senderId === userId;
-              const prev = messages[index - 1];
-              const showName = !isOut && (!prev || prev.senderId !== item.senderId);
-              return (
-                <MessageBubble
-                  msg={item}
-                  isOutgoing={isOut}
-                  chatId={chatId}
-                  userId={userId}
-                  showName={showName}
-                  onLongPress={() => handleLongPress(item)}
-                />
-              );
-            }}
-            contentContainerStyle={dm.listContent}
-            keyboardShouldPersistTaps="handled"
-            ListHeaderComponent={isOtherTyping ? <TypingIndicator /> : null}
-          />
+          {isSearching ? (
+            /* Search mode: inline TextInput replaces the avatar+name */
+            <View style={[styles.headerCenter, styles.searchBar, { backgroundColor: t.inputBg, borderColor: t.inputBorder }]}>
+              <Ionicons name="search-outline" size={16} color={t.textMuted} style={{ marginRight: 6 }} />
+              <TextInput
+                ref={searchInputRef}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Search messages…"
+                placeholderTextColor={t.textMuted}
+                style={[styles.searchInput, { color: t.text }]}
+                returnKeyType="search"
+                autoCorrect={false}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="close-circle" size={16} color={t.textMuted} />
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : (
+            /* Normal mode: avatar + name → contact profile */
+            <TouchableOpacity
+              style={styles.headerCenter}
+              onPress={goToProfile}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.avatar, { backgroundColor: t.filterInactiveBg, borderColor: t.filterInactiveBorder }]}>
+                <Text style={{ color: t.textSub, fontWeight: '700', fontSize: 15 }}>{initials}</Text>
+              </View>
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text numberOfLines={1} style={{ color: t.text, fontSize: 17, fontWeight: '700' }}>
+                  {otherName}
+                </Text>
+                {isTyping && <TypingDots color={t.textSub} />}
+              </View>
+            </TouchableOpacity>
+          )}
 
-          {/* Reply bar */}
-          {replyTo && (
-            <View style={[dm.replyBar, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}>
-              <Ionicons name="return-down-forward" size={14} color={t.gold} />
-              <Text style={[dm.replyPreview, { color: t.textSub }]} numberOfLines={1}>{replyTo.text}</Text>
-              <TouchableOpacity onPress={() => setReplyTo(null)}>
-                <Ionicons name="close" size={16} color={t.textMuted} />
+          {/* Video + Voice call buttons — hidden while searching */}
+          {!isSearching && (
+            <View style={[styles.callPill, { backgroundColor: t.card }]}>
+              <TouchableOpacity onPress={handleVideoCall} activeOpacity={0.7} style={styles.callPillBtn}>
+                <Ionicons name="videocam-outline" size={20} color={t.text} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleVoiceCall} activeOpacity={0.7} style={styles.callPillBtn}>
+                <Ionicons name="call-outline" size={20} color={t.text} />
               </TouchableOpacity>
             </View>
           )}
+        </View>
+      </SafeAreaView>
 
-          {/* Input */}
-          <View style={[dm.inputRow, { backgroundColor: t.bg, borderTopColor: t.divider }]}>
-            <TouchableOpacity style={dm.iconBtn} onPress={() => setShowScripturePicker(true)}>
-              <Ionicons name="book-outline" size={20} color={t.gold} />
-            </TouchableOpacity>
-            <View style={[dm.inputWrap, { backgroundColor: t.card, borderColor: t.cardBorder }]}>
-              <TextInput
-                style={[dm.input, { color: t.text }]}
-                placeholder="Message…"
-                placeholderTextColor={t.textMuted}
-                value={text}
-                onChangeText={handleTextChange}
-                multiline
-                maxLength={2000}
-                returnKeyType="default"
-              />
+      {/* ── Everything below the header lives inside the KAV ── */}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        {loading ? (
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color={t.gold} />
+          </View>
+        ) : !isSearching && messages.length === 0 ? (
+          <View style={styles.center}>
+            <Ionicons name="chatbubbles-outline" size={44} color={t.textMuted} />
+            <Text style={{ color: t.text, fontSize: 16, fontWeight: '600', marginTop: 12 }}>
+              No messages yet
+            </Text>
+            <Text style={{ color: t.textMuted, fontSize: 13, marginTop: 4 }}>
+              Say hello to {otherName}!
+            </Text>
+          </View>
+        ) : isSearching && !searchQuery.trim() ? (
+          <View style={styles.center}>
+            <Ionicons name="search-outline" size={44} color={t.textMuted} />
+            <Text style={{ color: t.textMuted, fontSize: 14, marginTop: 12, textAlign: 'center' }}>
+              Type to search messages
+            </Text>
+          </View>
+        ) : isSearching && filteredData.length === 0 ? (
+          <View style={styles.center}>
+            <Ionicons name="search-outline" size={44} color={t.textMuted} />
+            <Text style={{ color: t.text, fontSize: 16, fontWeight: '600', marginTop: 12 }}>
+              No results
+            </Text>
+            <Text style={{ color: t.textMuted, fontSize: 13, marginTop: 4, textAlign: 'center' }}>
+              No messages match "{searchQuery}"
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            ref={listRef}
+            data={isSearching ? filteredData : listData}
+            renderItem={renderItem}
+            keyExtractor={keyExtractor}
+            contentContainerStyle={styles.listContent}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+            showsVerticalScrollIndicator={false}
+            onScroll={handleScroll}
+            scrollEventThrottle={100}
+            onContentSizeChange={handleContentSizeChange}
+            onLayout={handleLayout}
+          />
+        )}
+
+        {/* Reply bar */}
+        {replyTo && (
+          <View style={[styles.replyBar, { backgroundColor: t.card, borderTopColor: t.divider }]}>
+            <View style={[styles.replyBarAccent, { backgroundColor: t.gold }]} />
+            <View style={{ flex: 1, marginHorizontal: 10 }}>
+              <Text style={{ color: t.gold, fontSize: 12, fontWeight: '600' }}>Replying to</Text>
+              <Text numberOfLines={1} style={{ color: t.textSub, fontSize: 13, marginTop: 1 }}>
+                {replyTo.text}
+              </Text>
             </View>
             <TouchableOpacity
-              style={[dm.sendBtn, { backgroundColor: text.trim() ? t.gold : t.card, borderColor: t.cardBorder }]}
-              onPress={handleSend}
-              disabled={!text.trim()}
-              activeOpacity={0.8}
+              onPress={() => setReplyTo(null)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons name="send" size={16} color={text.trim() ? '#08071A' : t.textMuted} />
+              <Ionicons name="close" size={20} color={t.textMuted} />
             </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
+        )}
 
-        {/* Scripture picker */}
-        <ScripturePicker
-          visible={showScripturePicker}
-          onClose={() => setShowScripturePicker(false)}
-          onSelect={handleSendScripture}
-        />
+        {/* Composer */}
+        <View
+          style={[
+            styles.composer,
+            {
+              backgroundColor: t.bg,
+              borderTopColor: t.divider,
+              paddingBottom: Math.max(insets.bottom, 8),
+            },
+          ]}
+        >
+          <TouchableOpacity style={styles.composerIconBtn}>
+            <Ionicons name="add-circle-outline" size={26} color={t.textSub} />
+          </TouchableOpacity>
 
-        {/* Long-press action sheet */}
-        {activeMsg && (
-          <Pressable style={act.backdrop} onPress={() => setActiveMsg(null)}>
-            <View style={[act.sheet, { backgroundColor: t.card, borderColor: t.cardBorder }]}>
-              {/* Reactions */}
-              <View style={act.reactRow}>
-                {REACTIONS.map(emoji => (
-                  <TouchableOpacity
-                    key={emoji}
-                    style={act.reactBtn}
-                    onPress={() => { toggleReaction(chatId, activeMsg.id, emoji); setActiveMsg(null); }}
-                  >
-                    <Text style={act.reactEmoji}>{emoji}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <View style={[act.divider, { backgroundColor: t.divider }]} />
-              {/* Actions */}
-              {[
-                { icon: 'return-down-forward-outline', label: 'Reply', action: handleReply },
-                { icon: 'copy-outline', label: 'Copy', action: () => { setActiveMsg(null); } },
-                ...(activeMsg.senderId === userId ? [{ icon: 'trash-outline', label: 'Delete', action: handleDelete }] : []),
-              ].map(item => (
-                <TouchableOpacity key={item.label} style={act.actionRow} onPress={item.action} activeOpacity={0.75}>
-                  <Ionicons name={item.icon as any} size={18} color={item.label === 'Delete' ? '#E07070' : t.text} />
-                  <Text style={[act.actionLabel, { color: item.label === 'Delete' ? '#E07070' : t.text }]}>{item.label}</Text>
+          <View style={[styles.inputPill, { backgroundColor: t.inputBg, borderColor: t.inputBorder }]}>
+            <Ionicons name="happy-outline" size={20} color={t.textMuted} style={{ marginRight: 6 }} />
+            <TextInput
+              ref={inputRef}
+              value={input}
+              onChangeText={handleChangeText}
+              placeholder="Message"
+              placeholderTextColor={t.textMuted}
+              multiline
+              style={[styles.textInput, { color: t.text }]}
+            />
+          </View>
+
+          <TouchableOpacity
+            onPress={canSend ? handleSend : undefined}
+            activeOpacity={canSend ? 0.7 : 1}
+            style={[styles.sendBtn, { backgroundColor: canSend ? t.gold : t.filterInactiveBg }]}
+          >
+            <Ionicons
+              name={canSend ? 'send' : 'mic-outline'}
+              size={18}
+              color={canSend ? OUTGOING_TEXT : t.textMuted}
+            />
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+
+      {/* ── Long-press action sheet ── */}
+      {actionMsg && (
+        <Pressable style={styles.sheetBackdrop} onPress={() => setActionMsg(null)}>
+          <View
+            style={[styles.sheet, { backgroundColor: t.card, paddingBottom: Math.max(insets.bottom, 16) }]}
+            onStartShouldSetResponder={() => true}
+          >
+            <View style={styles.sheetHandleWrap}>
+              <View style={[styles.sheetHandle, { backgroundColor: t.textMuted }]} />
+            </View>
+
+            <View style={styles.reactionRow}>
+              {REACTIONS.map(emoji => (
+                <TouchableOpacity
+                  key={emoji}
+                  onPress={() => handleReact(emoji)}
+                  style={[styles.reactionBtn, { backgroundColor: t.filterInactiveBg }]}
+                >
+                  <Text style={{ fontSize: 24 }}>{emoji}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-          </Pressable>
-        )}
-      </SafeAreaView>
+
+            <View style={[styles.sheetDivider, { backgroundColor: t.divider }]} />
+
+            <TouchableOpacity style={styles.sheetAction} onPress={handleReply}>
+              <Ionicons name="arrow-undo-outline" size={20} color={t.text} />
+              <Text style={[styles.sheetActionText, { color: t.text }]}>Reply</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sheetAction} onPress={() => setActionMsg(null)}>
+              <Ionicons name="copy-outline" size={20} color={t.text} />
+              <Text style={[styles.sheetActionText, { color: t.text }]}>Copy</Text>
+            </TouchableOpacity>
+
+            {!!myId && actionMsg.senderId === myId && (
+              <TouchableOpacity style={styles.sheetAction} onPress={handleDelete}>
+                <Ionicons name="trash-outline" size={20} color="#E07070" />
+                <Text style={[styles.sheetActionText, { color: '#E07070' }]}>Delete</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </Pressable>
+      )}
     </View>
   );
 }
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const dm = StyleSheet.create({
+const styles = StyleSheet.create({
   header: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12,
-    paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, gap: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  backBtn: { padding: 4 },
-  avatar: { width: 36, height: 36, borderRadius: 18, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontSize: 13, fontWeight: '700' },
-  headerInfo: { flex: 1 },
-  headerName: { fontSize: 16, fontWeight: '700' },
+  headerBtn: { padding: 6 },
+  callPill: {
+    flexDirection: 'row', alignItems: 'center',
+    borderRadius: 26, height: 44, marginRight: 4,
+    overflow: 'hidden',
+  },
+  callPillBtn: {
+    paddingHorizontal: 11, height: '100%',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  headerCenter: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 2,
+  },
+  searchBar: {
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 7 : 3,
+    marginRight: 6,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    paddingTop: 0,
+    paddingBottom: 0,
+  },
+  avatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  listContent: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
 
-  listContent: { paddingHorizontal: 12, paddingVertical: 12, flexGrow: 1 },
+  // Bubbles — leaner, more elongated shape
+  bubbleRow: {
+    marginVertical: 2,
+    maxWidth: '78%',
+  },
+  rowRight: { alignSelf: 'flex-end' },
+  rowLeft: { alignSelf: 'flex-start' },
+  bubble: {
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingTop: 6,
+    paddingBottom: 5,
+  },
+  replyQuote: {
+    borderLeftWidth: 3,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginBottom: 5,
+  },
+  reactionsPill: {
+    flexDirection: 'row',
+    gap: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginTop: 3,
+  },
 
+  // Date separators
+  sepWrap: { alignItems: 'center', marginVertical: 10 },
+  sepPill: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
+
+  // Reply bar
   replyBar: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderTopWidth: 1, borderLeftWidth: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  replyPreview: { flex: 1, fontSize: 13 },
+  replyBarAccent: { width: 3, alignSelf: 'stretch', borderRadius: 2 },
 
-  inputRow: {
-    flexDirection: 'row', alignItems: 'flex-end', gap: 8,
-    paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth,
+  // Composer
+  composer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: 8,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  iconBtn: { padding: 8, marginBottom: 2 },
-  inputWrap: { flex: 1, borderRadius: 20, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 8, maxHeight: 120 },
-  input: { fontSize: 15, paddingVertical: 0, lineHeight: 20 },
-  sendBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
-});
-
-const mb = StyleSheet.create({
-  row: { marginVertical: 2, maxWidth: '80%' },
-  rowIn: { alignSelf: 'flex-start' },
-  rowOut: { alignSelf: 'flex-end' },
-  bubble: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1 },
-  inBubble: { borderBottomLeftRadius: 4 },
-  outBubble: { borderBottomRightRadius: 4, borderColor: 'transparent' },
-  senderName: { fontSize: 11, fontWeight: '700', marginBottom: 2, marginLeft: 4 },
-  msgText: { fontSize: 15, lineHeight: 21 },
-  time: { fontSize: 10, marginTop: 4, textAlign: 'right' },
-  replyBar: { borderLeftWidth: 3, paddingLeft: 8, paddingVertical: 4, marginBottom: 4, borderRadius: 4 },
-  replyText: { fontSize: 12 },
-  reactionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4, marginLeft: 4 },
-  reactionPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12, borderWidth: 1,
+  composerIconBtn: { padding: 6, marginBottom: 4 },
+  inputPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 22,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 8 : 2,
+    marginHorizontal: 4,
   },
-  reactionEmoji: { fontSize: 13 },
-  reactionCount: { fontSize: 11, fontWeight: '600' },
-  systemWrap: { alignItems: 'center', marginVertical: 8 },
-  systemText: { fontSize: 12, fontStyle: 'italic' },
-});
-
-const ty = StyleSheet.create({
-  wrap: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 10,
-    borderRadius: 18, borderWidth: 1, borderBottomLeftRadius: 4, marginVertical: 4,
+  textInput: {
+    flex: 1,
+    fontSize: 15,
+    maxHeight: 120,
+    paddingTop: 0,
+    paddingBottom: 0,
   },
-  dot: { width: 7, height: 7, borderRadius: 3.5 },
-});
+  sendBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+    marginLeft: 2,
+  },
 
-const sc = StyleSheet.create({
-  card: { borderRadius: 12, borderWidth: 1, padding: 14, gap: 6, minWidth: 200, maxWidth: 260 },
-  ref: { fontSize: 13, fontWeight: '700' },
-  text: { fontSize: 14, lineHeight: 20, fontStyle: 'italic' },
-  divider: { height: 1, opacity: 0.4 },
-  cta: { fontSize: 12, fontWeight: '600' },
-});
-
-const sp = StyleSheet.create({
-  backdrop: { flex: 1 },
+  // Action sheet
+  sheetBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+    zIndex: 2000,
+    elevation: 2000,
+  },
   sheet: {
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1,
-    padding: 20, gap: 10, maxHeight: '75%',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 16,
   },
-  handle: { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 4 },
-  title: { fontSize: 18, fontWeight: '700' },
-  sub: { fontSize: 13, marginBottom: 4 },
-  item: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 6 },
-  itemTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  itemRef: { fontSize: 14, fontWeight: '700' },
-  itemText: { fontSize: 13, lineHeight: 18 },
-  todayBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  todayText: { fontSize: 9, fontWeight: '800', color: '#08071A', letterSpacing: 0.5 },
-});
-
-const act = StyleSheet.create({
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end', zIndex: 99 },
-  sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTopWidth: 1, padding: 16, gap: 2 },
-  reactRow: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 12 },
-  reactBtn: { padding: 8 },
-  reactEmoji: { fontSize: 26 },
-  divider: { height: StyleSheet.hairlineWidth, marginVertical: 8 },
-  actionRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, paddingHorizontal: 4 },
-  actionLabel: { fontSize: 16 },
-});
-
-const rb = StyleSheet.create({
-  wrap: {
-    flexDirection: 'row', gap: 4,
-    borderRadius: 28, borderWidth: 1, padding: 8,
-    shadowOpacity: 0.2, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 6,
+  sheetHandleWrap: { alignItems: 'center', paddingVertical: 10 },
+  sheetHandle: { width: 36, height: 4, borderRadius: 2, opacity: 0.4 },
+  reactionRow: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 8 },
+  reactionBtn: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  sheetDivider: { height: StyleSheet.hairlineWidth, marginVertical: 8 },
+  sheetAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 13,
+    paddingHorizontal: 4,
   },
-  btn: { padding: 6 },
-  emoji: { fontSize: 24 },
+  sheetActionText: { fontSize: 16, fontWeight: '500' },
 });

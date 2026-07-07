@@ -5,15 +5,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../theme';
-import { ChatStackParamList } from '../../types/navigation';
 import type { ChatUser } from '../../types/chat';
 import { AVATAR_COLORS } from '../../types/chat';
 import { searchUsers, getOrCreateDM, createGroup } from '../../services/chatService';
-
-type Nav = NativeStackNavigationProp<ChatStackParamList>;
 
 function Avatar({ name, color, size = 44 }: { name: string; color: string; size?: number }) {
   const initials = name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('');
@@ -25,7 +21,7 @@ function Avatar({ name, color, size = 44 }: { name: string; color: string; size?
 }
 
 export default function NewChatScreen() {
-  const navigation = useNavigation<Nav>();
+  const navigation = useNavigation<any>();
   const t = useTheme();
 
   const [mode, setMode] = useState<'dm' | 'group'>('dm');

@@ -3,13 +3,11 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   StatusBar, Animated, TextInput, Pressable, ScrollView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../theme';
-import { ChatStackParamList } from '../../types/navigation';
 import type { Chat, ChatUser } from '../../types/chat';
 import {
   getOrCreateProfile, saveProfile, getSavedDisplayName,
@@ -19,7 +17,6 @@ import { getDeviceId } from '../../services/notesService';
 import PremiumSearchBar from '../../components/PremiumSearchBar';
 import ProfileAvatar from '../../components/ProfileAvatar';
 
-type Nav = NativeStackNavigationProp<ChatStackParamList>;
 type Filter = 'all' | 'unread' | 'favorites' | 'groups';
 
 const FILTERS: { key: Filter; label: string }[] = [
@@ -89,11 +86,12 @@ function ProfileSetupModal({ onDone }: { onDone: (user: ChatUser) => void }) {
 
 // ── Avatar ─────────────────────────────────────────────────────────────────────
 
-function Avatar({ name, color, size = 46 }: { name: string; color: string; size?: number }) {
+function Avatar({ name, size = 46 }: { name: string; size?: number }) {
+  const t = useTheme();
   const letters = name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('');
   return (
-    <View style={[av.wrap, { width: size, height: size, borderRadius: size / 2, backgroundColor: color + '2A', borderColor: color + '55' }]}>
-      <Text style={[av.text, { color, fontSize: size * 0.36 }]}>{letters || '?'}</Text>
+    <View style={[av.wrap, { width: size, height: size, borderRadius: size / 2, backgroundColor: t.filterInactiveBg, borderColor: t.filterInactiveBorder }]}>
+      <Text style={[av.text, { color: t.textSub, fontSize: size * 0.36 }]}>{letters || '?'}</Text>
     </View>
   );
 }
@@ -112,10 +110,10 @@ function ChatRow({ chat, userId, onPress }: { chat: Chat; userId: string; onPres
   return (
     <TouchableOpacity style={[s.row, { borderBottomColor: t.divider }]} onPress={onPress} activeOpacity={0.72}>
       <View style={s.avatarWrap}>
-        <Avatar name={name} color="#C9A96B" />
+        <Avatar name={name} />
         {isGroup && (
-          <View style={[s.groupBadge, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}>
-            <Ionicons name="people" size={9} color={t.gold} />
+          <View style={[s.groupBadge, { backgroundColor: t.filterInactiveBg, borderColor: t.filterInactiveBorder }]}>
+            <Ionicons name="people" size={9} color={t.textSub} />
           </View>
         )}
       </View>
@@ -129,12 +127,12 @@ function ChatRow({ chat, userId, onPress }: { chat: Chat; userId: string; onPres
         </View>
         <View style={s.rowBottom}>
           {isTyping
-            ? <Text style={[s.rowPreview, { color: t.gold, fontStyle: 'italic' }]}>typing…</Text>
+            ? <Text style={[s.rowPreview, { color: t.textSub, fontStyle: 'italic' }]}>typing…</Text>
             : <Text style={[s.rowPreview, { color: unread > 0 ? t.textSub : t.textMuted }]} numberOfLines={1}>{lastText}</Text>
           }
           {unread > 0 && (
-            <View style={[s.badge, { backgroundColor: t.gold }]}>
-              <Text style={s.badgeText}>{unread > 99 ? '99+' : unread}</Text>
+            <View style={[s.badge, { backgroundColor: t.text }]}>
+              <Text style={[s.badgeText, { color: t.bg }]}>{unread > 99 ? '99+' : unread}</Text>
             </View>
           )}
         </View>
@@ -146,8 +144,9 @@ function ChatRow({ chat, userId, onPress }: { chat: Chat; userId: string; onPres
 // ── Main screen ────────────────────────────────────────────────────────────────
 
 export default function ChatListScreen() {
-  const navigation = useNavigation<Nav>();
+  const navigation = useNavigation<any>();
   const t = useTheme();
+  const insets = useSafeAreaInsets();
 
   const [me, setMe]                     = useState<ChatUser | null>(null);
   const [needsSetup, setNeedsSetup]     = useState(false);
@@ -245,66 +244,82 @@ export default function ChatListScreen() {
   const headerOpacity = headerAnim;
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-        <StatusBar barStyle={t.statusBar} backgroundColor="transparent" translucent />
+    <View style={{ flex: 1, backgroundColor: t.bg, paddingTop: insets.top }}>
+      <StatusBar barStyle={t.statusBar} backgroundColor="transparent" translucent />
 
-        {/* ── Header (collapses during search) ── */}
-        <Animated.View style={{ height: headerHeight, opacity: headerOpacity, overflow: 'hidden' }}>
-          <View style={s.header}>
-            <ProfileAvatar />
-            <Text style={[s.headerTitle, { color: t.text }]}>CHAT</Text>
+      {/* ── Header (collapses during search) ── */}
+      <Animated.View style={{ height: headerHeight, opacity: headerOpacity, overflow: 'hidden' }}>
+        <View style={s.header}>
+          <ProfileAvatar />
+          <Text style={[s.headerTitle, { color: t.text }]}>Chats</Text>
 
-            {/* Compose button */}
-            <Animated.View style={{ transform: [{ scale: composeScale }] }}>
-              <TouchableOpacity
-                style={[s.composeBtn, { backgroundColor: t.filterInactiveBg, borderColor: t.filterInactiveBorder }]}
-                onPress={openDropdown}
-                activeOpacity={1}
-              >
-                <Ionicons name="add" size={22} color={t.gold} />
-              </TouchableOpacity>
-            </Animated.View>
-          </View>
-        </Animated.View>
+          {/* Compose button */}
+          <Animated.View style={{ transform: [{ scale: composeScale }] }}>
+            <TouchableOpacity
+              style={[s.composeBtn, { backgroundColor: t.filterInactiveBg, borderColor: t.filterInactiveBorder }]}
+              onPress={openDropdown}
+              activeOpacity={1}
+            >
+              <Ionicons name="add" size={22} color={t.gold} />
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </Animated.View>
 
-        {/* ── Search ── */}
-        <PremiumSearchBar
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search chats, people, groups…"
-          onActiveChange={onSearchActiveChange}
-          style={{ marginBottom: 2 }}
-        />
+      {/* ── Search ── */}
+      <PremiumSearchBar
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Search chats, people, groups…"
+        onActiveChange={onSearchActiveChange}
+        style={{ marginBottom: 2 }}
+      />
 
-        {/* ── Filter chips ── */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={s.filtersRow}
-        >
-          {FILTERS.map(f => {
-            const active = filter === f.key;
-            return (
-              <TouchableOpacity
-                key={f.key}
-                style={[
-                  s.chip,
-                  active
-                    ? { backgroundColor: t.gold + '22', borderColor: t.gold + '77' }
-                    : { backgroundColor: t.filterInactiveBg, borderColor: t.filterInactiveBorder },
-                ]}
-                onPress={() => setFilter(f.key)}
-                activeOpacity={0.72}
-              >
-                <Text style={[s.chipText, { color: active ? t.gold : t.text }]}>{f.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+      {/* ── Filter chips ── */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ flexGrow: 0 }}
+        contentContainerStyle={s.filtersRow}
+        automaticallyAdjustContentInsets={false}
+        contentInsetAdjustmentBehavior="never"
+      >
+        {FILTERS.map(f => {
+          const active = filter === f.key;
+          return (
+            <TouchableOpacity
+              key={f.key}
+              style={[
+                s.chip,
+                active
+                  ? { backgroundColor: t.gold + '22', borderColor: t.gold + '77' }
+                  : { backgroundColor: t.filterInactiveBg, borderColor: t.filterInactiveBorder },
+              ]}
+              onPress={() => setFilter(f.key)}
+              activeOpacity={0.72}
+            >
+              <Text style={[s.chipText, { color: active ? t.gold : t.text }]}>{f.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
 
-        {/* ── Chat list ── */}
-        {displayed.length === 0 ? (
+      {/* ── Chat list — flex:1 so it fills all remaining space ── */}
+      <FlatList
+        data={displayed}
+        keyExtractor={c => c.id}
+        renderItem={({ item }) => (
+          <ChatRow chat={item} userId={userId} onPress={() => openChat(item)} />
+        )}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingTop: 4, paddingBottom: 120 }}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustContentInsets={false}
+        automaticallyAdjustKeyboardInsets={false}
+        contentInsetAdjustmentBehavior="never"
+        contentInset={{ top: 0, left: 0, bottom: 0, right: 0 }}
+        scrollIndicatorInsets={{ top: 0, left: 0, bottom: 0, right: 0 }}
+        ListEmptyComponent={
           <View style={s.empty}>
             <Text style={s.emptyIcon}>
               {filter === 'unread' ? '✓' : filter === 'favorites' ? '⭐' : filter === 'groups' ? '👥' : '💬'}
@@ -316,56 +331,46 @@ export default function ChatListScreen() {
                : 'No conversations yet'}
             </Text>
             <Text style={[s.emptySub, { color: t.textSub }]}>
-              {filter === 'all' ? 'Tap   +   to start a new message or group.' : ''}
+              {filter === 'all' ? 'Tap + to start a new message or group.' : ''}
             </Text>
           </View>
-        ) : (
-          <FlatList
-            data={displayed}
-            keyExtractor={c => c.id}
-            renderItem={({ item }) => (
-              <ChatRow chat={item} userId={userId} onPress={() => openChat(item)} />
-            )}
-            contentContainerStyle={{ paddingBottom: 100 }}
-            keyboardShouldPersistTaps="handled"
-          />
-        )}
+        }
+      />
 
-        {/* ── Compose dropdown ── */}
-        {showDropdown && (
-          <Pressable style={StyleSheet.absoluteFillObject} onPress={closeDropdown}>
-            <Animated.View
-              style={[
-                dd.menu,
-                { backgroundColor: t.card, borderColor: t.cardBorder },
-                {
-                  opacity: dropdownAnim,
-                  transform: [{
-                    scale: dropdownAnim.interpolate({ inputRange: [0, 1], outputRange: [0.88, 1] }),
-                  }],
-                },
-              ]}
-            >
-              <TouchableOpacity style={dd.item} onPress={goNewMessage} activeOpacity={0.75}>
-                <View style={[dd.iconWrap, { backgroundColor: t.goldBg }]}>
-                  <Ionicons name="chatbubble-outline" size={15} color={t.gold} />
-                </View>
-                <Text style={[dd.label, { color: t.text }]}>New Message</Text>
-              </TouchableOpacity>
-              <View style={[dd.sep, { backgroundColor: t.divider }]} />
-              <TouchableOpacity style={dd.item} onPress={goNewMessage} activeOpacity={0.75}>
-                <View style={[dd.iconWrap, { backgroundColor: t.goldBg }]}>
-                  <Ionicons name="people-outline" size={15} color={t.gold} />
-                </View>
-                <Text style={[dd.label, { color: t.text }]}>Create Group</Text>
-              </TouchableOpacity>
-            </Animated.View>
-          </Pressable>
-        )}
+      {/* ── Compose dropdown ── */}
+      {showDropdown && (
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={closeDropdown}>
+          <Animated.View
+            style={[
+              dd.menu,
+              { backgroundColor: t.card, borderColor: t.cardBorder },
+              {
+                opacity: dropdownAnim,
+                transform: [{
+                  scale: dropdownAnim.interpolate({ inputRange: [0, 1], outputRange: [0.88, 1] }),
+                }],
+              },
+            ]}
+          >
+            <TouchableOpacity style={dd.item} onPress={goNewMessage} activeOpacity={0.75}>
+              <View style={[dd.iconWrap, { backgroundColor: t.goldBg }]}>
+                <Ionicons name="chatbubble-outline" size={15} color={t.gold} />
+              </View>
+              <Text style={[dd.label, { color: t.text }]}>New Message</Text>
+            </TouchableOpacity>
+            <View style={[dd.sep, { backgroundColor: t.divider }]} />
+            <TouchableOpacity style={dd.item} onPress={goNewMessage} activeOpacity={0.75}>
+              <View style={[dd.iconWrap, { backgroundColor: t.goldBg }]}>
+                <Ionicons name="people-outline" size={15} color={t.gold} />
+              </View>
+              <Text style={[dd.label, { color: t.text }]}>Create Group</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </Pressable>
+      )}
 
-        {/* ── Profile setup ── */}
-        {needsSetup && <ProfileSetupModal onDone={u => { setMe(u); setNeedsSetup(false); setUserId(u.id); }} />}
-      </SafeAreaView>
+      {/* ── Profile setup ── */}
+      {needsSetup && <ProfileSetupModal onDone={u => { setMe(u); setNeedsSetup(false); setUserId(u.id); }} />}
     </View>
   );
 }
@@ -384,7 +389,7 @@ const s = StyleSheet.create({
     borderWidth: 1, alignItems: 'center', justifyContent: 'center',
   },
 
-  filtersRow: { paddingHorizontal: 16, paddingBottom: 10, gap: 8 },
+  filtersRow: { paddingHorizontal: 16, paddingVertical: 6, gap: 8 },
   chip: {
     height: 34, paddingHorizontal: 16,
     borderRadius: 17, borderWidth: 1,
@@ -413,9 +418,9 @@ const s = StyleSheet.create({
     minWidth: 20, height: 20, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5,
   },
-  badgeText: { fontSize: 10, fontWeight: '700', color: '#08071A' },
+  badgeText: { fontSize: 10, fontWeight: '700' },
 
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 40 },
+  empty: { alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 40, paddingTop: 80 },
   emptyIcon: { fontSize: 48 },
   emptyTitle: { fontSize: 18, fontWeight: '700' },
   emptySub: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
