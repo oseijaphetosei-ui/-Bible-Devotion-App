@@ -1,9 +1,10 @@
 import React, { useState, useCallback, useRef, useEffect, memo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, StatusBar,
-  Animated, ActivityIndicator, Pressable,
+  Animated, ActivityIndicator, Pressable, Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -22,7 +23,8 @@ import { CommunityStackParamList } from '../../types/navigation';
 
 type NavProp = NativeStackNavigationProp<CommunityStackParamList, 'Community'>;
 
-const HEADER_H = 60;
+const GOLD     = '#C9A96B';
+const HEADER_H = 62;
 
 const SECTION_TITLES: Record<FeedFilter, string> = {
   all:       'COMMUNITY FEED',
@@ -45,8 +47,6 @@ const CATEGORY_FILTER_MAP: Record<string, FeedFilter> = {
   groups:        'groups',
 };
 
-// ── Time formatting ────────────────────────────────────────────────────────────
-
 function relativeTime(ts: number): string {
   const diff = (Date.now() - ts) / 1000;
   if (diff < 60)    return 'just now';
@@ -55,29 +55,53 @@ function relativeTime(ts: number): string {
   return `${Math.floor(diff / 86400)}d`;
 }
 
+// ─── Glass constants ──────────────────────────────────────────────────────────
+
+const DARK_GLASS = {
+  backgroundColor: 'rgba(255,255,255,0.055)',
+  borderWidth: 1,
+  borderColor: 'rgba(255,255,255,0.09)',
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.24,
+  shadowRadius: 14,
+  elevation: 5,
+} as const;
+
+const LIGHT_GLASS = {
+  backgroundColor: 'rgba(255,255,255,0.68)',
+  borderWidth: 1,
+  borderColor: 'rgba(255,255,255,0.85)',
+  shadowColor: 'rgba(47,42,36,0.11)' as string,
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 1 as number,
+  shadowRadius: 12,
+  elevation: 3,
+} as const;
+
 // ── Category card ──────────────────────────────────────────────────────────────
 
 const CategoryCard = memo(function CategoryCard({
-  cat, cardBg, cardBorder, text, active, onPress,
+  cat, isDark, active, onPress,
 }: {
   cat: typeof COMMUNITY_CATEGORIES[number];
-  cardBg: string; cardBorder: string; text: string;
+  isDark: boolean;
   active: boolean;
   onPress: () => void;
 }) {
+  const glass = isDark ? DARK_GLASS : LIGHT_GLASS;
+  const textColor = isDark ? 'rgba(255,255,255,0.70)' : 'rgba(30,24,12,0.68)';
+
   return (
     <TouchableOpacity
-      style={[
-        cc.card,
-        { backgroundColor: cardBg, borderColor: active ? cat.color + 'BB' : cardBorder },
-      ]}
+      style={[cc.card, glass, active && { borderColor: cat.color + 'AA' }]}
       activeOpacity={0.72}
       onPress={onPress}
     >
       <View style={[cc.iconCircle, { backgroundColor: cat.color + '22', borderColor: cat.color + '44' }]}>
         <Text style={cc.icon}>{cat.icon}</Text>
       </View>
-      <Text style={[cc.label, { color: active ? cat.color : text }]} numberOfLines={2}>
+      <Text style={[cc.label, { color: active ? cat.color : textColor }]} numberOfLines={2}>
         {cat.label}
       </Text>
     </TouchableOpacity>
@@ -86,55 +110,55 @@ const CategoryCard = memo(function CategoryCard({
 
 const cc = StyleSheet.create({
   card: {
-    width: 90, borderRadius: 14, borderWidth: 1,
-    padding: 10, alignItems: 'center', gap: 8,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 3, elevation: 2,
+    width: 90, borderRadius: 18,
+    padding: 12, alignItems: 'center', gap: 8,
   },
   iconCircle: {
-    width: 42, height: 42, borderRadius: 21,
+    width: 44, height: 44, borderRadius: 22,
     borderWidth: 1, alignItems: 'center', justifyContent: 'center',
   },
-  icon:  { fontSize: 20 },
+  icon:  { fontSize: 21 },
   label: { fontSize: 11, fontWeight: '600', textAlign: 'center', lineHeight: 14 },
 });
 
 // ── Post card ──────────────────────────────────────────────────────────────────
 
 const PostCard = memo(function PostCard({
-  post, onPress, onReact, onPray,
-  cardBg, cardBorder, text, textSub, textMuted, gold, goldBg, goldBorder, divider,
+  post, onPress, onReact, onPray, isDark,
 }: {
   post: Post;
   onPress: () => void;
   onReact: (reaction: string) => void;
   onPray: () => void;
-  cardBg: string; cardBorder: string; text: string; textSub: string;
-  textMuted: string; gold: string; goldBg: string; goldBorder: string; divider: string;
+  isDark: boolean;
 }) {
   const [showReactions, setShowReactions] = useState(false);
-  const meta = POST_TYPE_META[post.type];
-  const totalReactions = Object.values(post.reactions).reduce((a, b) => a + b, 0);
+  const glass      = isDark ? DARK_GLASS : LIGHT_GLASS;
+  const meta       = POST_TYPE_META[post.type];
+  const totalReact = Object.values(post.reactions).reduce((a, b) => a + b, 0);
+
+  const textColor    = isDark ? 'rgba(255,255,255,0.92)' : 'rgba(24,18,8,0.92)';
+  const subColor     = isDark ? 'rgba(255,255,255,0.62)' : 'rgba(24,18,8,0.60)';
+  const mutedColor   = isDark ? 'rgba(255,255,255,0.36)' : 'rgba(24,18,8,0.36)';
+  const dividerColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(24,18,8,0.07)';
+  const isScripture  = post.type === 'scripture';
+  const serif        = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 
   return (
-    <TouchableOpacity
-      style={[pc.card, { backgroundColor: cardBg, borderColor: cardBorder }]}
-      onPress={onPress}
-      activeOpacity={0.88}
-    >
+    <TouchableOpacity style={[pc.card, glass]} onPress={onPress} activeOpacity={0.88}>
       {/* Author row */}
       <View style={pc.authorRow}>
-        <View style={[pc.avatar, { backgroundColor: post.authorColor + '33', borderColor: post.authorColor + '66' }]}>
+        <View style={[pc.avatar, { backgroundColor: post.authorColor + '33', borderColor: post.authorColor + '55' }]}>
           <Text style={[pc.avatarLetter, { color: post.authorColor }]}>
             {post.authorName.charAt(0).toUpperCase()}
           </Text>
         </View>
         <View style={pc.authorInfo}>
-          <Text style={[pc.authorName, { color: text }]}>{post.authorName}</Text>
-          <Text style={[pc.timeText, { color: textMuted }]}>{relativeTime(post.createdAt)}</Text>
+          <Text style={[pc.authorName, { color: textColor }]}>{post.authorName}</Text>
+          <Text style={[pc.timeText, { color: mutedColor }]}>{relativeTime(post.createdAt)}</Text>
         </View>
         {meta.label ? (
-          <View style={[pc.typeBadge, { backgroundColor: meta.color + '22', borderColor: meta.color + '55' }]}>
+          <View style={[pc.typeBadge, { backgroundColor: meta.color + '20', borderColor: meta.color + '50' }]}>
             <Text style={pc.typeBadgeIcon}>{meta.icon}</Text>
             <Text style={[pc.typeBadgeText, { color: meta.color }]}>{meta.label}</Text>
           </View>
@@ -143,50 +167,58 @@ const PostCard = memo(function PostCard({
 
       {/* Scripture ref */}
       {post.scriptureRef ? (
-        <View style={[pc.scriptureRef, { backgroundColor: goldBg, borderColor: goldBorder }]}>
-          <Text style={pc.scriptureIcon}>📖</Text>
-          <Text style={[pc.scriptureText, { color: gold }]}>{post.scriptureRef}</Text>
+        <View style={[pc.scriptureRef, { backgroundColor: 'rgba(201,169,107,0.10)', borderColor: 'rgba(201,169,107,0.28)' }]}>
+          <Ionicons name="book-outline" size={12} color={GOLD} />
+          <Text style={[pc.scriptureText, { color: GOLD, fontFamily: serif }]}>
+            {post.scriptureRef}
+          </Text>
         </View>
       ) : null}
 
       {/* Content */}
-      <Text style={[pc.content, { color: textSub }]} numberOfLines={4}>{post.content}</Text>
+      <Text
+        style={[pc.content, { color: subColor, fontFamily: isScripture ? serif : undefined }]}
+        numberOfLines={4}
+      >
+        {post.content}
+      </Text>
 
       {/* Prayer answered */}
       {post.answered ? (
-        <View style={[pc.answeredBadge, { backgroundColor: '#7BA87B22', borderColor: '#7BA87B55' }]}>
-          <Text style={{ color: '#7BA87B', fontSize: 12, fontWeight: '700' }}>✓ Prayer Answered!</Text>
+        <View style={[pc.answeredBadge, { backgroundColor: '#7BA87B1E', borderColor: '#7BA87B50' }]}>
+          <Ionicons name="checkmark-circle" size={14} color="#7BA87B" />
+          <Text style={{ color: '#7BA87B', fontSize: 12, fontWeight: '700' }}>Prayer Answered!</Text>
         </View>
       ) : null}
 
-      <View style={[pc.divider, { backgroundColor: divider }]} />
+      <View style={[pc.divider, { backgroundColor: dividerColor }]} />
 
       {/* Action bar */}
       <View style={pc.actions}>
         <TouchableOpacity
-          style={[pc.actionBtn, post.userReaction && { backgroundColor: goldBg }]}
+          style={[pc.actionBtn, post.userReaction && { backgroundColor: 'rgba(201,169,107,0.10)' }]}
           onPress={() => setShowReactions(v => !v)}
           activeOpacity={0.7}
         >
           <Text style={pc.actionEmoji}>
             {post.userReaction ? REACTION_META[post.userReaction].emoji : '❤️'}
           </Text>
-          {totalReactions > 0 && (
-            <Text style={[pc.actionCount, { color: post.userReaction ? gold : textMuted }]}>
-              {totalReactions}
+          {totalReact > 0 && (
+            <Text style={[pc.actionCount, { color: post.userReaction ? GOLD : mutedColor }]}>
+              {totalReact}
             </Text>
           )}
         </TouchableOpacity>
 
         {post.type === 'prayer' && (
           <TouchableOpacity
-            style={[pc.actionBtn, post.userPraying && { backgroundColor: '#7BA8C822' }]}
+            style={[pc.actionBtn, post.userPraying && { backgroundColor: '#7BA8C818' }]}
             onPress={onPray}
             activeOpacity={0.7}
           >
-            <Text style={pc.actionEmoji}>🙏</Text>
+            <Ionicons name="hand-right-outline" size={15} color={post.userPraying ? '#7BA8C8' : mutedColor} />
             {post.prayerCount > 0 && (
-              <Text style={[pc.actionCount, { color: post.userPraying ? '#7BA8C8' : textMuted }]}>
+              <Text style={[pc.actionCount, { color: post.userPraying ? '#7BA8C8' : mutedColor }]}>
                 {post.prayerCount}
               </Text>
             )}
@@ -194,20 +226,20 @@ const PostCard = memo(function PostCard({
         )}
 
         <TouchableOpacity style={pc.actionBtn} onPress={onPress} activeOpacity={0.7}>
-          <Ionicons name="chatbubble-outline" size={16} color={textMuted} />
+          <Ionicons name="chatbubble-outline" size={16} color={mutedColor} />
           {post.commentCount > 0 && (
-            <Text style={[pc.actionCount, { color: textMuted }]}>{post.commentCount}</Text>
+            <Text style={[pc.actionCount, { color: mutedColor }]}>{post.commentCount}</Text>
           )}
         </TouchableOpacity>
       </View>
 
       {/* Reaction picker */}
       {showReactions && (
-        <View style={[pc.reactionRow, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+        <View style={[pc.reactionRow, { backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.04)', borderColor: dividerColor }]}>
           {REACTIONS.map(([key, r]) => (
             <TouchableOpacity
               key={key}
-              style={[pc.reactionBtn, post.userReaction === key && { backgroundColor: goldBg }]}
+              style={[pc.reactionBtn, post.userReaction === key && { backgroundColor: 'rgba(201,169,107,0.16)' }]}
               onPress={() => { onReact(key); setShowReactions(false); }}
             >
               <Text style={pc.reactionEmoji}>{r.emoji}</Text>
@@ -220,21 +252,16 @@ const PostCard = memo(function PostCard({
 });
 
 const pc = StyleSheet.create({
-  card: {
-    borderRadius: 16, borderWidth: 1,
-    padding: 16, marginBottom: 12,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
-  },
+  card: { borderRadius: 20, padding: 18, marginBottom: 14 },
   authorRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   avatar: {
-    width: 38, height: 38, borderRadius: 19,
+    width: 40, height: 40, borderRadius: 20,
     borderWidth: 1.5, alignItems: 'center', justifyContent: 'center',
   },
-  avatarLetter: { fontSize: 15, fontWeight: '700' },
-  authorInfo:  { flex: 1 },
-  authorName:  { fontSize: 14, fontWeight: '700' },
-  timeText:    { fontSize: 11, marginTop: 1 },
+  avatarLetter: { fontSize: 16, fontWeight: '700' },
+  authorInfo:   { flex: 1 },
+  authorName:   { fontSize: 14, fontWeight: '700' },
+  timeText:     { fontSize: 11, marginTop: 1 },
   typeBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
     borderWidth: 1, borderRadius: 10,
@@ -244,14 +271,15 @@ const pc = StyleSheet.create({
   typeBadgeText: { fontSize: 10, fontWeight: '700' },
   scriptureRef: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    borderWidth: 1, borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 5, marginBottom: 10,
+    borderWidth: 1, borderRadius: 10,
+    paddingHorizontal: 10, paddingVertical: 5,
+    marginBottom: 10, alignSelf: 'flex-start',
   },
-  scriptureIcon: { fontSize: 12 },
   scriptureText: { fontSize: 12, fontWeight: '700' },
   content:      { fontSize: 14, lineHeight: 22 },
   answeredBadge: {
-    marginTop: 8, borderWidth: 1, borderRadius: 8,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginTop: 8, borderWidth: 1, borderRadius: 10,
     paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start',
   },
   divider:     { height: 1, marginVertical: 12 },
@@ -260,8 +288,8 @@ const pc = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20,
   },
-  actionEmoji:  { fontSize: 15 },
-  actionCount:  { fontSize: 12, fontWeight: '600' },
+  actionEmoji:   { fontSize: 15 },
+  actionCount:   { fontSize: 12, fontWeight: '600' },
   reactionRow: {
     flexDirection: 'row', gap: 4,
     marginTop: 8, borderWidth: 1,
@@ -274,34 +302,39 @@ const pc = StyleSheet.create({
 // ── Group card ────────────────────────────────────────────────────────────────
 
 const GroupCard = memo(function GroupCard({
-  group, onJoin, cardBg, cardBorder, text, textSub, textMuted, gold, goldBg, goldBorder,
+  group, onJoin, isDark,
 }: {
-  group: Group; onJoin: () => void;
-  cardBg: string; cardBorder: string; text: string; textSub: string;
-  textMuted: string; gold: string; goldBg: string; goldBorder: string;
+  group: Group;
+  onJoin: () => void;
+  isDark: boolean;
 }) {
+  const glass    = isDark ? DARK_GLASS : LIGHT_GLASS;
+  const textColor  = isDark ? 'rgba(255,255,255,0.92)' : 'rgba(24,18,8,0.92)';
+  const subColor   = isDark ? 'rgba(255,255,255,0.60)' : 'rgba(24,18,8,0.58)';
+  const mutedColor = isDark ? 'rgba(255,255,255,0.36)' : 'rgba(24,18,8,0.36)';
+
   return (
-    <View style={[gc.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-      <View style={[gc.iconWrap, { backgroundColor: gold + '18' }]}>
+    <View style={[gc.card, glass]}>
+      <View style={[gc.iconWrap, { backgroundColor: GOLD + '1A' }]}>
         <Text style={gc.icon}>{group.icon}</Text>
       </View>
       <View style={gc.info}>
-        <Text style={[gc.name, { color: text }]}>{group.name}</Text>
-        <Text style={[gc.desc, { color: textSub }]} numberOfLines={1}>{group.description}</Text>
-        <Text style={[gc.count, { color: textMuted }]}>{group.memberCount.toLocaleString()} members</Text>
+        <Text style={[gc.name, { color: textColor }]}>{group.name}</Text>
+        <Text style={[gc.desc, { color: subColor }]} numberOfLines={1}>{group.description}</Text>
+        <Text style={[gc.count, { color: mutedColor }]}>{group.memberCount.toLocaleString()} members</Text>
       </View>
       <TouchableOpacity
         style={[
           gc.joinBtn,
           group.joined
-            ? { backgroundColor: 'transparent', borderColor: cardBorder }
-            : { backgroundColor: goldBg, borderColor: goldBorder },
+            ? { backgroundColor: 'transparent', borderColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)' }
+            : { backgroundColor: 'rgba(201,169,107,0.12)', borderColor: 'rgba(201,169,107,0.30)' },
         ]}
         onPress={onJoin}
         activeOpacity={group.joined ? 1 : 0.78}
         disabled={group.joined}
       >
-        <Text style={[gc.joinText, { color: group.joined ? textMuted : gold }]}>
+        <Text style={[gc.joinText, { color: group.joined ? mutedColor : GOLD }]}>
           {group.joined ? 'Joined ✓' : 'Join'}
         </Text>
       </TouchableOpacity>
@@ -312,32 +345,29 @@ const GroupCard = memo(function GroupCard({
 const gc = StyleSheet.create({
   card: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    borderRadius: 14, borderWidth: 1,
-    padding: 14, marginBottom: 10,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 3, elevation: 1,
+    borderRadius: 18, padding: 16, marginBottom: 12,
   },
-  iconWrap: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  iconWrap: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
   icon:  { fontSize: 22 },
   info:  { flex: 1 },
   name:  { fontSize: 14, fontWeight: '700' },
   desc:  { fontSize: 12, marginTop: 2 },
   count: { fontSize: 11, marginTop: 2 },
   joinBtn: {
-    borderWidth: 1, borderRadius: 16,
-    paddingHorizontal: 14, paddingVertical: 7,
+    borderWidth: 1, borderRadius: 18,
+    paddingHorizontal: 14, paddingVertical: 8,
   },
   joinText: { fontSize: 12, fontWeight: '700' },
 });
 
 // ── Compose options ────────────────────────────────────────────────────────────
 
-const POST_OPTIONS: { key: string; label: string; icon: string }[] = [
-  { key: 'post',      label: 'Share a Thought',     icon: '💬' },
-  { key: 'testimony', label: 'Share Testimony',      icon: '✨' },
-  { key: 'prayer',    label: 'Prayer Request',       icon: '🙏' },
-  { key: 'question',  label: 'Ask a Question',       icon: '❓' },
-  { key: 'scripture', label: 'Scripture Discussion', icon: '📖' },
+const POST_OPTIONS: { key: string; label: string; icon: string; color: string }[] = [
+  { key: 'post',      label: 'Share a Thought',     icon: '💬', color: '#7B9BC8' },
+  { key: 'testimony', label: 'Share Testimony',      icon: '✨', color: GOLD },
+  { key: 'prayer',    label: 'Prayer Request',       icon: '🙏', color: '#C47B8A' },
+  { key: 'question',  label: 'Ask a Question',       icon: '❓', color: '#7BA8C8' },
+  { key: 'scripture', label: 'Scripture Discussion', icon: '📖', color: '#7BA87B' },
 ];
 
 // ── Main screen ───────────────────────────────────────────────────────────────
@@ -345,6 +375,8 @@ const POST_OPTIONS: { key: string; label: string; icon: string }[] = [
 export default function CommunityScreen() {
   const t          = useTheme();
   const navigation = useNavigation<NavProp>();
+  const insets     = useSafeAreaInsets();
+  const isDark     = t.statusBar === 'light-content';
 
   const [posts,         setPosts]         = useState<Post[]>([]);
   const [groups,        setGroups]        = useState<Group[]>([]);
@@ -359,6 +391,8 @@ export default function CommunityScreen() {
   const composeAnim    = useRef(new Animated.Value(0)).current;
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unsubRef       = useRef<(() => void) | null>(null);
+
+  const rootBg = isDark ? '#060810' : '#DDD5C4';
 
   useEffect(() => {
     if (filter === 'groups') {
@@ -433,45 +467,55 @@ export default function CommunityScreen() {
   // ── Empty states ──────────────────────────────────────────────────────────
 
   const PostEmptyState = useCallback(() => {
-    const icons: Partial<Record<FeedFilter, string>> = {
-      prayer: '🙏', testimony: '✨', question: '❓', bible: '📖',
+    const iconMap: Partial<Record<FeedFilter, any>> = {
+      prayer: 'hand-right-outline', testimony: 'sparkles-outline',
+      question: 'help-circle-outline', bible: 'book-outline',
     };
-    const emoji = isSearching ? '🔍' : (icons[filter] ?? '🌿');
+    const icon  = isSearching ? 'search-outline' : (iconMap[filter] ?? 'leaf-outline');
     const title = isSearching ? 'No results found' : 'Be the first to share';
     const sub   = isSearching
       ? `Nothing matched "${query}". Try different words.`
       : 'Share a prayer, testimony, or thought with the community.';
+    const textCol  = isDark ? 'rgba(255,255,255,0.85)' : 'rgba(24,18,8,0.85)';
+    const mutedCol = isDark ? 'rgba(255,255,255,0.45)' : 'rgba(24,18,8,0.45)';
     return (
       <View style={s.emptyState}>
-        <View style={[s.emptyIconWrap, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}>
-          <Text style={s.emptyEmoji}>{emoji}</Text>
+        <View style={[s.emptyIconWrap, { backgroundColor: 'rgba(201,169,107,0.12)', borderColor: 'rgba(201,169,107,0.28)' }]}>
+          <Ionicons name={icon} size={30} color={GOLD} />
         </View>
-        <Text style={[s.emptyTitle, { color: t.text }]}>{title}</Text>
-        <Text style={[s.emptySub, { color: t.textSub }]}>{sub}</Text>
+        <Text style={[s.emptyTitle, { color: textCol }]}>{title}</Text>
+        <Text style={[s.emptySub, { color: mutedCol }]}>{sub}</Text>
         {!isSearching && (
-          <Text style={[s.emptyHint, { color: t.textMuted }]}>Tap + to start a conversation</Text>
+          <Text style={[s.emptyHint, { color: isDark ? 'rgba(255,255,255,0.30)' : 'rgba(24,18,8,0.30)' }]}>
+            Tap + to start a conversation
+          </Text>
         )}
       </View>
     );
-  }, [t, filter, isSearching, query, toggleCompose]);
+  }, [isDark, filter, isSearching, query]);
 
-  const GroupEmptyState = useCallback(() => (
-    <View style={s.emptyState}>
-      <View style={[s.emptyIconWrap, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}>
-        <Text style={s.emptyEmoji}>👥</Text>
+  const GroupEmptyState = useCallback(() => {
+    const textCol  = isDark ? 'rgba(255,255,255,0.85)' : 'rgba(24,18,8,0.85)';
+    const mutedCol = isDark ? 'rgba(255,255,255,0.45)' : 'rgba(24,18,8,0.45)';
+    return (
+      <View style={s.emptyState}>
+        <View style={[s.emptyIconWrap, { backgroundColor: 'rgba(201,169,107,0.12)', borderColor: 'rgba(201,169,107,0.28)' }]}>
+          <Ionicons name="people-outline" size={30} color={GOLD} />
+        </View>
+        <Text style={[s.emptyTitle, { color: textCol }]}>No groups yet</Text>
+        <Text style={[s.emptySub, { color: mutedCol }]}>
+          Groups are coming soon. Check back to find communities to join.
+        </Text>
       </View>
-      <Text style={[s.emptyTitle, { color: t.text }]}>No groups yet</Text>
-      <Text style={[s.emptySub, { color: t.textSub }]}>
-        Groups are coming soon. Check back to find communities to join.
-      </Text>
-    </View>
-  ), [t]);
+    );
+  }, [isDark]);
 
-  // ── List header (category grid + section title) ────────────────────────────
+  // ── List header ───────────────────────────────────────────────────────────
 
+  const sectionColor = isDark ? 'rgba(255,255,255,0.32)' : 'rgba(24,18,8,0.32)';
   const ListHeader = useCallback(() => (
     <View>
-      <Text style={[s.sectionTitle, { color: t.textMuted }]}>EXPLORE TOPICS</Text>
+      <Text style={[s.sectionTitle, { color: sectionColor }]}>EXPLORE TOPICS</Text>
       <FlatList
         data={COMMUNITY_CATEGORIES}
         keyExtractor={c => c.id}
@@ -484,164 +528,148 @@ export default function CommunityScreen() {
           return (
             <CategoryCard
               cat={item}
-              cardBg={t.card}
-              cardBorder={t.cardBorder}
-              text={t.text}
+              isDark={isDark}
               active={active}
               onPress={() => handleCategoryPress(item.id)}
             />
           );
         }}
       />
-      <Text style={[s.sectionTitle, { color: t.textMuted, marginTop: 20 }]}>
+      <Text style={[s.sectionTitle, { color: sectionColor, marginTop: 20 }]}>
         {SECTION_TITLES[filter]}
       </Text>
     </View>
-  ), [t, filter, handleCategoryPress]);
+  ), [isDark, filter, sectionColor, handleCategoryPress]);
+
+  const headerHeight  = headerAnim.interpolate({ inputRange: [0, 1], outputRange: [0, HEADER_H] });
+  const headerOpacity = headerAnim;
+  const chipActiveColor   = isDark ? 'rgba(201,169,107,0.14)' : 'rgba(201,169,107,0.16)';
+  const chipInactiveColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(24,18,8,0.07)';
+  const chipActiveBorder  = 'rgba(201,169,107,0.40)';
+  const chipInactiveBorder = isDark ? 'rgba(255,255,255,0.10)' : 'rgba(24,18,8,0.10)';
+  const titleColor        = isDark ? 'rgba(255,255,255,0.95)' : 'rgba(24,18,8,0.95)';
+  const serif = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <SafeAreaView style={s.safe} edges={['top']}>
-        <StatusBar barStyle={t.statusBar} backgroundColor="transparent" translucent />
+    <View style={{ flex: 1, backgroundColor: rootBg, paddingTop: insets.top }}>
+      <StatusBar barStyle={t.statusBar} backgroundColor="transparent" translucent />
 
-        {/* Header */}
-        <Animated.View
-          style={{
-            height: headerAnim.interpolate({ inputRange: [0, 1], outputRange: [0, HEADER_H] }),
-            opacity: headerAnim,
-            overflow: 'hidden',
-          }}
-        >
-          <View style={s.header}>
-            <ProfileAvatar />
-            <Text style={[s.headerTitle, { color: t.text }]}>COMMUNITY</Text>
-            <TouchableOpacity
-              style={[s.composeBtn, { backgroundColor: t.filterInactiveBg, borderColor: t.filterInactiveBorder }]}
-              onPress={toggleCompose}
-              activeOpacity={0.8}
-            >
-              <Ionicons name={showCompose ? 'close' : 'add'} size={22} color={t.gold} />
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
+      {/* Header */}
+      <Animated.View style={{ height: headerHeight, opacity: headerOpacity, overflow: 'hidden' }}>
+        <View style={s.header}>
+          <ProfileAvatar size={36} />
+          <Text style={[s.headerTitle, { color: titleColor, fontFamily: serif }]}>Community</Text>
+          <TouchableOpacity
+            style={[s.composeBtn, { backgroundColor: isDark ? 'rgba(201,169,107,0.14)' : 'rgba(201,169,107,0.16)', borderColor: 'rgba(201,169,107,0.35)' }]}
+            onPress={toggleCompose}
+            activeOpacity={0.8}
+          >
+            <Ionicons name={showCompose ? 'close' : 'add'} size={22} color={GOLD} />
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
 
-        {/* Search */}
-        <PremiumSearchBar
-          value={query}
-          onChangeText={handleSearch}
-          placeholder="Search community…"
-          onActiveChange={onSearchActiveChange}
-          style={{ marginBottom: 4 }}
-        />
+      {/* Search */}
+      <PremiumSearchBar
+        value={query}
+        onChangeText={handleSearch}
+        placeholder="Search community…"
+        onActiveChange={onSearchActiveChange}
+        style={{ marginBottom: 4 }}
+      />
 
-        {/* Filter chips */}
-        {!isSearching && (
-          <View style={s.filterScroll}>
-            <FlatList
-              data={FEED_FILTERS}
-              keyExtractor={f => f.key}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={s.filterList}
-              renderItem={({ item: f }) => {
-                const active = filter === f.key;
-                return (
-                  <TouchableOpacity
-                    style={[
-                      s.chip,
-                      { backgroundColor: t.filterInactiveBg, borderColor: t.filterInactiveBorder },
-                      active && { backgroundColor: t.goldBg, borderColor: t.goldBorder },
-                    ]}
-                    onPress={() => setFilter(f.key)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[s.chipText, { color: t.textMuted }, active && { color: t.gold }]}>
-                      {f.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              }}
-            />
-          </View>
-        )}
-
-        {/* Content */}
-        {loading ? (
-          <View style={s.center}>
-            <ActivityIndicator color={t.gold} size="large" />
-          </View>
-        ) : filter === 'groups' ? (
+      {/* Filter chips */}
+      {!isSearching && (
+        <View style={s.filterScroll}>
           <FlatList
-            data={groups}
-            keyExtractor={g => g.id}
-            contentContainerStyle={s.list}
-            showsVerticalScrollIndicator={false}
-            ListHeaderComponent={() => (
-              <Text style={[s.sectionTitle, { color: t.textMuted }]}>DISCOVER GROUPS</Text>
-            )}
-            ListEmptyComponent={<GroupEmptyState />}
-            renderItem={({ item }) => (
-              <GroupCard
-                group={item}
-                onJoin={() => handleJoinGroup(item.id)}
-                cardBg={t.card}
-                cardBorder={t.cardBorder}
-                text={t.text}
-                textSub={t.textSub}
-                textMuted={t.textMuted}
-                gold={t.gold}
-                goldBg={t.goldBg}
-                goldBorder={t.goldBorder}
-              />
-            )}
-          />
-        ) : (
-          <FlatList
-            data={displayedPosts}
-            keyExtractor={p => p.id}
-            contentContainerStyle={s.list}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            ListHeaderComponent={!isSearching ? ListHeader : undefined}
-            ListEmptyComponent={<PostEmptyState />}
-            renderItem={({ item }) => (
-              <PostCard
-                post={item}
-                onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
-                onReact={(r) => handleReact(item.id, r)}
-                onPray={() => handlePray(item.id)}
-                cardBg={t.card}
-                cardBorder={t.cardBorder}
-                text={t.text}
-                textSub={t.textSub}
-                textMuted={t.textMuted}
-                gold={t.gold}
-                goldBg={t.goldBg}
-                goldBorder={t.goldBorder}
-                divider={t.divider}
-              />
-            )}
-          />
-        )}
-
-        {/* Compose dropdown */}
-        {showCompose && (
-          <Pressable style={s.dropBackdrop} onPress={closeCompose}>
-            <Animated.View
-              style={[
-                s.dropdown,
-                { backgroundColor: t.card, borderColor: t.cardBorder },
-                {
-                  opacity: composeAnim,
-                  transform: [{
-                    translateY: composeAnim.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }),
-                  }],
-                },
-              ]}
-            >
-              {POST_OPTIONS.map(opt => (
+            data={FEED_FILTERS}
+            keyExtractor={f => f.key}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={s.filterList}
+            renderItem={({ item: f }) => {
+              const active = filter === f.key;
+              return (
                 <TouchableOpacity
-                  key={opt.key}
+                  style={[
+                    s.chip,
+                    { backgroundColor: active ? chipActiveColor : chipInactiveColor,
+                      borderColor: active ? chipActiveBorder : chipInactiveBorder },
+                  ]}
+                  onPress={() => setFilter(f.key)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.chipText, { color: active ? GOLD : isDark ? 'rgba(255,255,255,0.55)' : 'rgba(24,18,8,0.55)' }]}>
+                    {f.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }}
+          />
+        </View>
+      )}
+
+      {/* Content */}
+      {loading ? (
+        <View style={s.center}>
+          <ActivityIndicator color={GOLD} size="large" />
+        </View>
+      ) : filter === 'groups' ? (
+        <FlatList
+          data={groups}
+          keyExtractor={g => g.id}
+          contentContainerStyle={s.list}
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={() => (
+            <Text style={[s.sectionTitle, { color: sectionColor }]}>DISCOVER GROUPS</Text>
+          )}
+          ListEmptyComponent={<GroupEmptyState />}
+          renderItem={({ item }) => (
+            <GroupCard group={item} onJoin={() => handleJoinGroup(item.id)} isDark={isDark} />
+          )}
+        />
+      ) : (
+        <FlatList
+          data={displayedPosts}
+          keyExtractor={p => p.id}
+          contentContainerStyle={s.list}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          ListHeaderComponent={!isSearching ? ListHeader : undefined}
+          ListEmptyComponent={<PostEmptyState />}
+          renderItem={({ item }) => (
+            <PostCard
+              post={item}
+              onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
+              onReact={(r) => handleReact(item.id, r)}
+              onPray={() => handlePray(item.id)}
+              isDark={isDark}
+            />
+          )}
+        />
+      )}
+
+      {/* Compose dropdown */}
+      {showCompose && (
+        <Pressable style={s.dropBackdrop} onPress={closeCompose}>
+          <Animated.View
+            style={[
+              s.dropdown,
+              isDark ? DARK_GLASS : LIGHT_GLASS,
+              {
+                opacity: composeAnim,
+                transform: [{
+                  translateY: composeAnim.interpolate({ inputRange: [0, 1], outputRange: [-10, 0] }),
+                }],
+              },
+            ]}
+          >
+            {POST_OPTIONS.map((opt, idx) => (
+              <React.Fragment key={opt.key}>
+                {idx > 0 && (
+                  <View style={[s.dropDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }]} />
+                )}
+                <TouchableOpacity
                   style={s.dropItem}
                   onPress={() => {
                     closeCompose();
@@ -649,71 +677,73 @@ export default function CommunityScreen() {
                   }}
                   activeOpacity={0.75}
                 >
-                  <Text style={s.dropIcon}>{opt.icon}</Text>
-                  <Text style={[s.dropLabel, { color: t.text }]}>{opt.label}</Text>
+                  <View style={[s.dropIconWrap, { backgroundColor: opt.color + '18' }]}>
+                    <Text style={{ fontSize: 16 }}>{opt.icon}</Text>
+                  </View>
+                  <Text style={[s.dropLabel, { color: isDark ? 'rgba(255,255,255,0.90)' : 'rgba(24,18,8,0.90)' }]}>
+                    {opt.label}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={14} color={isDark ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.28)'} />
                 </TouchableOpacity>
-              ))}
-            </Animated.View>
-          </Pressable>
-        )}
-      </SafeAreaView>
+              </React.Fragment>
+            ))}
+          </Animated.View>
+        </Pressable>
+      )}
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1 },
-
   header: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 20, paddingVertical: 10, gap: 14,
+    paddingHorizontal: 20, height: HEADER_H, gap: 14,
   },
-  headerTitle: { fontSize: 26, fontWeight: '700', letterSpacing: -0.3, flex: 1 },
+  headerTitle: { fontSize: 26, fontWeight: '400', letterSpacing: -0.3, flex: 1 },
   composeBtn: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 38, height: 38, borderRadius: 19,
     borderWidth: 1, alignItems: 'center', justifyContent: 'center',
   },
 
   filterScroll: { marginBottom: 8 },
   filterList:   { paddingHorizontal: 18, gap: 8 },
   chip: {
-    paddingHorizontal: 14, paddingVertical: 7,
+    paddingHorizontal: 15, paddingVertical: 7,
     borderRadius: 20, borderWidth: 1,
   },
-  chipText: { fontSize: 12, fontWeight: '600' },
+  chipText: { fontSize: 12, fontWeight: '600', letterSpacing: 0.1 },
 
-  list:         { paddingHorizontal: 18, paddingBottom: 120 },
-  sectionTitle: { fontSize: 10, fontWeight: '800', letterSpacing: 1.2, paddingHorizontal: 2, marginBottom: 12 },
-  catList:      { paddingBottom: 4, gap: 10 },
-  center:       { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
-
-  // ── Empty states ──────────────────────────────────────────────────────────
-  emptyState: {
-    alignItems: 'center', paddingTop: 56,
-    paddingHorizontal: 36, paddingBottom: 40,
+  list:         { paddingHorizontal: 18, paddingBottom: 130 },
+  sectionTitle: {
+    fontSize: 10, fontWeight: '800', letterSpacing: 1.4,
+    paddingHorizontal: 2, marginBottom: 12,
   },
+  catList: { paddingBottom: 4, gap: 10 },
+  center:  { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
+
+  emptyState:    { alignItems: 'center', paddingTop: 56, paddingHorizontal: 36, paddingBottom: 40 },
   emptyIconWrap: {
     width: 72, height: 72, borderRadius: 36,
-    borderWidth: 1, alignItems: 'center', justifyContent: 'center',
-    marginBottom: 20,
+    borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: 20,
   },
-  emptyEmoji:   { fontSize: 30 },
-  emptyTitle:   { fontSize: 20, fontWeight: '700', marginBottom: 8, textAlign: 'center' },
-  emptySub:  { fontSize: 14, lineHeight: 22, textAlign: 'center', marginBottom: 8 },
-  emptyHint: { fontSize: 13, textAlign: 'center' },
+  emptyTitle: { fontSize: 20, fontWeight: '700', marginBottom: 8, textAlign: 'center' },
+  emptySub:   { fontSize: 14, lineHeight: 22, textAlign: 'center', marginBottom: 8 },
+  emptyHint:  { fontSize: 13, textAlign: 'center' },
 
-  // ── Compose dropdown ──────────────────────────────────────────────────────
   dropBackdrop: { ...StyleSheet.absoluteFillObject, zIndex: 100 },
   dropdown: {
-    position: 'absolute', top: HEADER_H - 8, right: 20,
-    borderRadius: 14, borderWidth: 1, paddingVertical: 6, minWidth: 200,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12, shadowRadius: 16, elevation: 10, zIndex: 101,
+    position: 'absolute', top: HEADER_H - 4, right: 20,
+    borderRadius: 18, paddingVertical: 6, minWidth: 210,
+    zIndex: 101,
   },
   dropItem: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 16, paddingVertical: 12,
+    paddingHorizontal: 16, paddingVertical: 13,
   },
-  dropIcon:  { fontSize: 18 },
-  dropLabel: { fontSize: 14, fontWeight: '600' },
+  dropIconWrap: {
+    width: 34, height: 34, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  dropLabel:   { flex: 1, fontSize: 14, fontWeight: '600' },
+  dropDivider: { height: StyleSheet.hairlineWidth, marginHorizontal: 16 },
 });

@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  StatusBar, Share, ActivityIndicator,
+  StatusBar, Share, ActivityIndicator, Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { Audio, AVPlaybackStatus } from 'expo-av';
@@ -17,6 +17,8 @@ type ReaderRoute = RouteProp<RootStackParamList, 'HymnReader'>;
 type PlayerState = 'idle' | 'loading' | 'playing' | 'paused' | 'buffering' | 'error';
 
 const THUMB_SIZE = 12;
+const GOLD  = '#C9A96B';
+const SERIF = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 
 function formatMs(ms: number): string {
   const s = Math.floor(ms / 1000);
@@ -27,23 +29,30 @@ export default function HymnReaderScreen() {
   const t          = useTheme();
   const navigation = useNavigation();
   const route      = useRoute<ReaderRoute>();
+  const insets     = useSafeAreaInsets();
   const { hymnId } = route.params;
+
+  const isDark     = t.statusBar === 'light-content';
+  const rootBg     = isDark ? '#060810' : '#DDD5C4';
+  const textColor  = isDark ? 'rgba(255,255,255,0.92)' : 'rgba(24,18,8,0.92)';
+  const subColor   = isDark ? 'rgba(255,255,255,0.62)' : 'rgba(24,18,8,0.62)';
+  const mutedColor = isDark ? 'rgba(255,255,255,0.36)' : 'rgba(24,18,8,0.36)';
+  const divColor   = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
+  const glass      = isDark
+    ? { backgroundColor: 'rgba(255,255,255,0.055)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)' }
+    : { backgroundColor: 'rgba(255,255,255,0.68)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.85)' };
 
   const hymn = getHymnById(hymnId);
   const { isFavorite, toggleFavorite } = useFavorites();
   const favorited = isFavorite(hymnId);
 
-  // ── Audio resolution ──────────────────────────────────────────────────────
-  const [resolved,  setResolved]  = useState<ResolvedAudio | null>(null);
-  const [resolving, setResolving] = useState(true);
-
-  // ── Playback state ────────────────────────────────────────────────────────
-  const [playerState, setPlayerState] = useState<PlayerState>('idle');
-  const [positionMs,  setPositionMs]  = useState(0);
-  const [durationMs,  setDurationMs]  = useState(0);
-  const [repeat,      setRepeat]      = useState(false);
-  const [trackWidth,  setTrackWidth]  = useState(0);
-
+  const [resolved,     setResolved]     = useState<ResolvedAudio | null>(null);
+  const [resolving,    setResolving]    = useState(true);
+  const [playerState,  setPlayerState]  = useState<PlayerState>('idle');
+  const [positionMs,   setPositionMs]   = useState(0);
+  const [durationMs,   setDurationMs]   = useState(0);
+  const [repeat,       setRepeat]       = useState(false);
+  const [trackWidth,   setTrackWidth]   = useState(0);
   const soundRef = useRef<Audio.Sound | null>(null);
 
   useEffect(() => {
@@ -55,7 +64,6 @@ export default function HymnReaderScreen() {
     setDurationMs(0);
     soundRef.current?.unloadAsync().catch(() => {});
     soundRef.current = null;
-
     resolveHymnAudio(hymnId).then(r => {
       if (alive) { setResolved(r); setResolving(false); }
     });
@@ -157,7 +165,6 @@ export default function HymnReaderScreen() {
     Share.share({ message: lines });
   }, [hymn]);
 
-  // ── Derived ───────────────────────────────────────────────────────────────
   const progress  = durationMs > 0 ? positionMs / durationMs : 0;
   const fillWidth = trackWidth > 0 ? progress * trackWidth : 0;
   const thumbLeft = trackWidth > 0
@@ -171,277 +178,249 @@ export default function HymnReaderScreen() {
 
   if (!hymn) {
     return (
-      <View style={[s.root, { backgroundColor: t.bg }]}>
-        <SafeAreaView style={s.centered} edges={['top']}>
-          <Text style={{ color: t.textMuted }}>Hymn not found.</Text>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={{ color: t.gold, marginTop: 12 }}>Go back</Text>
-          </TouchableOpacity>
-        </SafeAreaView>
+      <View style={{ flex: 1, backgroundColor: rootBg, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+        <Text style={{ color: mutedColor, fontSize: 15 }}>Hymn not found.</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={{ color: GOLD, marginTop: 12 }}>Go back</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <View style={[s.root, { backgroundColor: t.bg }]}>
+    <View style={{ flex: 1, backgroundColor: rootBg }}>
       <StatusBar barStyle={t.statusBar} backgroundColor="transparent" translucent />
-      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
 
-        {/* ── Nav row ──────────────────────────────────────────────────────── */}
-        <View style={s.navRow}>
+      {/* Nav row */}
+      <View style={[s.navRow, { paddingTop: insets.top + 6 }]}>
+        <TouchableOpacity
+          style={[s.navBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)' }]}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="chevron-back" size={20} color={textColor} />
+        </TouchableOpacity>
+
+        <View style={s.navRight}>
           <TouchableOpacity
-            onPress={() => navigation.goBack()}
+            style={[s.navBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)' }]}
+            onPress={() => toggleFavorite(hymnId)}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             activeOpacity={0.7}
           >
-            <Ionicons name="chevron-back" size={26} color={t.text} />
+            <Ionicons
+              name={favorited ? 'heart' : 'heart-outline'}
+              size={18}
+              color={favorited ? '#E05C5C' : mutedColor}
+            />
           </TouchableOpacity>
-          <View style={s.navRight}>
-            <TouchableOpacity
-              onPress={() => toggleFavorite(hymnId)}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={favorited ? 'heart' : 'heart-outline'}
-                size={22}
-                color={favorited ? '#E05C5C' : t.text}
-              />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleShare}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="share-outline" size={22} color={t.text} />
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={[s.navBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)' }]}
+            onPress={handleShare}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="share-outline" size={18} color={mutedColor} />
+          </TouchableOpacity>
         </View>
+      </View>
 
-        {/* ── Player bar (top) ─────────────────────────────────────────────── */}
-        {showBar && (
-          <View style={[s.playerBar, { backgroundColor: t.card, borderColor: t.divider }]}>
-
-            {/* Resolving */}
-            {resolving && (
-              <View style={s.barCenter}>
-                <ActivityIndicator size="small" color={t.gold} />
-                <Text style={[s.barStatusText, { color: t.textMuted }]}>Loading…</Text>
-              </View>
-            )}
-
-            {/* Network error */}
-            {!resolving && !hasAudio && (
-              <View style={s.barCenter}>
-                <Ionicons name="musical-notes-outline" size={14} color={t.textMuted} />
-                <Text style={[s.barStatusText, { color: t.textMuted }]}>
-                  Could not load audio.
-                </Text>
-                <TouchableOpacity onPress={handleRetry} activeOpacity={0.7}>
-                  <Text style={[s.barStatusText, { color: t.gold, fontWeight: '600' }]}>Retry</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Full player */}
-            {!resolving && hasAudio && (
-              <>
-                {/* Repeat */}
-                <TouchableOpacity
-                  onPress={() => setRepeat(r => !r)}
-                  style={s.barBtn}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="repeat" size={17} color={repeat ? t.gold : t.textMuted} />
-                  {repeat && <View style={[s.repeatDot, { backgroundColor: t.gold }]} />}
-                </TouchableOpacity>
-
-                {/* Stop */}
-                <TouchableOpacity
-                  onPress={handleStop}
-                  disabled={playerState === 'idle'}
-                  style={[s.barBtn, { opacity: playerState === 'idle' ? 0.25 : 1 }]}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="stop" size={17} color={t.text} />
-                </TouchableOpacity>
-
-                {/* Time — seek bar — time */}
-                <Text style={[s.barTime, { color: t.textMuted }]}>{formatMs(positionMs)}</Text>
-                <View
-                  style={[s.barTrack, { backgroundColor: t.divider }]}
-                  onLayout={e => setTrackWidth(e.nativeEvent.layout.width)}
-                  onStartShouldSetResponder={() => durationMs > 0}
-                  onMoveShouldSetResponder={() => durationMs > 0}
-                  onResponderGrant={handleSeekTouch}
-                  onResponderMove={handleSeekTouch}
-                >
-                  <View style={[s.barFill, { backgroundColor: t.gold, width: fillWidth }]} />
-                  {trackWidth > 0 && (
-                    <View style={[s.barThumb, { backgroundColor: t.gold, left: thumbLeft }]} />
-                  )}
-                </View>
-                <Text style={[s.barTime, { color: t.textMuted, textAlign: 'right' }]}>
-                  {durationMs > 0 ? formatMs(durationMs) : '--:--'}
-                </Text>
-
-                {/* Play / Pause — bare icon, no circle (matches Bible page) */}
-                <TouchableOpacity
-                  onPress={isPlaying ? handlePause : (playerState === 'error' ? () => setPlayerState('idle') : handlePlay)}
-                  disabled={isLoading}
-                  style={s.barBtn}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  activeOpacity={0.7}
-                >
-                  {isLoading ? (
-                    <ActivityIndicator size="small" color={t.gold} />
-                  ) : playerState === 'error' ? (
-                    <Ionicons name="refresh" size={18} color="#C87B7B" />
-                  ) : isPlaying ? (
-                    <Ionicons name="pause" size={18} color={t.text} />
-                  ) : (
-                    <Ionicons name="play" size={18} color={t.text} />
-                  )}
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
-        )}
-
-        {/* ── Lyrics ───────────────────────────────────────────────────────── */}
-        <ScrollView
-          contentContainerStyle={s.scroll}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={s.hymnHeader}>
-            <View style={[s.numberBadge, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}>
-              <Text style={[s.numberText, { color: t.gold }]}>#{hymn.number}</Text>
+      {/* Player bar */}
+      {showBar && (
+        <View style={[s.playerBar, glass, {
+          marginHorizontal: 18, marginBottom: 6,
+          shadowColor: isDark ? '#000' : 'rgba(47,42,36,0.10)',
+          shadowOffset: { width: 0, height: 2 }, shadowOpacity: isDark ? 0.18 : 1, shadowRadius: 10, elevation: 4,
+        }]}>
+          {resolving && (
+            <View style={s.barCenter}>
+              <ActivityIndicator size="small" color={GOLD} />
+              <Text style={[s.barStatusText, { color: mutedColor }]}>Loading…</Text>
             </View>
-            <Text style={[s.title, { color: t.text }]}>{hymn.title}</Text>
-            <Text style={[s.meta, { color: t.textSub }]}>{hymn.author} · {hymn.year}</Text>
-
-            <View style={s.tagRow}>
-              <View style={[s.catTag, { backgroundColor: t.accentBg, borderColor: t.accentBorder }]}>
-                <Text style={[s.catTagText, { color: t.accent }]}>{hymn.category}</Text>
-              </View>
-              {hymn.tags.map(tag => (
-                <View key={tag} style={[s.tag, { backgroundColor: t.card, borderColor: t.cardBorder }]}>
-                  <Text style={[s.tagText, { color: t.textMuted }]}>{tag}</Text>
-                </View>
-              ))}
+          )}
+          {!resolving && !hasAudio && (
+            <View style={s.barCenter}>
+              <Ionicons name="musical-notes-outline" size={14} color={mutedColor} />
+              <Text style={[s.barStatusText, { color: mutedColor }]}>Could not load audio.</Text>
+              <TouchableOpacity onPress={handleRetry} activeOpacity={0.7}>
+                <Text style={[s.barStatusText, { color: GOLD, fontWeight: '600' }]}>Retry</Text>
+              </TouchableOpacity>
             </View>
-
-            <View style={[s.rule, { backgroundColor: t.divider }]} />
-          </View>
-
-          <View style={s.lyrics}>
-            {hymn.verses.map((verse, vi) => (
-              <View key={vi} style={s.verseBlock}>
-                <Text style={[s.verseLabel, { color: t.textMuted }]}>
-                  {hymn.verses.length > 1 ? `Verse ${vi + 1}` : 'Verse'}
-                </Text>
-                {verse.lines.map((line, li) => (
-                  <Text key={li} style={[s.verseLine, { color: t.text, fontFamily: t.fontSerif }]}>
-                    {line}
-                  </Text>
-                ))}
-                {hymn.chorus && vi < hymn.verses.length - 1 && (
-                  <View style={[s.chorusBlock, { borderLeftColor: t.gold }]}>
-                    <Text style={[s.chorusLabel, { color: t.gold }]}>Chorus</Text>
-                    {hymn.chorus.lines.map((line, li) => (
-                      <Text key={li} style={[s.chorusLine, { color: t.textSub, fontFamily: t.fontSerif }]}>
-                        {line}
-                      </Text>
-                    ))}
-                  </View>
+          )}
+          {!resolving && hasAudio && (
+            <>
+              <TouchableOpacity
+                onPress={() => setRepeat(r => !r)}
+                style={s.barBtn}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="repeat" size={17} color={repeat ? GOLD : mutedColor} />
+                {repeat && <View style={[s.repeatDot, { backgroundColor: GOLD }]} />}
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleStop}
+                disabled={playerState === 'idle'}
+                style={[s.barBtn, { opacity: playerState === 'idle' ? 0.25 : 1 }]}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="stop" size={17} color={textColor} />
+              </TouchableOpacity>
+              <Text style={[s.barTime, { color: mutedColor }]}>{formatMs(positionMs)}</Text>
+              <View
+                style={[s.barTrack, { backgroundColor: divColor }]}
+                onLayout={e => setTrackWidth(e.nativeEvent.layout.width)}
+                onStartShouldSetResponder={() => durationMs > 0}
+                onMoveShouldSetResponder={() => durationMs > 0}
+                onResponderGrant={handleSeekTouch}
+                onResponderMove={handleSeekTouch}
+              >
+                <View style={[s.barFill, { backgroundColor: GOLD, width: fillWidth }]} />
+                {trackWidth > 0 && (
+                  <View style={[s.barThumb, { backgroundColor: GOLD, left: thumbLeft }]} />
                 )}
               </View>
-            ))}
+              <Text style={[s.barTime, { color: mutedColor, textAlign: 'right' }]}>
+                {durationMs > 0 ? formatMs(durationMs) : '--:--'}
+              </Text>
+              <TouchableOpacity
+                onPress={isPlaying ? handlePause : (playerState === 'error' ? () => setPlayerState('idle') : handlePlay)}
+                disabled={isLoading}
+                style={s.barBtn}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                activeOpacity={0.7}
+              >
+                {isLoading ? (
+                  <ActivityIndicator size="small" color={GOLD} />
+                ) : playerState === 'error' ? (
+                  <Ionicons name="refresh" size={18} color="#C87B7B" />
+                ) : isPlaying ? (
+                  <Ionicons name="pause" size={18} color={textColor} />
+                ) : (
+                  <Ionicons name="play" size={18} color={textColor} />
+                )}
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      )}
 
-            {hymn.chorus && (
-              <View style={[s.chorusBlock, { borderLeftColor: t.gold }]}>
-                <Text style={[s.chorusLabel, { color: t.gold }]}>Chorus</Text>
-                {hymn.chorus.lines.map((line, li) => (
-                  <Text key={li} style={[s.chorusLine, { color: t.textSub, fontFamily: t.fontSerif }]}>
-                    {line}
-                  </Text>
-                ))}
-              </View>
-            )}
+      {/* Lyrics */}
+      <ScrollView
+        contentContainerStyle={[s.scroll, { paddingBottom: Math.max(insets.bottom, 16) + 60 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={s.hymnHeader}>
+          {/* Number badge */}
+          <View style={[s.numberBadge, { backgroundColor: 'rgba(201,169,107,0.12)', borderColor: 'rgba(201,169,107,0.30)' }]}>
+            <Text style={s.numberText}>#{hymn.number}</Text>
           </View>
-        </ScrollView>
+          <Text style={[s.title, { color: textColor, fontFamily: SERIF }]}>{hymn.title}</Text>
+          <Text style={[s.meta, { color: subColor }]}>{hymn.author} · {hymn.year}</Text>
 
-      </SafeAreaView>
+          <View style={s.tagRow}>
+            <View style={[s.catTag, { backgroundColor: 'rgba(201,169,107,0.10)', borderColor: 'rgba(201,169,107,0.28)' }]}>
+              <Text style={[s.catTagText, { color: GOLD }]}>{hymn.category}</Text>
+            </View>
+            {hymn.tags.map(tag => (
+              <View key={tag} style={[s.tag, { backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)', borderColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.09)' }]}>
+                <Text style={[s.tagText, { color: mutedColor }]}>{tag}</Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={[s.rule, { backgroundColor: divColor }]} />
+        </View>
+
+        <View style={s.lyrics}>
+          {hymn.verses.map((verse, vi) => (
+            <View key={vi} style={s.verseBlock}>
+              <Text style={[s.verseLabel, { color: mutedColor }]}>
+                {hymn.verses.length > 1 ? `Verse ${vi + 1}` : 'Verse'}
+              </Text>
+              {verse.lines.map((line, li) => (
+                <Text key={li} style={[s.verseLine, { color: textColor, fontFamily: SERIF }]}>
+                  {line}
+                </Text>
+              ))}
+              {hymn.chorus && vi < hymn.verses.length - 1 && (
+                <View style={[s.chorusBlock, { borderLeftColor: GOLD }]}>
+                  <Text style={[s.chorusLabel, { color: GOLD }]}>Chorus</Text>
+                  {hymn.chorus.lines.map((line, li) => (
+                    <Text key={li} style={[s.chorusLine, { color: subColor, fontFamily: SERIF }]}>
+                      {line}
+                    </Text>
+                  ))}
+                </View>
+              )}
+            </View>
+          ))}
+
+          {hymn.chorus && (
+            <View style={[s.chorusBlock, { borderLeftColor: GOLD }]}>
+              <Text style={[s.chorusLabel, { color: GOLD }]}>Chorus</Text>
+              {hymn.chorus.lines.map((line, li) => (
+                <Text key={li} style={[s.chorusLine, { color: subColor, fontFamily: SERIF }]}>
+                  {line}
+                </Text>
+              ))}
+            </View>
+          )}
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  root:     { flex: 1 },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-
   navRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4,
+    paddingHorizontal: 18, paddingBottom: 10,
   },
-  navRight: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-
-  // ── Player bar ────────────────────────────────────────────────────────────
-  playerBar: {
-    flexDirection: 'row', alignItems: 'center',
-    borderTopWidth: 1, borderBottomWidth: 1,
-    paddingHorizontal: 14, paddingVertical: 10,
-    gap: 6,
-  },
-  barCenter: {
-    flex: 1, flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center', gap: 8,
-  },
-  barStatusText: { fontSize: 12 },
-  barBtn: {
-    paddingHorizontal: 8, paddingVertical: 6,
+  navBtn: {
+    width: 36, height: 36, borderRadius: 11,
     alignItems: 'center', justifyContent: 'center',
   },
-  barTime: { fontSize: 11, fontVariant: ['tabular-nums'], minWidth: 32 },
-  barTrack: {
-    flex: 1, height: 3, borderRadius: 2, overflow: 'visible',
+  navRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+
+  playerBar: {
+    flexDirection: 'row', alignItems: 'center',
+    borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10,
+    gap: 6,
   },
-  barFill:  { height: '100%', borderRadius: 2 },
+  barCenter:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  barStatusText: { fontSize: 12 },
+  barBtn:        { paddingHorizontal: 8, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
+  barTime:       { fontSize: 11, fontVariant: ['tabular-nums'], minWidth: 32 },
+  barTrack:      { flex: 1, height: 3, borderRadius: 2, overflow: 'visible' },
+  barFill:       { height: '100%', borderRadius: 2 },
   barThumb: {
-    position: 'absolute',
-    width: THUMB_SIZE, height: THUMB_SIZE, borderRadius: THUMB_SIZE / 2,
+    position: 'absolute', width: THUMB_SIZE, height: THUMB_SIZE, borderRadius: THUMB_SIZE / 2,
     top: -(THUMB_SIZE / 2 - 1.5),
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2, shadowRadius: 2, elevation: 2,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 2, elevation: 2,
   },
-  repeatDot: {
-    width: 4, height: 4, borderRadius: 2,
-    position: 'absolute', bottom: 2,
-  },
+  repeatDot: { width: 4, height: 4, borderRadius: 2, position: 'absolute', bottom: 2 },
 
-  // ── Lyrics ────────────────────────────────────────────────────────────────
-  scroll: { paddingHorizontal: 24, paddingTop: 20, paddingBottom: 60 },
+  scroll: { paddingHorizontal: 24, paddingTop: 16 },
 
-  hymnHeader:  { marginBottom: 24 },
+  hymnHeader: { marginBottom: 24 },
   numberBadge: {
     alignSelf: 'flex-start', borderWidth: 1, borderRadius: 10,
     paddingHorizontal: 10, paddingVertical: 4, marginBottom: 12,
   },
-  numberText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
-  title:      { fontSize: 28, fontWeight: '800', letterSpacing: -0.4, lineHeight: 34, marginBottom: 6 },
+  numberText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, color: GOLD },
+  title:      { fontSize: 28, fontWeight: '400', letterSpacing: -0.4, lineHeight: 36, marginBottom: 6 },
   meta:       { fontSize: 13, marginBottom: 14 },
-
   tagRow:     { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
   catTag:     { borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4 },
   catTagText: { fontSize: 10, fontWeight: '700', letterSpacing: 1.2 },
   tag:        { borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   tagText:    { fontSize: 10, fontWeight: '600', letterSpacing: 0.6 },
+  rule:       { height: 1 },
 
-  rule:   { height: 1 },
-  lyrics: { gap: 28 },
-
+  lyrics:     { gap: 28 },
   verseBlock: { gap: 4 },
   verseLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1.4, marginBottom: 6 },
   verseLine:  { fontSize: 17, lineHeight: 30, letterSpacing: 0.1 },

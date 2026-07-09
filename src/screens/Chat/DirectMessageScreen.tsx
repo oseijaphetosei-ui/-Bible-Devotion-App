@@ -15,6 +15,7 @@ import {
   NativeSyntheticEvent,
   Platform,
   Pressable,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -255,6 +256,21 @@ const Bubble = React.memo(function Bubble({ msg, mine, t, onLongPress }: BubbleP
   );
 });
 
+// ─── Emoji panel data ────────────────────────────────────────────────────────
+
+const EMOJI_PANEL = [
+  '😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇','🙂','🙃','😉','😌','😍',
+  '🥰','😘','😗','😋','😛','😝','😜','🤩','🥳','😏','😒','😞','😔','😢','😭',
+  '😤','😠','😡','🤯','😳','😱','😨','😰','🤔','🤗','🤭','🤫','🙄','😶','😬',
+  '🥱','😴','🤢','🤮','🤧','😷','🥴','😵',
+  '❤️','🧡','💛','💚','💙','💜','🖤','🤍','💔','💕','💞','💓','💗','💖','💘',
+  '👍','👎','👌','✌️','🤞','🤟','🤘','🤙','👏','🙌','🙏','👋','✋','💪','🤝',
+  '🎉','🎊','🎈','🎁','🎂','🏆','🥇','🎯','🔥','✨','⭐','🌟','💫','💥','🌈',
+  '☀️','🌙','⚡','❄️','🌊','🌸','🍀','🦋','🐶','🐱','🐻','🦁','🐸','🐧','🦊',
+  '🍕','🍔','🍟','🌮','🍜','🍣','🍩','🍪','🎂','🍫','☕','🧃','🍺','🥂','🍾',
+  '💯','✅','❌','❓','❗','💬','🔔','📱','💻','🎵','🎶','📚','💡','🔑','🎮',
+];
+
 // ─── Screen ──────────────────────────────────────────────────────────────────
 
 export default function DirectMessageScreen() {
@@ -278,6 +294,7 @@ export default function DirectMessageScreen() {
   const [actionMsg, setActionMsg] = useState<ChatMessage | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showEmojiPanel, setShowEmojiPanel] = useState(false);
 
   const listRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
@@ -312,6 +329,18 @@ export default function DirectMessageScreen() {
   const closeSearch = useCallback(() => {
     setIsSearching(false);
     setSearchQuery('');
+  }, []);
+
+  const toggleEmojiPanel = useCallback(() => {
+    setShowEmojiPanel(prev => {
+      if (!prev) inputRef.current?.blur();
+      else setTimeout(() => inputRef.current?.focus(), 50);
+      return !prev;
+    });
+  }, []);
+
+  const handleEmojiSelect = useCallback((emoji: string) => {
+    setInput(prev => prev + emoji);
   }, []);
 
   // Messages subscription — store ascending (oldest first) for natural top→bottom display.
@@ -620,6 +649,28 @@ export default function DirectMessageScreen() {
           />
         )}
 
+        {/* Emoji panel */}
+        {showEmojiPanel && (
+          <View style={[styles.emojiPanel, { backgroundColor: t.card, borderTopColor: t.divider }]}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="always"
+              contentContainerStyle={styles.emojiGrid}
+            >
+              {EMOJI_PANEL.map(emoji => (
+                <TouchableOpacity
+                  key={emoji}
+                  onPress={() => handleEmojiSelect(emoji)}
+                  style={styles.emojiBtn}
+                  activeOpacity={0.6}
+                >
+                  <Text style={styles.emojiChar}>{emoji}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         {/* Reply bar */}
         {replyTo && (
           <View style={[styles.replyBar, { backgroundColor: t.card, borderTopColor: t.divider }]}>
@@ -655,11 +706,18 @@ export default function DirectMessageScreen() {
           </TouchableOpacity>
 
           <View style={[styles.inputPill, { backgroundColor: t.inputBg, borderColor: t.inputBorder }]}>
-            <Ionicons name="happy-outline" size={20} color={t.textMuted} style={{ marginRight: 6 }} />
+            <TouchableOpacity onPress={toggleEmojiPanel} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginRight: 6 }}>
+              <Ionicons
+                name={showEmojiPanel ? 'happy' : 'happy-outline'}
+                size={20}
+                color={showEmojiPanel ? t.gold : t.textMuted}
+              />
+            </TouchableOpacity>
             <TextInput
               ref={inputRef}
               value={input}
               onChangeText={handleChangeText}
+              onFocus={() => setShowEmojiPanel(false)}
               placeholder="Message"
               placeholderTextColor={t.textMuted}
               multiline
@@ -893,4 +951,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   sheetActionText: { fontSize: 16, fontWeight: '500' },
+
+  emojiPanel: {
+    height: 260,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  emojiGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+  },
+  emojiBtn: {
+    width: '12.5%',
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emojiChar: { fontSize: 26 },
 });

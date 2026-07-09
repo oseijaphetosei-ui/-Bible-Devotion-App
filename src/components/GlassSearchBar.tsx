@@ -79,13 +79,13 @@ export default function GlassSearchBar({
   };
 
   const handleBlur = () => {
-    // Skip if cancel already triggered the close animation
     if (cancellingRef.current) return;
-    if (!value) {
-      setFocused(false);
-      onBlurProp?.();
-      if (showCancel) slide(0).start();
-    }
+    // Always clear the focused border — the TextInput has lost focus.
+    // Only collapse the cancel button when the field is empty; if the user
+    // still has search text, leave cancel visible so they can return to type.
+    setFocused(false);
+    onBlurProp?.();
+    if (!value && showCancel) slide(0).start();
   };
 
   const handleCancel = () => {

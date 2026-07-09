@@ -51,3 +51,15 @@ export function getScriptureInsights(data: {
 export function ttsSpeak(data: { text: string }): Promise<TtsResponse> {
   return callFunction('ttsSpeak', data);
 }
+
+export function generateSermon(data: {
+  audience: string;
+  audienceLabel: string;
+  sermonType: string;
+  scriptures: string[];
+  topic: string;
+  duration: number;
+  tone: string;
+}): Promise<import('../types/sermon').GeneratedSermon> {
+  return callFunction('generateSermon', data);
+}

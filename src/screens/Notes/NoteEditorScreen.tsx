@@ -1,19 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  StatusBar,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  ActivityIndicator,
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  ScrollView, StatusBar, KeyboardAvoidingView,
+  Platform, Alert, ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { NotesStackParamList } from '../../types/navigation';
@@ -25,22 +18,37 @@ import { useTheme } from '../../theme';
 type NavProp = NativeStackNavigationProp<NotesStackParamList>;
 type RouteP = RouteProp<NotesStackParamList, 'NoteEditor'>;
 
+const GOLD  = '#C9A96B';
+const SERIF = Platform.OS === 'ios' ? 'Georgia' : 'serif';
+
 export default function NoteEditorScreen() {
   const navigation = useNavigation<NavProp>();
-  const route = useRoute<RouteP>();
-  const t = useTheme();
-  const noteId          = route.params?.noteId;
-  const prefillRef      = route.params?.prefillReference ?? '';
-  const prefillQuote    = route.params?.prefillQuote ?? '';
-  const isNew = !noteId;
+  const route      = useRoute<RouteP>();
+  const t          = useTheme();
+  const insets     = useSafeAreaInsets();
 
-  const [note, setNote] = useState<Note | null>(null);
+  const noteId       = route.params?.noteId;
+  const prefillRef   = route.params?.prefillReference ?? '';
+  const prefillQuote = route.params?.prefillQuote ?? '';
+  const isNew        = !noteId;
+
+  const isDark     = t.statusBar === 'light-content';
+  const rootBg     = isDark ? '#060810' : '#DDD5C4';
+  const textColor  = isDark ? 'rgba(255,255,255,0.92)' : 'rgba(24,18,8,0.92)';
+  const subColor   = isDark ? 'rgba(255,255,255,0.62)' : 'rgba(24,18,8,0.62)';
+  const mutedColor = isDark ? 'rgba(255,255,255,0.36)' : 'rgba(24,18,8,0.36)';
+  const divColor   = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
+  const glass      = isDark
+    ? { backgroundColor: 'rgba(255,255,255,0.055)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)' }
+    : { backgroundColor: 'rgba(255,255,255,0.68)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.85)' };
+
+  const [note,      setNote]      = useState<Note | null>(null);
   const [reference, setReference] = useState(prefillRef);
-  const [content, setContent] = useState('');
-  const [editing, setEditing] = useState(isNew);
-  const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(!isNew);
-  const [favorite, setFavorite] = useState(false);
+  const [content,   setContent]   = useState('');
+  const [editing,   setEditing]   = useState(isNew);
+  const [saving,    setSaving]    = useState(false);
+  const [loading,   setLoading]   = useState(!isNew);
+  const [favorite,  setFavorite]  = useState(false);
 
   const contentRef = useRef<TextInput>(null);
 
@@ -113,222 +121,232 @@ export default function NoteEditorScreen() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: t.bg, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color={t.gold} size="large" />
+      <View style={{ flex: 1, backgroundColor: rootBg, alignItems: 'center', justifyContent: 'center' }}>
+        <StatusBar barStyle={t.statusBar} backgroundColor="transparent" translucent />
+        <ActivityIndicator color={GOLD} size="large" />
       </View>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <SafeAreaView style={s.safe} edges={['top']}>
-        <StatusBar barStyle={t.statusBar} backgroundColor="transparent" translucent />
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={0}
-        >
-          {/* Header */}
-          <View style={[s.header, { borderBottomColor: t.divider }]}>
-            <TouchableOpacity
-              style={[s.headerBtn, { backgroundColor: t.inputBg, borderColor: t.cardBorder }]}
-              onPress={() => navigation.goBack()}
-            >
-              <Ionicons name="chevron-back" size={22} color={t.gold} />
-            </TouchableOpacity>
+    <View style={{ flex: 1, backgroundColor: rootBg }}>
+      <StatusBar barStyle={t.statusBar} backgroundColor="transparent" translucent />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={0}
+      >
+        {/* Header */}
+        <View style={[s.header, { paddingTop: insets.top + 8, borderBottomColor: divColor }]}>
+          <TouchableOpacity
+            style={[s.headerBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)' }]}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="chevron-back" size={20} color={textColor} />
+          </TouchableOpacity>
 
-            <View style={s.headerActions}>
-              {!isNew && (
-                <TouchableOpacity
-                  style={[s.headerBtn, { backgroundColor: t.inputBg, borderColor: t.cardBorder }]}
-                  onPress={handleToggleFavorite}
-                >
-                  <Ionicons
-                    name={favorite ? 'star' : 'star-outline'}
-                    size={20}
-                    color={favorite ? t.gold : t.textSub}
-                  />
-                </TouchableOpacity>
-              )}
-              {!isNew && !editing && (
-                <TouchableOpacity
-                  style={[s.headerBtn, { backgroundColor: t.inputBg, borderColor: t.cardBorder }]}
-                  onPress={() => setEditing(true)}
-                >
-                  <Ionicons name="pencil-outline" size={20} color={t.textSub} />
-                </TouchableOpacity>
-              )}
-              {!isNew && editing && (
-                <TouchableOpacity
-                  style={[s.headerBtn, { backgroundColor: 'rgba(220,38,38,0.08)', borderColor: 'rgba(220,38,38,0.2)' }]}
-                  onPress={handleDelete}
-                >
-                  <Ionicons name="trash-outline" size={20} color="#DC2626" />
-                </TouchableOpacity>
-              )}
-              {editing && (
-                <TouchableOpacity
-                  style={[s.saveBtn, { backgroundColor: t.gold }]}
-                  onPress={handleSave}
-                  disabled={saving}
-                  activeOpacity={0.8}
+          <View style={s.headerActions}>
+            {!isNew && (
+              <TouchableOpacity
+                style={[s.headerBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)' }]}
+                onPress={handleToggleFavorite}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={favorite ? 'star' : 'star-outline'}
+                  size={18}
+                  color={favorite ? GOLD : mutedColor}
+                />
+              </TouchableOpacity>
+            )}
+            {!isNew && !editing && (
+              <TouchableOpacity
+                style={[s.headerBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)' }]}
+                onPress={() => setEditing(true)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="pencil-outline" size={18} color={mutedColor} />
+              </TouchableOpacity>
+            )}
+            {!isNew && editing && (
+              <TouchableOpacity
+                style={[s.headerBtn, { backgroundColor: 'rgba(220,38,38,0.08)', borderWidth: 1, borderColor: 'rgba(220,38,38,0.18)' }]}
+                onPress={handleDelete}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="trash-outline" size={18} color="#DC2626" />
+              </TouchableOpacity>
+            )}
+            {editing && (
+              <TouchableOpacity
+                onPress={handleSave}
+                disabled={saving}
+                activeOpacity={0.85}
+              >
+                <LinearGradient
+                  colors={[GOLD, '#B8904A']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={s.saveBtn}
                 >
                   {saving
-                    ? <ActivityIndicator color={t.bg} size="small" />
-                    : <Text style={[s.saveBtnText, { color: t.bg }]}>Save</Text>
+                    ? <ActivityIndicator color="#08071A" size="small" />
+                    : <Text style={s.saveBtnText}>Save</Text>
                   }
-                </TouchableOpacity>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        <ScrollView
+          style={s.scroll}
+          contentContainerStyle={[s.scrollContent, { paddingBottom: Math.max(insets.bottom, 16) + 80 }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Bible Reference card */}
+          <View style={[
+            s.refCard,
+            glass,
+            {
+              shadowColor: isDark ? '#000' : 'rgba(47,42,36,0.10)',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: isDark ? 0.24 : 1,
+              shadowRadius: 14,
+              elevation: 5,
+            },
+          ]}>
+            <View style={s.refCardInner}>
+              {editing ? (
+                <TextInput
+                  style={[s.refInput, { color: GOLD, fontFamily: SERIF }]}
+                  value={reference}
+                  onChangeText={setReference}
+                  placeholder="Bible reference (e.g. John 3:16)"
+                  placeholderTextColor={mutedColor}
+                  returnKeyType="next"
+                  onSubmitEditing={() => contentRef.current?.focus()}
+                />
+              ) : (
+                <Text style={[s.refDisplay, { color: reference ? GOLD : mutedColor, fontFamily: SERIF }]}>
+                  {reference || 'No verse reference'}
+                </Text>
+              )}
+
+              {reference.trim() ? (
+                <View style={[s.categoryTag, { backgroundColor: 'rgba(201,169,107,0.10)', borderColor: 'rgba(201,169,107,0.28)' }]}>
+                  <Ionicons name="book-outline" size={12} color={GOLD} />
+                  <Text style={[s.categoryTagText, { color: GOLD }]}>Verse</Text>
+                </View>
+              ) : (
+                <View style={[s.categoryTag, { backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)', borderColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.09)' }]}>
+                  <Ionicons name="create-outline" size={12} color={mutedColor} />
+                  <Text style={[s.categoryTagText, { color: subColor }]}>Note</Text>
+                </View>
               )}
             </View>
           </View>
 
-          <ScrollView
-            style={s.scroll}
-            contentContainerStyle={s.scrollContent}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Bible Reference card */}
-            <View style={[s.refCard, { backgroundColor: t.card, borderColor: t.cardBorder }]}>
-              <View style={s.refCardInner}>
-                {editing ? (
-                  <TextInput
-                    style={[s.refInput, { color: t.gold }]}
-                    value={reference}
-                    onChangeText={setReference}
-                    placeholder="Bible reference (e.g. John 3:16)"
-                    placeholderTextColor={t.textMuted}
-                    returnKeyType="next"
-                    onSubmitEditing={() => contentRef.current?.focus()}
-                  />
-                ) : (
-                  <Text style={[s.refDisplay, { color: reference ? t.gold : t.textMuted }]}>
-                    {reference || 'No verse reference'}
-                  </Text>
-                )}
-
-                {reference.trim() ? (
-                  <View style={[s.categoryTag, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}>
-                    <Text style={s.categoryTagIcon}>📖</Text>
-                    <Text style={[s.categoryTagText, { color: t.gold }]}>Verse</Text>
-                  </View>
-                ) : (
-                  <View style={[s.categoryTag, { backgroundColor: t.inputBg, borderColor: t.cardBorder }]}>
-                    <Text style={s.categoryTagIcon}>📝</Text>
-                    <Text style={[s.categoryTagText, { color: t.textSub }]}>Note</Text>
-                  </View>
-                )}
-              </View>
+          {/* Quoted verse — only shown when pre-filled from Bible reading */}
+          {isNew && prefillQuote.trim() ? (
+            <View style={[s.quoteBlock, { backgroundColor: 'rgba(201,169,107,0.10)', borderColor: 'rgba(201,169,107,0.28)' }]}>
+              <Text style={[s.quoteText, { color: subColor }]}>
+                "{prefillQuote.trim()}"
+              </Text>
             </View>
+          ) : null}
 
-            {/* Quoted verse — only shown when pre-filled from Bible reading */}
-            {isNew && prefillQuote.trim() ? (
-              <View style={[s.quoteBlock, { borderColor: t.goldBorder, backgroundColor: t.goldBg }]}>
-                <Text style={[s.quoteText, { color: t.textSub }]}>
-                  "{prefillQuote.trim()}"
+          {/* Note body card */}
+          <View style={[
+            s.noteCard,
+            glass,
+            {
+              shadowColor: isDark ? '#000' : 'rgba(47,42,36,0.10)',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: isDark ? 0.24 : 1,
+              shadowRadius: 14,
+              elevation: 5,
+            },
+          ]}>
+            <View style={s.noteCardInner}>
+              <View style={s.noteLabel}>
+                <Ionicons name="create-outline" size={14} color={mutedColor} />
+                <Text style={[s.noteLabelText, { color: mutedColor }]}>MY NOTE</Text>
+              </View>
+
+              <View style={[s.divider, { backgroundColor: divColor }]} />
+
+              {editing ? (
+                <TextInput
+                  ref={contentRef}
+                  style={[s.contentInput, { color: textColor }]}
+                  value={content}
+                  onChangeText={setContent}
+                  placeholder="Write your reflection here…"
+                  placeholderTextColor={mutedColor}
+                  multiline
+                  textAlignVertical="top"
+                  autoFocus={isNew}
+                />
+              ) : (
+                <Text style={[s.contentDisplay, { color: content ? textColor : mutedColor }]}>
+                  {content || 'No content yet.'}
                 </Text>
-              </View>
-            ) : null}
-
-            {/* Note body card */}
-            <View style={[s.noteCard, { backgroundColor: t.card, borderColor: t.cardBorder }]}>
-              <View style={s.noteCardInner}>
-                <View style={s.noteLabel}>
-                  <Text style={s.noteLabelIcon}>📝</Text>
-                  <Text style={[s.noteLabelText, { color: t.textMuted }]}>MY NOTE</Text>
-                </View>
-
-                <View style={[s.divider, { backgroundColor: t.divider }]} />
-
-                {editing ? (
-                  <TextInput
-                    ref={contentRef}
-                    style={[s.contentInput, { color: t.text }]}
-                    value={content}
-                    onChangeText={setContent}
-                    placeholder="Write your reflection here…"
-                    placeholderTextColor={t.textMuted}
-                    multiline
-                    textAlignVertical="top"
-                    autoFocus={isNew}
-                  />
-                ) : (
-                  <Text style={[s.contentDisplay, { color: content ? t.text : t.textMuted }]}>
-                    {content || 'No content yet.'}
-                  </Text>
-                )}
-              </View>
+              )}
             </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1 },
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 18, paddingBottom: 120, gap: 14 },
+  scroll:        { flex: 1 },
+  scrollContent: { paddingHorizontal: 18, gap: 14, paddingTop: 8 },
 
   header: {
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 14,
+    paddingHorizontal: 18, paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   headerBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    borderWidth: 1, alignItems: 'center', justifyContent: 'center',
+    width: 36, height: 36, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center',
   },
   headerActions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   saveBtn: {
-    paddingHorizontal: 20, paddingVertical: 8,
+    paddingHorizontal: 20, paddingVertical: 9,
     borderRadius: 20, alignItems: 'center',
     justifyContent: 'center', minWidth: 64,
   },
-  saveBtnText: { fontWeight: '700', fontSize: 14 },
+  saveBtnText: { fontWeight: '700', fontSize: 14, color: '#08071A' },
 
-  refCard: {
-    borderRadius: 16, borderWidth: 1, marginTop: 6,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
-  },
+  refCard:      { borderRadius: 16, marginTop: 6 },
   refCardInner: { padding: 20, gap: 10 },
-  refInput: { fontSize: 22, fontWeight: '700' },
-  refDisplay: { fontSize: 22, fontWeight: '700' },
+  refInput:     { fontSize: 22, fontWeight: '700' },
+  refDisplay:   { fontSize: 22, fontWeight: '700' },
   categoryTag: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     alignSelf: 'flex-start', borderWidth: 1, borderRadius: 8,
     paddingHorizontal: 10, paddingVertical: 4,
   },
-  categoryTagIcon: { fontSize: 13 },
   categoryTagText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
 
   quoteBlock: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderLeftWidth: 3,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    borderRadius: 12, borderWidth: 1, borderLeftWidth: 3,
+    paddingHorizontal: 16, paddingVertical: 14,
   },
-  quoteText: {
-    fontSize: 15,
-    lineHeight: 24,
-    fontStyle: 'italic',
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-  },
+  quoteText: { fontSize: 15, lineHeight: 24, fontStyle: 'italic', fontFamily: SERIF },
 
-  noteCard: {
-    borderRadius: 16, borderWidth: 1,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
-  },
+  noteCard:      { borderRadius: 16 },
   noteCardInner: { padding: 20 },
-  noteLabel: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
-  noteLabelIcon: { fontSize: 15 },
+  noteLabel:     { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
   noteLabelText: { fontSize: 10, fontWeight: '700', letterSpacing: 1.4 },
-  divider: { height: 1, marginBottom: 16 },
-  contentInput: { fontSize: 15, lineHeight: 24, minHeight: 200 },
+  divider:       { height: 1, marginBottom: 16 },
+  contentInput:  { fontSize: 15, lineHeight: 24, minHeight: 200 },
   contentDisplay: { fontSize: 15, lineHeight: 24, minHeight: 120 },
 });

@@ -1,75 +1,73 @@
 import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import {
-  View,
-  Text,
-  FlatList,
-  Modal,
-  TouchableOpacity,
-  TextInput,
-  StyleSheet,
-  StatusBar,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
+  View, Text, FlatList, Modal, TouchableOpacity, TextInput,
+  StyleSheet, StatusBar, Alert, KeyboardAvoidingView,
+  Platform, ScrollView, Dimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../theme';
-import type { AppTheme } from '../../theme';
 import { Goal, GOAL_TEMPLATES } from '../../types/goal';
 import {
-  loadGoals,
-  addGoal,
-  toggleTodayComplete,
-  updateGoal,
-  deleteGoal,
-  calcStreak,
-  isCompletedToday,
+  loadGoals, addGoal, toggleTodayComplete, updateGoal,
+  deleteGoal, calcStreak, isCompletedToday,
 } from '../../services/goalsService';
 
-const GREEN        = '#6DBF8A';
-const GREEN_BG     = 'rgba(109,191,138,0.10)';
-const GREEN_BORDER = 'rgba(109,191,138,0.32)';
+const { width: SCREEN_W } = Dimensions.get('window');
+const HERO_H = Math.round(SCREEN_W * 0.68);
+const GOLD   = '#C9A96B';
+const GREEN  = '#6DBF8A';
+const SERIF  = Platform.OS === 'ios' ? 'Georgia' : 'serif';
+
+function glassStyle(isDark: boolean) {
+  return isDark
+    ? { backgroundColor: 'rgba(255,255,255,0.055)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)' }
+    : { backgroundColor: 'rgba(255,255,255,0.68)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.85)' };
+}
 
 // ─── Goal Card ────────────────────────────────────────────────────────────────
 
 type CardProps = {
   item:     Goal;
-  t:        AppTheme;
+  isDark:   boolean;
   onEdit:   (g: Goal) => void;
   onDelete: (g: Goal) => void;
   onToggle: (id: string) => void;
 };
 
-const GoalCard = memo(function GoalCard({ item, t, onEdit, onDelete, onToggle }: CardProps) {
+const GoalCard = memo(function GoalCard({ item, isDark, onEdit, onDelete, onToggle }: CardProps) {
   const streak = calcStreak(item.completedDates);
   const done   = isCompletedToday(item);
   const pct    = item.target > 0 ? Math.min(1, streak / item.target) : 0;
 
-  return (
-    <View style={[gc.card, { backgroundColor: t.card }]}>
+  const textColor  = isDark ? 'rgba(255,255,255,0.92)' : 'rgba(24,18,8,0.92)';
+  const mutedColor = isDark ? 'rgba(255,255,255,0.38)' : 'rgba(24,18,8,0.38)';
+  const glass      = glassStyle(isDark);
 
+  return (
+    <View style={[gc.card, glass, {
+      shadowColor: isDark ? '#000' : 'rgba(47,42,36,0.10)',
+      shadowOffset: { width: 0, height: 4 }, shadowOpacity: isDark ? 0.24 : 1, shadowRadius: 14, elevation: 5,
+    }]}>
       {/* Title + streak row + action icons */}
       <View style={gc.topRow}>
         <View style={gc.titleBlock}>
-          <Text style={[gc.title, { color: t.text }]} numberOfLines={2}>
+          <Text style={[gc.title, { color: textColor }]} numberOfLines={2}>
             {item.title}
           </Text>
           <View style={gc.streakRow}>
             {streak > 0 ? (
               <>
-                <Ionicons name="flame" size={12} color={done ? GREEN : t.gold} />
-                <Text style={[gc.streakText, { color: done ? GREEN : t.gold }]}>
+                <Ionicons name="flame" size={12} color={done ? GREEN : GOLD} />
+                <Text style={[gc.streakText, { color: done ? GREEN : GOLD }]}>
                   {streak}-day streak
                 </Text>
               </>
             ) : (
-              <Text style={[gc.streakText, { color: t.textMuted }]}>
-                Start your streak today
-              </Text>
+              <Text style={[gc.streakText, { color: mutedColor }]}>Start your streak today</Text>
             )}
           </View>
         </View>
@@ -77,45 +75,37 @@ const GoalCard = memo(function GoalCard({ item, t, onEdit, onDelete, onToggle }:
         <View style={gc.actions}>
           <TouchableOpacity
             onPress={() => onEdit(item)}
-            style={[gc.iconBtn, { backgroundColor: t.filterInactiveBg }]}
+            style={[gc.iconBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)' }]}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             activeOpacity={0.7}
           >
-            <Ionicons name="pencil-outline" size={14} color={t.textSub} />
+            <Ionicons name="pencil-outline" size={13} color={mutedColor} />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => onDelete(item)}
-            style={[gc.iconBtn, { backgroundColor: t.filterInactiveBg }]}
+            style={[gc.iconBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)' }]}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             activeOpacity={0.7}
           >
-            <Ionicons name="trash-outline" size={14} color={t.textSub} />
+            <Ionicons name="trash-outline" size={13} color={mutedColor} />
           </TouchableOpacity>
         </View>
       </View>
 
       {/* Progress bar */}
       <View style={gc.progressRow}>
-        <View style={[gc.track, { backgroundColor: t.progressTrack }]}>
-          <View
-            style={[
-              gc.fill,
-              { width: `${pct * 100}%` as any },
-              { backgroundColor: done ? GREEN : t.gold },
-            ]}
-          />
+        <View style={[gc.track, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' }]}>
+          <View style={[gc.fill, { width: `${pct * 100}%` as any, backgroundColor: done ? GREEN : GOLD }]} />
         </View>
-        <Text style={[gc.progressLabel, { color: t.textMuted }]}>
-          {streak}/{item.target}d
-        </Text>
+        <Text style={[gc.progressLabel, { color: mutedColor }]}>{streak}/{item.target}d</Text>
       </View>
 
-      {/* Mark done button — neutral until tapped, then green */}
+      {/* Mark done button */}
       <TouchableOpacity
         style={[
           gc.checkBtn,
-          { borderColor: t.divider },
-          done && { borderColor: GREEN_BORDER, backgroundColor: GREEN_BG },
+          { borderColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.09)' },
+          done && { borderColor: 'rgba(109,191,138,0.35)', backgroundColor: 'rgba(109,191,138,0.10)' },
         ]}
         onPress={() => onToggle(item.id)}
         activeOpacity={0.75}
@@ -123,49 +113,32 @@ const GoalCard = memo(function GoalCard({ item, t, onEdit, onDelete, onToggle }:
         <Ionicons
           name={done ? 'checkmark-circle' : 'ellipse-outline'}
           size={16}
-          color={done ? GREEN : t.textMuted}
+          color={done ? GREEN : mutedColor}
         />
-        <Text style={[gc.checkBtnText, { color: done ? GREEN : t.textMuted }]}>
+        <Text style={[gc.checkBtnText, { color: done ? GREEN : mutedColor }]}>
           {done ? 'Completed today' : 'Mark done today'}
         </Text>
       </TouchableOpacity>
-
     </View>
   );
 });
 
 const gc = StyleSheet.create({
-  card: {
-    marginHorizontal: 20,
-    borderRadius: 16,
-    padding: 18,
-    gap: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  topRow:     { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  titleBlock: { flex: 1, gap: 4 },
-  title:      { fontSize: 16, fontWeight: '600', lineHeight: 22, letterSpacing: -0.1 },
-  streakRow:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  streakText: { fontSize: 12, fontWeight: '500' },
-  actions:    { flexDirection: 'row', gap: 6, paddingTop: 2 },
-  iconBtn: {
-    width: 30, height: 30, borderRadius: 15,
-    alignItems: 'center', justifyContent: 'center',
-  },
-
+  card:          { marginHorizontal: 20, borderRadius: 18, padding: 18, gap: 14 },
+  topRow:        { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  titleBlock:    { flex: 1, gap: 4 },
+  title:         { fontSize: 16, fontWeight: '600', lineHeight: 22, letterSpacing: -0.1 },
+  streakRow:     { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  streakText:    { fontSize: 12, fontWeight: '500' },
+  actions:       { flexDirection: 'row', gap: 6, paddingTop: 2 },
+  iconBtn:       { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   progressRow:   { flexDirection: 'row', alignItems: 'center', gap: 10 },
   track:         { flex: 1, height: 3, borderRadius: 2, overflow: 'hidden' },
   fill:          { height: 3, borderRadius: 2 },
   progressLabel: { fontSize: 11, fontWeight: '500', minWidth: 38, textAlign: 'right' },
-
   checkBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 7, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth,
-    paddingVertical: 11,
+    gap: 7, borderRadius: 10, borderWidth: 1, paddingVertical: 11,
   },
   checkBtnText: { fontSize: 14, fontWeight: '600' },
 });
@@ -175,133 +148,161 @@ const gc = StyleSheet.create({
 type HeroProps = {
   goals:          Goal[];
   completedCount: number;
-  t:              AppTheme;
+  isDark:         boolean;
+  topInset:       number;
   onBack:         () => void;
   onAdd:          () => void;
 };
 
 const HeroSection = memo(function HeroSection({
-  goals, completedCount, t, onBack, onAdd,
+  goals, completedCount, isDark, topInset, onBack, onAdd,
 }: HeroProps) {
-  const isDark = t.statusBar === 'light-content';
-  const pct    = goals.length > 0 ? completedCount / goals.length : 0;
+  const pct = goals.length > 0 ? completedCount / goals.length : 0;
+  const textColor  = 'rgba(255,255,255,0.92)';
+  const subColor   = 'rgba(255,255,255,0.62)';
+  const mutedColor = 'rgba(255,255,255,0.42)';
 
   return (
-    <LinearGradient
-      colors={isDark
-        ? ['rgba(19,22,38,1)', 'rgba(13,15,26,0.92)']
-        : ['rgba(237,231,217,1)', 'rgba(237,231,217,0.82)']}
-      style={hs.container}
-    >
-      {/* ── Navigation row ── */}
-      <View style={hs.navRow}>
+    <View style={{ height: HERO_H, overflow: 'hidden', marginBottom: 24 }}>
+      <ExpoImage
+        source={require('../../assets/stones.jpg')}
+        style={StyleSheet.absoluteFillObject}
+        contentFit="cover"
+        cachePolicy="memory-disk"
+      />
+      <LinearGradient
+        colors={['rgba(0,0,0,0.60)', 'rgba(0,0,0,0)']}
+        locations={[0, 0.28]}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <LinearGradient
+        colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.18)', 'rgba(0,0,0,0.84)']}
+        locations={[0, 0.45, 1]}
+        style={StyleSheet.absoluteFillObject}
+      />
+
+      {/* Nav row */}
+      <View style={[hs.navRow, { top: topInset + 10 }]}>
         <TouchableOpacity
+          style={hs.navBtn}
           onPress={onBack}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           activeOpacity={0.7}
         >
-          <Ionicons name="chevron-back" size={26} color={t.text} />
+          <Ionicons name="chevron-back" size={20} color="rgba(255,255,255,0.90)" />
         </TouchableOpacity>
-
         <TouchableOpacity
+          style={hs.navBtn}
           onPress={onAdd}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           activeOpacity={0.7}
         >
-          <Ionicons name="add" size={26} color={t.text} />
+          <Ionicons name="add" size={22} color="rgba(255,255,255,0.90)" />
         </TouchableOpacity>
       </View>
 
-      {/* ── Identity ── */}
-      <View style={hs.identRow}>
-        <Ionicons name="flag-outline" size={15} color={t.accent} />
-        <Text style={[hs.identLabel, { color: t.accent }]}>SPIRITUAL GOALS</Text>
-      </View>
-
-      <Text style={[hs.heading, { color: t.text }]}>
-        Your Growth{'\n'}in Faith
-      </Text>
-
-      <Text style={[hs.quote, { color: t.textMuted }]}>
-        {"\"I can do all things through Christ\nwho strengthens me.\"\n— Philippians 4:13"}
-      </Text>
-
-      {/* ── Daily summary stats (only when goals exist) ── */}
-      {goals.length > 0 && (
-        <View style={[hs.statsRow, { borderTopColor: t.divider }]}>
-          <View style={hs.statItem}>
-            <Text style={[hs.statValue, { color: t.text }]}>{completedCount}</Text>
-            <Text style={[hs.statLabel, { color: t.textMuted }]}>Done today</Text>
-          </View>
-          <View style={[hs.statDivider, { backgroundColor: t.divider }]} />
-          <View style={hs.statItem}>
-            <Text style={[hs.statValue, { color: t.text }]}>{goals.length}</Text>
-            <Text style={[hs.statLabel, { color: t.textMuted }]}>Active goals</Text>
-          </View>
-          <View style={[hs.statDivider, { backgroundColor: t.divider }]} />
-          <View style={[hs.statItem, { flex: 2, alignItems: 'flex-start' }]}>
-            <View style={[hs.miniTrack, { backgroundColor: t.progressTrack }]}>
-              <View
-                style={[
-                  hs.miniFill,
-                  { width: `${Math.round(pct * 100)}%` as any, backgroundColor: t.gold },
-                ]}
-              />
-            </View>
-            <Text style={[hs.statLabel, { color: t.textMuted }]}>Today's progress</Text>
-          </View>
+      {/* Hero content */}
+      <View style={hs.content}>
+        <View style={hs.eyebrowRow}>
+          <Ionicons name="flag-outline" size={11} color={GOLD} />
+          <Text style={hs.eyebrow}>SPIRITUAL GOALS</Text>
         </View>
-      )}
-    </LinearGradient>
+
+        <Text style={[hs.heading, { fontFamily: SERIF }]}>
+          Your Growth{'\n'}in Faith
+        </Text>
+
+        <Text style={[hs.quote, { color: subColor }]}>
+          "I can do all things through Christ who strengthens me."
+        </Text>
+        <Text style={[hs.quoteRef, { color: mutedColor }]}>— Philippians 4:13</Text>
+
+        {/* Stats strip */}
+        {goals.length > 0 && (
+          <View style={hs.statsRow}>
+            <View style={hs.statItem}>
+              <Text style={[hs.statValue, { color: textColor }]}>{completedCount}</Text>
+              <Text style={[hs.statLabel, { color: mutedColor }]}>Done today</Text>
+            </View>
+            <View style={hs.statDivider} />
+            <View style={hs.statItem}>
+              <Text style={[hs.statValue, { color: textColor }]}>{goals.length}</Text>
+              <Text style={[hs.statLabel, { color: mutedColor }]}>Active goals</Text>
+            </View>
+            <View style={hs.statDivider} />
+            <View style={[hs.statItem, { flex: 2, alignItems: 'flex-start' }]}>
+              <View style={hs.miniTrack}>
+                <View style={[hs.miniFill, { width: `${Math.round(pct * 100)}%` as any, backgroundColor: GOLD }]} />
+              </View>
+              <Text style={[hs.statLabel, { color: mutedColor }]}>Today's progress</Text>
+            </View>
+          </View>
+        )}
+      </View>
+    </View>
   );
 });
 
 const hs = StyleSheet.create({
-  container:  { paddingHorizontal: 24, paddingTop: 14, paddingBottom: 0, marginBottom: 20 },
   navRow: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', marginBottom: 26,
+    position: 'absolute', left: 18, right: 18,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
-  identRow:    { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
-  identLabel:  { fontSize: 11, fontWeight: '700', letterSpacing: 2 },
+  navBtn: {
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: 'rgba(0,0,0,0.30)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  content: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    paddingHorizontal: 22, paddingBottom: 20,
+  },
+  eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
+  eyebrow: { fontSize: 10, fontWeight: '700', letterSpacing: 2, color: GOLD },
   heading: {
-    fontSize: 28, fontWeight: '700', letterSpacing: -0.4,
-    lineHeight: 36, marginBottom: 14,
+    fontSize: 28, fontWeight: '400', lineHeight: 36, letterSpacing: -0.3,
+    color: 'rgba(255,255,255,0.95)', marginBottom: 10,
   },
-  quote: {
-    fontSize: 13, lineHeight: 20, fontStyle: 'italic', marginBottom: 24,
-  },
+  quote:    { fontSize: 13, fontStyle: 'italic', lineHeight: 19, color: 'rgba(255,255,255,0.62)', marginBottom: 2 },
+  quoteRef: { fontSize: 11, marginBottom: 18 },
   statsRow: {
     flexDirection: 'row', alignItems: 'center',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: 20, paddingBottom: 8,
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.12)',
+    paddingTop: 14,
   },
-  statItem:    { flex: 1, alignItems: 'center', gap: 4 },
-  statValue:   { fontSize: 22, fontWeight: '700', letterSpacing: -0.5 },
-  statLabel:   { fontSize: 10, fontWeight: '500', letterSpacing: 0.5 },
-  statDivider: { width: StyleSheet.hairlineWidth, height: 32, marginHorizontal: 4 },
-  miniTrack:   { width: '100%', height: 4, borderRadius: 2, overflow: 'hidden', marginBottom: 4 },
-  miniFill:    { height: 4, borderRadius: 2 },
+  statItem:   { flex: 1, alignItems: 'center', gap: 4 },
+  statValue:  { fontSize: 22, fontWeight: '700', letterSpacing: -0.5 },
+  statLabel:  { fontSize: 10, fontWeight: '500', letterSpacing: 0.4 },
+  statDivider:{ width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.14)', marginHorizontal: 4 },
+  miniTrack:  { width: '100%', height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.14)', marginBottom: 4 },
+  miniFill:   { height: 4, borderRadius: 2 },
 });
 
 // ─── Empty State ──────────────────────────────────────────────────────────────
 
-function EmptyState({ t, onAdd }: { t: AppTheme; onAdd: () => void }) {
+function EmptyState({ isDark, onAdd }: { isDark: boolean; onAdd: () => void }) {
+  const textColor  = isDark ? 'rgba(255,255,255,0.92)' : 'rgba(24,18,8,0.92)';
+  const subColor   = isDark ? 'rgba(255,255,255,0.60)' : 'rgba(24,18,8,0.60)';
+  const mutedColor = isDark ? 'rgba(255,255,255,0.36)' : 'rgba(24,18,8,0.36)';
+
   return (
     <View style={es.container}>
-      <View style={[es.iconWrap, { backgroundColor: t.filterInactiveBg }]}>
-        <Ionicons name="trophy-outline" size={40} color={t.textMuted} />
+      <View style={[es.iconWrap, { backgroundColor: isDark ? 'rgba(201,169,107,0.10)' : 'rgba(201,169,107,0.12)', borderWidth: 1, borderColor: 'rgba(201,169,107,0.25)' }]}>
+        <Ionicons name="trophy-outline" size={38} color={mutedColor} />
       </View>
-      <Text style={[es.title, { color: t.text }]}>No goals yet</Text>
-      <Text style={[es.body, { color: t.textSub }]}>
+      <Text style={[es.title, { color: textColor, fontFamily: SERIF }]}>No goals yet</Text>
+      <Text style={[es.body, { color: subColor }]}>
         Set spiritual goals to build consistent{'\n'}habits and track your growth in faith.
       </Text>
-      <TouchableOpacity
-        style={[es.btn, { backgroundColor: t.gold }]}
-        onPress={onAdd}
-        activeOpacity={0.8}
-      >
-        <Text style={[es.btnText, { color: t.bg }]}>Create your first goal</Text>
+      <TouchableOpacity onPress={onAdd} activeOpacity={0.85}>
+        <LinearGradient
+          colors={[GOLD, '#B8904A']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={es.btn}
+        >
+          <Text style={es.btnText}>Create your first goal</Text>
+        </LinearGradient>
       </TouchableOpacity>
     </View>
   );
@@ -309,11 +310,11 @@ function EmptyState({ t, onAdd }: { t: AppTheme; onAdd: () => void }) {
 
 const es = StyleSheet.create({
   container: { alignItems: 'center', paddingHorizontal: 40, paddingTop: 32, paddingBottom: 40, gap: 14 },
-  iconWrap:  { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  title:     { fontSize: 20, fontWeight: '700', letterSpacing: -0.2 },
+  iconWrap:  { width: 80, height: 80, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  title:     { fontSize: 20, fontWeight: '400', letterSpacing: -0.2 },
   body:      { fontSize: 14, lineHeight: 22, textAlign: 'center' },
-  btn:       { borderRadius: 12, paddingHorizontal: 28, paddingVertical: 14, marginTop: 4 },
-  btnText:   { fontSize: 15, fontWeight: '700' },
+  btn:       { borderRadius: 14, paddingHorizontal: 28, paddingVertical: 14, marginTop: 4 },
+  btnText:   { fontSize: 15, fontWeight: '700', color: '#08071A' },
 });
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
@@ -321,6 +322,17 @@ const es = StyleSheet.create({
 export default function GoalsScreen() {
   const navigation = useNavigation();
   const t          = useTheme();
+  const insets     = useSafeAreaInsets();
+
+  const isDark     = t.statusBar === 'light-content';
+  const rootBg     = isDark ? '#060810' : '#DDD5C4';
+  const textColor  = isDark ? 'rgba(255,255,255,0.92)' : 'rgba(24,18,8,0.92)';
+  const subColor   = isDark ? 'rgba(255,255,255,0.60)' : 'rgba(24,18,8,0.60)';
+  const mutedColor = isDark ? 'rgba(255,255,255,0.36)' : 'rgba(24,18,8,0.36)';
+  const divColor   = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
+  const sheetBg    = isDark ? '#0E1022' : '#EAE4D6';
+  const inputBg    = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.65)';
+  const inputBorder= isDark ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.80)';
 
   const [goals,         setGoals]         = useState<Goal[]>([]);
   const [modalMode,     setModalMode]     = useState<'add' | 'edit' | null>(null);
@@ -403,51 +415,50 @@ export default function GoalsScreen() {
   const renderGoal = useCallback(({ item }: { item: Goal }) => (
     <GoalCard
       item={item}
-      t={t}
+      isDark={isDark}
       onEdit={openEdit}
       onDelete={handleDelete}
       onToggle={handleToggle}
     />
-  ), [t, openEdit, handleDelete, handleToggle]);
+  ), [isDark, openEdit, handleDelete, handleToggle]);
 
   const ListHeader = useCallback(() => (
     <HeroSection
       goals={goals}
       completedCount={completedCount}
-      t={t}
+      isDark={isDark}
+      topInset={insets.top}
       onBack={goBack}
       onAdd={openAdd}
     />
-  ), [goals, completedCount, t, goBack, openAdd]);
+  ), [goals, completedCount, isDark, insets.top, goBack, openAdd]);
 
   const ListEmpty = useCallback(() => (
-    <EmptyState t={t} onAdd={openAdd} />
-  ), [t, openAdd]);
+    <EmptyState isDark={isDark} onAdd={openAdd} />
+  ), [isDark, openAdd]);
 
   return (
-    <View style={[base.root, { backgroundColor: t.bg }]}>
-      <SafeAreaView style={base.safe} edges={['top']}>
-        <StatusBar barStyle={t.statusBar} backgroundColor="transparent" translucent />
+    <View style={{ flex: 1, backgroundColor: rootBg }}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-        <FlatList
-          data={goals}
-          keyExtractor={g => g.id}
-          renderItem={renderGoal}
-          ListHeaderComponent={ListHeader}
-          ListEmptyComponent={ListEmpty}
-          contentContainerStyle={[
-            base.listContent,
-            goals.length === 0 && base.listContentEmpty,
-          ]}
-          ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-          windowSize={11}
-          maxToRenderPerBatch={8}
-          removeClippedSubviews
-          showsVerticalScrollIndicator={false}
-        />
-      </SafeAreaView>
+      <FlatList
+        data={goals}
+        keyExtractor={g => g.id}
+        renderItem={renderGoal}
+        ListHeaderComponent={ListHeader}
+        ListEmptyComponent={ListEmpty}
+        contentContainerStyle={[
+          { paddingBottom: Math.max(insets.bottom, 16) + 100 },
+          goals.length === 0 && { flexGrow: 1 },
+        ]}
+        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+        windowSize={11}
+        maxToRenderPerBatch={8}
+        removeClippedSubviews
+        showsVerticalScrollIndicator={false}
+      />
 
-      {/* ── Add / Edit Bottom Sheet ─────────────────────────────────────────── */}
+      {/* Add / Edit Bottom Sheet */}
       <Modal
         visible={modalMode !== null}
         animationType="slide"
@@ -458,125 +469,97 @@ export default function GoalsScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={base.modalOverlay}
         >
-          {/* Tap outside to dismiss */}
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={closeModal} />
 
-          <View style={[sh.sheet, { backgroundColor: t.cardAlt }]}>
-            <View style={[sh.handle, { backgroundColor: t.divider }]} />
+          <View style={[sh.sheet, { backgroundColor: sheetBg, paddingBottom: Math.max(insets.bottom, 16) + 16 }]}>
+            <View style={[sh.handle, { backgroundColor: divColor }]} />
 
-            <Text style={[sh.title, { color: t.text }]}>
+            <Text style={[sh.title, { color: textColor, fontFamily: SERIF }]}>
               {modalMode === 'edit' ? 'Edit Goal' : 'New Goal'}
             </Text>
 
-            {/* ── Templates (add mode only) ── */}
+            {/* Templates (add mode only) */}
             {modalMode === 'add' && showTemplates && (
               <>
-                <Text style={[sh.sectionLabel, { color: t.textMuted }]}>
-                  CHOOSE A TEMPLATE
-                </Text>
+                <Text style={[sh.sectionLabel, { color: mutedColor }]}>CHOOSE A TEMPLATE</Text>
                 <ScrollView style={{ maxHeight: 260 }} showsVerticalScrollIndicator={false}>
                   {GOAL_TEMPLATES.map(tmpl => (
                     <TouchableOpacity
                       key={tmpl.title}
-                      style={[sh.templateRow, { borderBottomColor: t.divider }]}
+                      style={[sh.templateRow, { borderBottomColor: divColor }]}
                       onPress={() => handlePickTemplate(tmpl.title, tmpl.target)}
                       activeOpacity={0.7}
                     >
                       <Text style={sh.templateEmoji}>{tmpl.icon}</Text>
                       <View style={{ flex: 1 }}>
-                        <Text style={[sh.templateTitle, { color: t.text }]}>
-                          {tmpl.title}
-                        </Text>
-                        <Text style={[sh.templateMeta, { color: t.textMuted }]}>
-                          {tmpl.target}-day target
-                        </Text>
+                        <Text style={[sh.templateTitle, { color: textColor }]}>{tmpl.title}</Text>
+                        <Text style={[sh.templateMeta, { color: mutedColor }]}>{tmpl.target}-day target</Text>
                       </View>
-                      <Ionicons name="chevron-forward" size={16} color={t.textMuted} />
+                      <Ionicons name="chevron-forward" size={16} color={mutedColor} />
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
-                <TouchableOpacity
-                  onPress={() => setShowTemplates(false)}
-                  style={sh.switchLink}
-                >
-                  <Text style={[sh.switchLinkText, { color: t.gold }]}>
-                    Create a custom goal →
-                  </Text>
+                <TouchableOpacity onPress={() => setShowTemplates(false)} style={sh.switchLink}>
+                  <Text style={[sh.switchLinkText, { color: GOLD }]}>Create a custom goal →</Text>
                 </TouchableOpacity>
               </>
             )}
 
-            {/* ── Custom form ── */}
+            {/* Custom form */}
             {(modalMode === 'edit' || !showTemplates) && (
               <>
                 {modalMode === 'add' && (
-                  <TouchableOpacity
-                    onPress={() => setShowTemplates(true)}
-                    style={sh.switchLink}
-                  >
-                    <Text style={[sh.switchLinkText, { color: t.gold }]}>
-                      ← Back to templates
-                    </Text>
+                  <TouchableOpacity onPress={() => setShowTemplates(true)} style={sh.switchLink}>
+                    <Text style={[sh.switchLinkText, { color: GOLD }]}>← Back to templates</Text>
                   </TouchableOpacity>
                 )}
 
-                <Text style={[sh.inputLabel, { color: t.textMuted }]}>GOAL NAME</Text>
+                <Text style={[sh.inputLabel, { color: mutedColor }]}>GOAL NAME</Text>
                 <TextInput
-                  style={[
-                    sh.input,
-                    {
-                      backgroundColor: t.inputBg,
-                      borderColor:     t.inputBorder,
-                      color:           t.text,
-                    },
-                  ]}
+                  style={[sh.input, { backgroundColor: inputBg, borderColor: inputBorder, color: textColor }]}
                   value={inputTitle}
                   onChangeText={setInputTitle}
                   placeholder="e.g. Read Bible daily"
-                  placeholderTextColor={t.textMuted}
+                  placeholderTextColor={mutedColor}
                   autoFocus
                   returnKeyType="next"
                   textAlignVertical="center"
                 />
 
-                <Text style={[sh.inputLabel, { color: t.textMuted }]}>TARGET (DAYS)</Text>
+                <Text style={[sh.inputLabel, { color: mutedColor }]}>TARGET (DAYS)</Text>
                 <TextInput
-                  style={[
-                    sh.input,
-                    {
-                      backgroundColor: t.inputBg,
-                      borderColor:     t.inputBorder,
-                      color:           t.text,
-                    },
-                  ]}
+                  style={[sh.input, { backgroundColor: inputBg, borderColor: inputBorder, color: textColor }]}
                   value={inputTarget}
                   onChangeText={setInputTarget}
                   keyboardType="number-pad"
                   placeholder="30"
-                  placeholderTextColor={t.textMuted}
+                  placeholderTextColor={mutedColor}
                   returnKeyType="done"
                   textAlignVertical="center"
                 />
 
                 <TouchableOpacity
-                  style={[
-                    sh.saveBtn,
-                    { backgroundColor: t.gold },
-                    !inputTitle.trim() && sh.saveBtnDisabled,
-                  ]}
                   onPress={modalMode === 'edit' ? handleEdit : handleAdd}
                   disabled={!inputTitle.trim()}
-                  activeOpacity={0.8}
+                  activeOpacity={0.85}
+                  style={[!inputTitle.trim() && { opacity: 0.4 }]}
                 >
-                  <Text style={[sh.saveBtnText, { color: t.bg }]}>
-                    {modalMode === 'edit' ? 'Save Changes' : 'Create Goal'}
-                  </Text>
+                  <LinearGradient
+                    colors={[GOLD, '#B8904A']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={sh.saveBtn}
+                  >
+                    <Text style={sh.saveBtnText}>
+                      {modalMode === 'edit' ? 'Save Changes' : 'Create Goal'}
+                    </Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               </>
             )}
 
             <TouchableOpacity onPress={closeModal} style={sh.cancelBtn}>
-              <Text style={[sh.cancelBtnText, { color: t.textMuted }]}>Cancel</Text>
+              <Text style={[sh.cancelBtnText, { color: subColor }]}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -585,39 +568,26 @@ export default function GoalsScreen() {
   );
 }
 
-// ─── Base Styles ──────────────────────────────────────────────────────────────
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const base = StyleSheet.create({
-  root:             { flex: 1 },
-  safe:             { flex: 1 },
-  listContent:      { paddingBottom: 120 },
-  listContentEmpty: { flexGrow: 1 },
-  modalOverlay:     { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.55)' },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.55)' },
 });
-
-// ─── Sheet Styles ─────────────────────────────────────────────────────────────
 
 const sh = StyleSheet.create({
   sheet: {
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(201,169,107,0.18)',
-    padding: 24,
-    paddingBottom: 44,
-    gap: 14,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    borderTopWidth: 1, borderTopColor: 'rgba(201,169,107,0.18)',
+    padding: 24, gap: 14,
   },
-  handle: {
-    width: 40, height: 4, borderRadius: 2,
-    alignSelf: 'center', marginBottom: 4,
-  },
-  title:        { fontSize: 20, fontWeight: '700', letterSpacing: -0.3 },
+  handle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 4 },
+  title:  { fontSize: 20, fontWeight: '400', letterSpacing: -0.3 },
+
   sectionLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: -4 },
 
   templateRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth,
   },
   templateEmoji: { fontSize: 22, width: 32, textAlign: 'center' },
   templateTitle: { fontSize: 15, fontWeight: '500' },
@@ -628,15 +598,14 @@ const sh = StyleSheet.create({
 
   inputLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1.2, marginBottom: -6 },
   input: {
-    borderWidth: 1, borderRadius: 12,
+    borderWidth: 1, borderRadius: 14,
     paddingHorizontal: 14, paddingVertical: 13,
     fontSize: 15,
     includeFontPadding: false,
   } as any,
 
-  saveBtn:         { borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
-  saveBtnDisabled: { opacity: 0.4 },
-  saveBtnText:     { fontSize: 15, fontWeight: '700' },
+  saveBtn:     { borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+  saveBtnText: { fontSize: 15, fontWeight: '700', color: '#08071A' },
 
   cancelBtn:     { alignItems: 'center', paddingVertical: 4 },
   cancelBtnText: { fontSize: 14 },

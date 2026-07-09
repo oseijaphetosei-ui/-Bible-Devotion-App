@@ -235,6 +235,146 @@ Return ONLY valid JSON in this exact structure:
   },
 );
 
+// ── AI Sermon Builder ─────────────────────────────────────────────────────────
+
+const AUDIENCE_STYLE: Record<string, string> = {
+  children_4_8:  'Children aged 4–8. Use very simple language, short sentences, fun stories, object lessons, and interactive questions. Avoid abstract theology. Everything must be concrete and joyful.',
+  children_9_12: 'Children aged 9–12. Use age-appropriate language, relatable school and family scenarios, engaging questions, and clear moral lessons.',
+  youth:         'Teenagers. Address identity, social media, peer pressure, dating, mental health, purpose, and belonging. Be authentic, direct, and use modern illustrations.',
+  young_adults:  'Young adults aged 18–30. Address career, purpose, relationships, doubt, and faith. Be intellectually engaging, culturally aware, and practically grounded.',
+  adults:        'Adult congregation. Provide rich biblical exposition, historical background, theological depth where appropriate, and practical Christian living applications.',
+  family:        'Mixed family service with all ages present. Balance depth for adults with accessible illustrations for children. Include family application points and wholesome examples.',
+  mixed:         'Mixed congregation of various ages and backgrounds. Keep language clear, inclusive, and universally accessible. Use diverse illustrations and balance theology with warmth.',
+};
+
+const POINT_COUNT: Record<string, number> = {
+  '10': 2,
+  '20': 2,
+  '30': 3,
+  '45': 3,
+  '60': 4,
+};
+
+export const generateSermon = onCall(
+  { secrets: [geminiKey], cors: true, invoker: 'public' },
+  async (request) => {
+    const { audience, audienceLabel, sermonType, scriptures, topic, duration, tone } = request.data as {
+      audience: string;
+      audienceLabel: string;
+      sermonType: string;
+      scriptures: string[];
+      topic: string;
+      duration: number;
+      tone: string;
+    };
+
+    if (!audience || !sermonType) {
+      throw new HttpsError('invalid-argument', 'Missing required fields.');
+    }
+
+    const audienceStyle = AUDIENCE_STYLE[audience] ?? AUDIENCE_STYLE.adults;
+    const scriptureText = (scriptures ?? []).filter(Boolean).join(', ') || 'Let the topic guide the Scripture selection';
+    const topicText     = topic || 'Based on the selected scripture';
+    const pointCount    = POINT_COUNT[String(duration)] ?? 3;
+
+    console.log('[generateSermon] request received', { revision: FUNCTION_REVISION_NOTE, audience, sermonType, duration, tone });
+
+    const prompt = `You are a master theologian, pastor, and homiletics expert with 40 years of ministry across diverse cultural contexts.
+Generate a comprehensive, biblically faithful, professionally structured sermon.
+
+AUDIENCE: ${audienceLabel}
+AUDIENCE STYLE: ${audienceStyle}
+SERMON TYPE: ${sermonType}
+SCRIPTURE REFERENCES: ${scriptureText}
+TOPIC: ${topicText}
+DURATION: ${duration} minutes
+TONE: ${tone}
+MAIN POINTS: Generate exactly ${pointCount} main points appropriate for ${duration} minutes
+
+CRITICAL GUIDELINES:
+- Every claim must be grounded in Scripture with specific references
+- Vocabulary, illustrations, and applications must be perfectly calibrated for this specific audience
+- For a ${tone} tone: adjust vocabulary, energy, and delivery style accordingly
+- Be theologically sound; acknowledge where faithful Christian traditions differ
+- Never fabricate Bible verses or misattribute quotes to real people
+- Make illustrations vivid, culturally relevant, and audience-appropriate
+- Applications must be specific, actionable, and achievable
+
+Return ONLY valid JSON — no markdown, no extra text:
+
+{
+  "titles": [
+    "Title option 1 (5–8 words, compelling and clear)",
+    "Title option 2 (poetic or question-based)",
+    "Title option 3 (action or promise-based)"
+  ],
+  "theme": "One sentence capturing the sermon's central message",
+  "bigIdea": "The single non-negotiable biblical truth this sermon communicates",
+  "keyScripture": "Primary passage reference (e.g., John 15:1-8)",
+  "supportingScriptures": ["Ref 1", "Ref 2", "Ref 3", "Ref 4", "Ref 5", "Ref 6"],
+  "openingPrayer": "Heartfelt 5-sentence opening prayer directly connected to the sermon theme",
+  "introduction": "Compelling 180-word introduction with audience-appropriate story or illustration that creates curiosity and sets up the sermon",
+  "historicalBackground": "120-word explanation of authorship, original audience, historical setting, cultural context, and literary context of the key passage",
+  "mainPoints": [
+    {
+      "heading": "Concise, memorable point heading",
+      "scripture": "Scripture reference supporting this point",
+      "explanation": "100-word clear explanation of the passage with biblical exegesis",
+      "illustration": "70-word vivid illustration perfectly suited to this audience",
+      "application": "60-word specific, actionable application for this audience",
+      "reflectionQuestion": "Thoughtful personal reflection or group discussion question"
+    }
+  ],
+  "practicalApplications": [
+    "Specific actionable step 1 for this audience",
+    "Specific actionable step 2",
+    "Specific actionable step 3",
+    "Specific actionable step 4",
+    "Specific actionable step 5"
+  ],
+  "reflectionQuestions": [
+    "Personal reflection question 1",
+    "Group discussion question 2",
+    "Heart-searching question 3",
+    "Application question 4",
+    "Commitment question 5"
+  ],
+  "memoryVerse": "Book Chapter:Verse",
+  "memoryVerseText": "The complete text of the memory verse",
+  "invitation": "90-word grace-filled invitation or response moment appropriate for this sermon type and audience",
+  "closingPrayer": "6-sentence closing prayer that gathers the sermon's themes into a commissioning prayer",
+  "worshipSuggestions": ["Song/Hymn 1", "Song/Hymn 2", "Song/Hymn 3", "Song/Hymn 4", "Song/Hymn 5"],
+  "discussionQuestions": [
+    "Small group question 1",
+    "Small group question 2",
+    "Small group question 3",
+    "Small group question 4",
+    "Small group question 5"
+  ]
+}`;
+
+    const result = await getAI().models.generateContent({
+      model: GEMINI_MODEL,
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        maxOutputTokens: 8192,
+        temperature: 0.55,
+      },
+    });
+
+    const raw = (result.text ?? '').trim();
+    console.log('[generateSermon] response received', { revision: FUNCTION_REVISION_NOTE, length: raw.length });
+
+    try {
+      return JSON.parse(raw);
+    } catch {
+      const clean = raw.replace(/^```(?:json)?\n?|\n?```$/g, '').trim();
+      return JSON.parse(clean);
+    }
+  },
+);
+
 // ── Text-to-Speech (Google Cloud TTS) ────────────────────────────────────────
 // Single source of truth for voice configuration across the entire app.
 // When changing the voice, also bump TTS_CACHE_VERSION in src/services/ttsService.ts

@@ -348,7 +348,7 @@ export default function ReflectionScreen() {
             {/* Streak pill */}
             {completionStreak > 0 && (
               <View style={s.streakBanner}>
-                <Text style={s.streakFire}>🔥</Text>
+                <Ionicons name="flame" size={22} color={t.gold} />
                 <View>
                   <Text style={s.streakText}>
                     {isNewRecord ? 'New Record · ' : ''}{completionStreak} Day Streak
@@ -588,7 +588,6 @@ const s = StyleSheet.create({
     borderRadius: 24,
     marginBottom: 16,
   },
-  streakFire: { fontSize: 22 },
   streakText: {
     fontSize: 14,
     fontWeight: '700',

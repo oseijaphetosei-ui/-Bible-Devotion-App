@@ -12,6 +12,17 @@ import {
   useColorScheme,
 } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
+import { Asset } from 'expo-asset';
+
+// Pre-warm hero images immediately when the JS bundle evaluates — long before any screen renders.
+Asset.loadAsync([
+  require('./src/assets/open-bible-in-the-morning.jpg'),
+  require('./src/assets/hands-cluds.jpg'),
+  require('./src/assets/today-verse.jpg'),
+  require('./src/assets/apostles.jpg'),
+  require('./src/assets/stones.jpg'),
+  require('./src/assets/dove.jpg'),
+]).catch(() => {});
 import { isOnboardingCompleted } from './src/services/onboardingService';
 import { AppearanceProvider, useAppearance } from './src/context/AppearanceContext';
 import { ProfileProvider } from './src/context/ProfileContext';
@@ -65,8 +76,13 @@ import PrayerDetailScreen from './src/screens/Prayer/PrayerDetailScreen';
 import PrayerAnsweredScreen from './src/screens/Prayer/PrayerAnsweredScreen';
 import PrivacyPolicyScreen  from './src/screens/Legal/PrivacyPolicyScreen';
 import TermsOfServiceScreen from './src/screens/Legal/TermsOfServiceScreen';
+import ExploreScreen    from './src/screens/Explore/ExploreScreen';
 import HymnsScreen      from './src/screens/Hymns/HymnsScreen';
 import HymnReaderScreen from './src/screens/Hymns/HymnReaderScreen';
+import SermonBuilderHub from './src/screens/SermonBuilder/SermonBuilderHub';
+import SermonWizardScreen from './src/screens/SermonBuilder/SermonWizardScreen';
+import SermonGeneratingScreen from './src/screens/SermonBuilder/SermonGeneratingScreen';
+import SermonResultScreen from './src/screens/SermonBuilder/SermonResultScreen';
 
 import {
   HomeStackParamList,
@@ -106,8 +122,14 @@ function HomeStackScreen() {
       <HomeStack.Screen name="PrayerEditor"   component={PrayerEditorScreen}   />
       <HomeStack.Screen name="PrayerDetail"   component={PrayerDetailScreen}   />
       <HomeStack.Screen name="PrayerAnswered" component={PrayerAnsweredScreen} />
+      <HomeStack.Screen name="Explore"         component={ExploreScreen}         />
       <HomeStack.Screen name="Hymns"          component={HymnsScreen}          />
       <HomeStack.Screen name="HymnReader"     component={HymnReaderScreen}     />
+      <HomeStack.Screen name="SermonBuilder"   component={SermonBuilderHub}       />
+      <HomeStack.Screen name="SermonWizard"    component={SermonWizardScreen}    />
+      <HomeStack.Screen name="SermonGenerating" component={SermonGeneratingScreen}
+        options={{ gestureEnabled: false }} />
+      <HomeStack.Screen name="SermonResult"    component={SermonResultScreen}    />
     </HomeStack.Navigator>
   );
 }

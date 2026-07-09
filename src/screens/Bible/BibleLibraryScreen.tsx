@@ -8,8 +8,10 @@ import {
   StyleSheet,
   StatusBar,
   Animated,
+  Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Image as ExpoImage } from 'expo-image';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -18,14 +20,12 @@ import { BOOKS } from '../../constants/books';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import PremiumSearchBar from '../../components/PremiumSearchBar';
-import ProfileAvatar from '../../components/ProfileAvatar';
 import { LinearGradient } from 'expo-linear-gradient';
-
-const HERO_H = 136;
+import { BlurView } from 'expo-blur';
 
 type NavProp = NativeStackNavigationProp<BibleStackParamList, 'BibleLibrary'>;
 
-// ─── Abbreviations ───────────────────────────────────────────────────────────
+// ─── Abbreviations ────────────────────────────────────────────────────────────
 
 const ABBREV: Record<string, string> = {
   GEN:'Gen', EXO:'Exod', LEV:'Lev', NUM:'Num', DEU:'Deut',
@@ -44,7 +44,7 @@ const ABBREV: Record<string, string> = {
   '1JN':'1Jn', '2JN':'2Jn', '3JN':'3Jn', JUD:'Jude', REV:'Rev',
 };
 
-// ─── Search aliases (lowercase → book index) ─────────────────────────────────
+// ─── Search aliases (lowercase → book index) ──────────────────────────────────
 
 const ALIASES: Record<string, number> = {
   genesis:0, gen:0,
@@ -159,7 +159,6 @@ function matchBooks(q: string): Array<{ index: number; name: string }> {
     if (score) results.push({ index, name: book.name, score });
   });
 
-  // Also check aliases by prefix
   Object.entries(ALIASES).forEach(([alias, idx]) => {
     if (alias.startsWith(norm) && !results.find((r) => r.index === idx)) {
       results.push({ index: idx, name: BOOKS[idx].name, score: 65 });
@@ -175,7 +174,6 @@ function parseSearch(raw: string): SearchResult[] {
   const q = raw.trim().replace(/\s+/g, ' ');
   if (!q) return [];
 
-  // Book + chapter + verse: "John 3:16", "John3:16", "1 John 3:16"
   const verseM = q.match(/^(.*?)\s*(\d+)\s*[:.]\s*(\d+)\s*$/);
   if (verseM) {
     const bookStr = verseM[1].trim();
@@ -190,7 +188,6 @@ function parseSearch(raw: string): SearchResult[] {
     }
   }
 
-  // Book + chapter: "Gen 1", "Genesis 1"
   const chapterM = q.match(/^(.*?)\s+(\d+)\s*$/);
   if (chapterM) {
     const bookStr = chapterM[1].trim();
@@ -204,76 +201,191 @@ function parseSearch(raw: string): SearchResult[] {
     }
   }
 
-  // Book only
   return matchBooks(q)
     .slice(0, 6)
     .map((b) => ({ bookIndex: b.index, bookName: b.name }));
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Cinematic Hero ───────────────────────────────────────────────────────────
 
-const HeroSection = memo(function HeroSection({ t }: { t: AppTheme }) {
+const CinematicHero = memo(function CinematicHero({ t }: { t: AppTheme }) {
+  const insets = useSafeAreaInsets();
   const isDark = t.statusBar === 'light-content';
-  return (
-    <LinearGradient
-      colors={isDark
-        ? ['rgba(19,22,38,1)', 'rgba(13,15,26,0.92)']
-        : ['rgba(237,231,217,1)', 'rgba(237,231,217,0.82)']}
-      style={hs.container}
-    >
-      <View style={hs.navRow}>
-        <ProfileAvatar size={42} />
-      </View>
-      <View style={hs.identRow}>
-        <Ionicons name="book-outline" size={14} color={t.accent} />
-        <Text style={[hs.identLabel, { color: t.accent }]}>BIBLE</Text>
-      </View>
-    </LinearGradient>
-  );
-});
+  const blurTint = isDark ? 'dark' : 'light';
 
-const hs = StyleSheet.create({
-  container:  { paddingHorizontal: 24, paddingTop: 14, paddingBottom: 28 },
-  navRow:     { marginBottom: 22 },
-  identRow:   { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  identLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 2 },
-});
-
-const TestamentHeader = memo(function TestamentHeader({ title, subtitle, t }: { title: string; subtitle: string; t: AppTheme }) {
   return (
-    <View style={[sh.sectionHeader, { backgroundColor: t.bg }]}>
-      <Text style={[sh.sectionTitle, { color: t.textMuted }]}>{title.toUpperCase()}</Text>
-      <View style={[sh.sectionBadge, { backgroundColor: t.chipBg, borderColor: t.chipBorder }]}>
-        <Text style={[sh.sectionSub, { color: t.textMuted }]}>{subtitle}</Text>
+    <View style={bh.container}>
+      <View style={bh.image}>
+        <ExpoImage
+          source={require('../../assets/today-verse.jpg')}
+          style={StyleSheet.absoluteFillObject}
+          contentFit="cover"
+          transition={350}
+          cachePolicy="memory-disk"
+        />
+        {/* Main gradient scrim */}
+        <LinearGradient
+          colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.22)', 'rgba(0,0,0,0.78)']}
+          locations={[0, 0.5, 1]}
+          style={StyleSheet.absoluteFillObject}
+        />
+
+        {/* Content */}
+        <View style={[bh.content, { paddingTop: insets.top + 12 }]}>
+          {/* Stats pill (top-right) */}
+          <View style={bh.topRow}>
+            <View style={{ flex: 1 }} />
+            <BlurView intensity={28} tint="dark" style={bh.statsPill}>
+              <Ionicons name="book-outline" size={12} color="rgba(255,255,255,0.7)" />
+              <Text style={bh.statsText}>66 Books</Text>
+            </BlurView>
+          </View>
+
+          {/* Bottom text block */}
+          <View style={bh.bottomBlock}>
+            {/* Eyebrow */}
+            <View style={bh.eyebrowRow}>
+              <View style={bh.eyebrowRule} />
+              <Text style={bh.eyebrowText}>THE WORD OF GOD</Text>
+              <View style={bh.eyebrowRule} />
+            </View>
+
+            {/* Main title */}
+            <Text style={bh.title}>Holy Bible</Text>
+
+            {/* Subtitle */}
+            <Text style={bh.subtitle}>
+              Old & New Testaments · King James Version
+            </Text>
+          </View>
+        </View>
       </View>
     </View>
   );
 });
 
-const BookRow = memo(function BookRow({ book, onPress, t }: { book: BookItem; onPress: () => void; t: AppTheme }) {
+const bh = StyleSheet.create({
+  container: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+  image: { width: '100%', height: 216, overflow: 'hidden' },
+  content: {
+    flex: 1, paddingHorizontal: 22, paddingBottom: 26,
+    justifyContent: 'space-between',
+  },
+  topRow: { flexDirection: 'row', alignItems: 'center' },
+  statsPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: 20, overflow: 'hidden',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
+  },
+  statsText: { fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.75)', letterSpacing: 0.3 },
+  bottomBlock: { gap: 6 },
+  eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
+  eyebrowRule: { flex: 1, height: 1, backgroundColor: 'rgba(201,169,107,0.45)' },
+  eyebrowText: {
+    fontSize: 9, fontWeight: '700', letterSpacing: 2.2,
+    color: 'rgba(201,169,107,0.85)',
+  },
+  title: {
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    fontSize: 34, fontWeight: '400', letterSpacing: -0.5,
+    color: 'rgba(255,255,255,0.96)', lineHeight: 42,
+  },
+  subtitle: {
+    fontSize: 12, fontWeight: '500',
+    color: 'rgba(255,255,255,0.48)', letterSpacing: 0.2,
+  },
+});
+
+// ─── Testament Section Header ─────────────────────────────────────────────────
+
+const TestamentHeader = memo(function TestamentHeader({
+  title, subtitle, t, isNT,
+}: { title: string; subtitle: string; t: AppTheme; isNT: boolean }) {
+  return (
+    <View style={[th.container, { backgroundColor: t.bg }]}>
+      <View style={[th.accentBar, { backgroundColor: isNT ? t.gold : t.accent }]} />
+      <View style={th.textBlock}>
+        <Text style={[th.title, { color: t.text }]}>{title}</Text>
+        <Text style={[th.subtitle, { color: t.textMuted }]}>{subtitle}</Text>
+      </View>
+    </View>
+  );
+});
+
+const th = StyleSheet.create({
+  container: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 20, paddingTop: 28, paddingBottom: 14, gap: 14,
+  },
+  accentBar: { width: 3, height: 28, borderRadius: 2 },
+  textBlock: { gap: 2 },
+  title:    { fontSize: 14, fontWeight: '700', letterSpacing: -0.1 },
+  subtitle: { fontSize: 11, fontWeight: '500', letterSpacing: 0.3 },
+});
+
+// ─── Book Row ─────────────────────────────────────────────────────────────────
+
+const BookRow = memo(function BookRow({
+  book, onPress, t,
+}: { book: BookItem; onPress: () => void; t: AppTheme }) {
   const isNT = book.index >= 39;
   const abbrev = ABBREV[book.usfm] ?? book.usfm;
+  const accentColor = isNT ? t.gold : t.accent;
+
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.65}
-      style={[sh.bookRow, { borderBottomColor: t.divider }]}
+      style={[br.row, { borderBottomColor: t.divider }]}
     >
-      <Text style={[sh.bookNum, { color: isNT ? t.gold : t.textMuted }]}>
-        {book.index + 1}
-      </Text>
-      <View style={sh.bookInfo}>
-        <Text style={[sh.bookName, { color: t.text }]}>{book.name}</Text>
-        <Text style={[sh.bookMeta, { color: t.textMuted }]}>
-          {abbrev} · {book.chapters} chapters
+      {/* Number badge */}
+      <View style={[br.numBadge, { backgroundColor: isNT ? t.goldBg : t.accentBg }]}>
+        <Text style={[br.numText, { color: accentColor }]}>
+          {book.index + 1}
         </Text>
       </View>
-      <Ionicons name="chevron-forward" size={15} color={t.textMuted} />
+
+      {/* Book info */}
+      <View style={br.info}>
+        <Text style={[br.name, { color: t.text }]}>{book.name}</Text>
+        <Text style={[br.meta, { color: t.textMuted }]}>
+          {abbrev} · {book.chapters} ch
+        </Text>
+      </View>
+
+      <Ionicons name="chevron-forward" size={14} color={t.textMuted} style={{ opacity: 0.6 }} />
     </TouchableOpacity>
   );
 });
 
-const ResultRow = memo(function ResultRow({ result, query, onPress, t }: { result: SearchResult; query: string; onPress: () => void; t: AppTheme }) {
+const br = StyleSheet.create({
+  row: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 20, paddingVertical: 14, gap: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth, minHeight: 58,
+  },
+  numBadge: {
+    width: 36, height: 36, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  numText:  { fontSize: 12, fontWeight: '700', letterSpacing: 0.2 },
+  info:     { flex: 1, gap: 2 },
+  name:     { fontSize: 16, fontWeight: '600', letterSpacing: -0.1 },
+  meta:     { fontSize: 12, letterSpacing: 0.1 },
+});
+
+// ─── Search Result Row ────────────────────────────────────────────────────────
+
+const ResultRow = memo(function ResultRow({
+  result, onPress, t,
+}: { result: SearchResult; query: string; onPress: () => void; t: AppTheme }) {
   const icon = result.verse ? 'bookmark-outline' : result.chapter ? 'list-outline' : 'book-outline';
   const label = result.verse
     ? `${result.bookName} ${result.chapter}:${result.verse}`
@@ -285,25 +397,41 @@ const ResultRow = memo(function ResultRow({ result, query, onPress, t }: { resul
     : result.chapter
     ? 'Open chapter'
     : `${BOOKS[result.bookIndex].chapters} chapters`;
+
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.65}
-      style={[sh.resultRow, { borderBottomColor: t.divider }]}
+      style={[rr.row, { borderBottomColor: t.divider }]}
     >
-      <View style={[sh.resultIcon, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}>
+      <View style={[rr.icon, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}>
         <Ionicons name={icon as any} size={16} color={t.gold} />
       </View>
-      <View style={sh.resultInfo}>
-        <Text style={[sh.resultLabel, { color: t.text }]}>{label}</Text>
-        <Text style={[sh.resultSub, { color: t.textMuted }]}>{sub}</Text>
+      <View style={rr.info}>
+        <Text style={[rr.label, { color: t.text }]}>{label}</Text>
+        <Text style={[rr.sub, { color: t.textMuted }]}>{sub}</Text>
       </View>
       <Ionicons name="arrow-forward" size={14} color={t.gold} />
     </TouchableOpacity>
   );
 });
 
-// ─── Main screen ──────────────────────────────────────────────────────────────
+const rr = StyleSheet.create({
+  row: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 20, paddingVertical: 16,
+    gap: 14, borderBottomWidth: StyleSheet.hairlineWidth, minHeight: 60,
+  },
+  icon: {
+    width: 38, height: 38, borderRadius: 12,
+    borderWidth: 1, alignItems: 'center', justifyContent: 'center',
+  },
+  info:  { flex: 1, gap: 2 },
+  label: { fontSize: 15, fontWeight: '600', letterSpacing: -0.1 },
+  sub:   { fontSize: 12, marginTop: 1 },
+});
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function BibleLibraryScreen() {
   const navigation = useNavigation<NavProp>();
@@ -341,21 +469,21 @@ export default function BibleLibraryScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <StatusBar barStyle={t.statusBar} backgroundColor="transparent" translucent />
-      <SafeAreaView style={s.safe} edges={['top']}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-        {/* Hero — collapses when search is active */}
-        <Animated.View
-          style={{
-            height: headerAnim.interpolate({ inputRange: [0, 1], outputRange: [0, HERO_H] }),
-            opacity: headerAnim,
-            overflow: 'hidden',
-          }}
-        >
-          <HeroSection t={t} />
-        </Animated.View>
+      {/* Hero — collapses when search is active */}
+      <Animated.View
+        style={{
+          height: headerAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 216] }),
+          opacity: headerAnim,
+          overflow: 'hidden',
+        }}
+      >
+        <CinematicHero t={t} />
+      </Animated.View>
 
-        {/* Search bar */}
+      {/* Search bar */}
+      <SafeAreaView edges={query.trim() ? [] : ['bottom']} style={s.searchWrap}>
         <PremiumSearchBar
           value={query}
           onChangeText={setQuery}
@@ -364,56 +492,61 @@ export default function BibleLibraryScreen() {
           autoCapitalize="none"
           style={{ marginBottom: 8 }}
         />
-
-        {/* Search results */}
-        {query.trim() ? (
-          <ScrollView
-            style={s.resultsScroll}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {results.length === 0 ? (
-              <View style={s.emptyWrap}>
-                <View style={[s.emptyIcon, { backgroundColor: t.filterInactiveBg }]}>
-                  <Ionicons name="search-outline" size={28} color={t.textMuted} />
-                </View>
-                <Text style={[s.emptyTitle, { color: t.text }]}>No results</Text>
-                <Text style={[s.emptySub, { color: t.textMuted }]}>
-                  Try a book name, abbreviation,{'\n'}or reference like "John 3:16"
-                </Text>
-              </View>
-            ) : (
-              results.map((r, i) => (
-                <ResultRow
-                  key={i}
-                  result={r}
-                  query={query}
-                  onPress={() => handleResultPress(r)}
-                  t={t}
-                />
-              ))
-            )}
-          </ScrollView>
-        ) : (
-          /* Book list */
-          <SectionList
-            sections={SECTIONS}
-            keyExtractor={(item) => String(item.index)}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={s.listContent}
-            stickySectionHeadersEnabled={false}
-            windowSize={11}
-            maxToRenderPerBatch={10}
-            renderSectionHeader={({ section }) => (
-              <TestamentHeader title={section.title} subtitle={section.subtitle} t={t} />
-            )}
-            renderItem={({ item }) => (
-              <BookRow book={item} onPress={() => handleBookPress(item.index)} t={t} />
-            )}
-            ItemSeparatorComponent={() => null}
-          />
-        )}
       </SafeAreaView>
+
+      {/* Content */}
+      {query.trim() ? (
+        <ScrollView
+          style={s.resultsScroll}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {results.length === 0 ? (
+            <View style={s.emptyWrap}>
+              <View style={[s.emptyIcon, { backgroundColor: t.filterInactiveBg }]}>
+                <Ionicons name="search-outline" size={28} color={t.textMuted} />
+              </View>
+              <Text style={[s.emptyTitle, { color: t.text }]}>No results</Text>
+              <Text style={[s.emptySub, { color: t.textMuted }]}>
+                Try a book name, abbreviation,{'\n'}or reference like "John 3:16"
+              </Text>
+            </View>
+          ) : (
+            results.map((r, i) => (
+              <ResultRow
+                key={i}
+                result={r}
+                query={query}
+                onPress={() => handleResultPress(r)}
+                t={t}
+              />
+            ))
+          )}
+        </ScrollView>
+      ) : (
+        <SectionList
+          style={{ flex: 1 }}
+          sections={SECTIONS}
+          keyExtractor={(item) => String(item.index)}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={s.listContent}
+          stickySectionHeadersEnabled={false}
+          windowSize={11}
+          maxToRenderPerBatch={10}
+          renderSectionHeader={({ section }) => (
+            <TestamentHeader
+              title={section.title}
+              subtitle={section.subtitle}
+              t={t}
+              isNT={section.title === 'New Testament'}
+            />
+          )}
+          renderItem={({ item }) => (
+            <BookRow book={item} onPress={() => handleBookPress(item.index)} t={t} />
+          )}
+          ItemSeparatorComponent={() => null}
+        />
+      )}
     </View>
   );
 }
@@ -421,57 +554,14 @@ export default function BibleLibraryScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  safe: { flex: 1 },
+  searchWrap: { paddingHorizontal: 0 },
   resultsScroll: { flex: 1, paddingTop: 4 },
   emptyWrap: { alignItems: 'center', paddingTop: 60, gap: 12, paddingHorizontal: 40 },
-  emptyIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  emptyIcon: {
+    width: 64, height: 64, borderRadius: 32,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+  },
   emptyTitle: { fontSize: 17, fontWeight: '700' },
-  emptySub: { fontSize: 13, textAlign: 'center', lineHeight: 20 },
+  emptySub:   { fontSize: 13, textAlign: 'center', lineHeight: 20 },
   listContent: { paddingBottom: 120 },
-});
-
-const sh = StyleSheet.create({
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 28,
-    paddingBottom: 12,
-    gap: 12,
-  },
-  sectionTitle:  { fontSize: 11, fontWeight: '700', letterSpacing: 1.6 },
-  sectionBadge: {
-    borderRadius: 6, borderWidth: 1,
-    paddingHorizontal: 8, paddingVertical: 3,
-  },
-  sectionSub: { fontSize: 11, fontWeight: '500' },
-
-  bookRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    gap: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  bookNum:  { fontSize: 12, fontWeight: '600', width: 22, textAlign: 'right' },
-  bookInfo: { flex: 1 },
-  bookName: { fontSize: 16, fontWeight: '600', letterSpacing: -0.1 },
-  bookMeta: { fontSize: 12, marginTop: 3, letterSpacing: 0.1 },
-
-  resultRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    gap: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  resultIcon: {
-    width: 38, height: 38, borderRadius: 12,
-    borderWidth: 1, alignItems: 'center', justifyContent: 'center',
-  },
-  resultInfo:  { flex: 1 },
-  resultLabel: { fontSize: 15, fontWeight: '600', letterSpacing: -0.1 },
-  resultSub:   { fontSize: 12, marginTop: 2 },
 });

@@ -22,13 +22,13 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-type GoalOption = { id: PrimaryGoal; emoji: string; title: string; description: string };
+type GoalOption = { id: PrimaryGoal; icon: string; title: string; description: string };
 
 const GOALS: GoalOption[] = [
-  { id: 'devotion', emoji: '📖', title: 'Daily Devotion',  description: 'A short daily time with God.' },
-  { id: 'study',    emoji: '📚', title: 'Bible Study',     description: 'Understand Scripture more deeply.' },
-  { id: 'prayer',   emoji: '🙏', title: 'Prayer',          description: 'Grow my prayer life.' },
-  { id: 'reading',  emoji: '📅', title: 'Reading Plan',    description: 'Build a consistent reading habit.' },
+  { id: 'devotion', icon: 'book-outline',      title: 'Daily Devotion',  description: 'A short daily time with God.' },
+  { id: 'study',    icon: 'library-outline',   title: 'Bible Study',     description: 'Understand Scripture more deeply.' },
+  { id: 'prayer',   icon: 'hand-right-outline',title: 'Prayer',          description: 'Grow my prayer life.' },
+  { id: 'reading',  icon: 'calendar-outline',  title: 'Reading Plan',    description: 'Build a consistent reading habit.' },
 ];
 
 type TranslationOption = { id: string; name: string; description: string; recommended: boolean };
@@ -221,7 +221,9 @@ function GoalItem({ goal, selected, onSelect, t }: {
         },
       ]}>
         <View style={[gi.accentBar, { backgroundColor: selected ? t.gold : 'transparent' }]} />
-        <Text style={gi.emoji}>{goal.emoji}</Text>
+        <View style={[gi.iconWrap, { backgroundColor: selected ? t.goldBg : t.chipBg }]}>
+          <Ionicons name={goal.icon as any} size={20} color={selected ? t.gold : t.textMuted} />
+        </View>
         <View style={gi.textBlock}>
           <Text style={[gi.title, { color: t.text }]}>{goal.title}</Text>
           <Text style={[gi.desc,  { color: t.textMuted }]}>{goal.description}</Text>
@@ -241,7 +243,7 @@ const gi = StyleSheet.create({
     paddingVertical: 16, paddingRight: 16, overflow: 'hidden',
   },
   accentBar: { width: 3, alignSelf: 'stretch', borderRadius: 2, marginRight: 14 },
-  emoji:     { fontSize: 22, marginRight: 14 },
+  iconWrap:  { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
   textBlock: { flex: 1 },
   title:     { fontSize: 15, fontWeight: '600', letterSpacing: 0.1, marginBottom: 2 },
   desc:      { fontSize: 12, lineHeight: 16 },

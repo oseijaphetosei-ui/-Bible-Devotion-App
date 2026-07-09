@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { getScriptureInsights } from '../../services/appApi';
@@ -83,8 +83,8 @@ function InsightChip({
 function createPalette(scheme: 'light' | 'dark', theme: AppTheme) {
   if (scheme === 'dark') {
     return {
-      bg: '#07111F',
-      bgAlt: '#0D1A2B',
+      bg: '#060810',
+      bgAlt: '#0D0F1A',
       mist: '#12304B',
       glow: 'rgba(112, 153, 207, 0.22)',
       glowSoft: 'rgba(201, 169, 107, 0.10)',
@@ -593,8 +593,8 @@ export default function ScriptureInsightsScreen() {
       <StatusBar barStyle={palette.statusBar} backgroundColor="transparent" translucent />
       <BackgroundWash palette={palette} />
 
-      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-          <View style={styles.topBar}>
+      <View style={{ flex: 1 }}>
+          <View style={[styles.topBar, { paddingTop: insets.top + 6 }]}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn} activeOpacity={0.75}>
               <Ionicons name="chevron-back" size={22} color={palette.text} />
             </TouchableOpacity>
@@ -716,7 +716,7 @@ export default function ScriptureInsightsScreen() {
               </View>
             )}
           </ScrollView>
-        </SafeAreaView>
+        </View>
 
       <Animated.View style={[
         styles.bottomDock,
@@ -740,6 +740,25 @@ export default function ScriptureInsightsScreen() {
               onBlur={handleBlur}
               onSubmitEditing={() => void sendPrompt(inputText)}
             />
+            <TouchableOpacity
+              onPress={() => void sendPrompt(inputText)}
+              disabled={!inputText.trim() || sending}
+              activeOpacity={0.75}
+              style={[
+                styles.sendBtn,
+                {
+                  backgroundColor: inputText.trim() && !sending
+                    ? palette.gold
+                    : (palette.statusBar === 'dark-content' ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.08)'),
+                },
+              ]}
+            >
+              <Ionicons
+                name={sending ? 'ellipsis-horizontal' : 'arrow-up'}
+                size={15}
+                color={inputText.trim() && !sending ? '#08071A' : palette.textMuted}
+              />
+            </TouchableOpacity>
           </Animated.View>
         </Animated.View>
       </Animated.View>
@@ -754,7 +773,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 18,
-    paddingTop: 6,
+    paddingBottom: 8,
     gap: 10,
   },
   topBarCenter: {
@@ -775,6 +794,8 @@ const styles = StyleSheet.create({
   iconBtn: {
     width: 36,
     height: 36,
+    borderRadius: 11,
+    backgroundColor: 'rgba(128,128,128,0.08)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -789,10 +810,20 @@ const styles = StyleSheet.create({
   },
   heroQuote: {
     fontSize: 22,
-    lineHeight: 34,
-    letterSpacing: 0.1,
-    fontWeight: '500',
+    fontFamily: 'Georgia',
+    lineHeight: 35,
+    letterSpacing: 0.05,
+    fontWeight: '400',
     maxWidth: 620,
+  },
+  sendBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 4,
+    flexShrink: 0,
   },
   metaRow: {
     flexDirection: 'row',

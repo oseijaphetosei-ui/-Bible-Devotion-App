@@ -1,17 +1,12 @@
 import React, { useState, useCallback, useRef, memo } from 'react';
 import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  StatusBar,
-  ActivityIndicator,
-  Animated,
+  View, Text, FlatList, TouchableOpacity, StyleSheet,
+  StatusBar, ActivityIndicator, Animated, Platform, Dimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Image as ExpoImage } from 'expo-image';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -22,7 +17,12 @@ import PremiumSearchBar from '../../components/PremiumSearchBar';
 import ProfileAvatar from '../../components/ProfileAvatar';
 import { BOOKS } from '../../constants/books';
 
-const HERO_H = 136;
+type NavProp = NativeStackNavigationProp<NotesStackParamList>;
+
+const { width: SCREEN_W } = Dimensions.get('window');
+const HERO_H = Math.round(SCREEN_W * 0.60);
+const GOLD   = '#C9A96B';
+const SERIF  = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 
 function parseBibleRefForNav(ref: string): { bookIndex: number; chapter: number; verse: number } | null {
   const match = ref.match(/^(.+)\s+(\d+):(\d+)$/);
@@ -32,64 +32,115 @@ function parseBibleRefForNav(ref: string): { bookIndex: number; chapter: number;
   return { bookIndex: bIdx, chapter: parseInt(match[2], 10), verse: parseInt(match[3], 10) };
 }
 
-type NavProp = NativeStackNavigationProp<NotesStackParamList>;
-
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
   });
 }
 
+// ─── Hero ─────────────────────────────────────────────────────────────────────
+
 const HeroSection = memo(function HeroSection({
-  count, onAdd, t,
-}: { count: number; onAdd: () => void; t: any }) {
-  const isDark = t.statusBar === 'light-content';
+  count, onAdd, insets,
+}: {
+  count: number;
+  onAdd: () => void;
+  insets: ReturnType<typeof useSafeAreaInsets>;
+}) {
   return (
-    <LinearGradient
-      colors={isDark
-        ? ['rgba(19,22,38,1)', 'rgba(13,15,26,0.92)']
-        : ['rgba(237,231,217,1)', 'rgba(237,231,217,0.82)']}
-      style={hs.container}
-    >
-      <View style={hs.navRow}>
+    <View style={{ height: HERO_H, overflow: 'hidden' }}>
+      <ExpoImage
+        source={require('../../assets/open-bible-in-the-morning.jpg')}
+        style={StyleSheet.absoluteFillObject}
+        contentFit="cover"
+        cachePolicy="memory-disk"
+      />
+
+      {/* Top scrim */}
+      <LinearGradient
+        colors={['rgba(0,0,0,0.55)', 'rgba(0,0,0,0)']}
+        locations={[0, 0.3]}
+        style={StyleSheet.absoluteFillObject}
+      />
+      {/* Bottom scrim */}
+      <LinearGradient
+        colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.14)', 'rgba(0,0,0,0.78)']}
+        locations={[0, 0.42, 1]}
+        style={StyleSheet.absoluteFillObject}
+      />
+
+      {/* Nav row */}
+      <View style={[hs.navRow, { paddingTop: insets.top + 6 }]}>
         <ProfileAvatar size={42} />
         <TouchableOpacity
           onPress={onAdd}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           activeOpacity={0.7}
-          style={[hs.addBtn, { backgroundColor: t.chipBg, borderColor: t.chipBorder }]}
+          style={hs.addBtn}
         >
-          <Ionicons name="add" size={22} color={t.text} />
+          <Ionicons name="add" size={22} color="rgba(255,255,255,0.90)" />
         </TouchableOpacity>
       </View>
-      <View style={hs.identRow}>
-        <Ionicons name="journal-outline" size={14} color={t.accent} />
-        <Text style={[hs.identLabel, { color: t.accent }]}>YOUR NOTES</Text>
+
+      {/* Hero content */}
+      <View style={hs.bottomContent}>
+        <View style={hs.eyebrowRow}>
+          <Ionicons name="journal-outline" size={11} color={GOLD} />
+          <Text style={hs.eyebrow}>YOUR NOTES</Text>
+        </View>
+        <Text style={hs.title}>Reflections &{'\n'}Scripture Insights</Text>
+        {count > 0 && (
+          <Text style={hs.countText}>{count} note{count !== 1 ? 's' : ''} saved</Text>
+        )}
       </View>
-    </LinearGradient>
+    </View>
   );
 });
 
 const hs = StyleSheet.create({
-  container:  { paddingHorizontal: 24, paddingTop: 14, paddingBottom: 28 },
-  navRow:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 },
-  addBtn:     { width: 38, height: 38, borderRadius: 19, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  identRow:   { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  identLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 2 },
+  navRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 22, paddingBottom: 8,
+  },
+  addBtn: {
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: 'rgba(0,0,0,0.32)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.20)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  bottomContent: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    paddingHorizontal: 22, paddingBottom: 22,
+  },
+  eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 10 },
+  eyebrow: { fontSize: 10, fontWeight: '700', letterSpacing: 2, color: GOLD },
+  title: {
+    fontFamily: SERIF,
+    fontSize: 26, fontWeight: '400', lineHeight: 34, letterSpacing: -0.3,
+    color: 'rgba(255,255,255,0.96)', marginBottom: 8,
+  },
+  countText: { fontSize: 12, color: 'rgba(255,255,255,0.42)', letterSpacing: 0.4 },
 });
 
+// ─── Note Card ────────────────────────────────────────────────────────────────
+
 const NoteCard = memo(function NoteCard({
-  note, onPress, onFavorite, onOpenBible,
-  text, textSub, textMuted, gold, divider,
+  note, onPress, onFavorite, onOpenBible, isDark,
 }: {
-  note: Note; onPress: () => void; onFavorite: () => void; onOpenBible?: () => void;
-  text: string; textSub: string; textMuted: string; gold: string; divider: string;
-  // keep cardBg, cardBorder, goldBg, goldBorder in props signature for compatibility but unused visually
-  cardBg: string; cardBorder: string; goldBg: string; goldBorder: string;
+  note: Note;
+  onPress: () => void;
+  onFavorite: () => void;
+  onOpenBible?: () => void;
+  isDark: boolean;
 }) {
+  const textColor  = isDark ? 'rgba(255,255,255,0.92)' : 'rgba(24,18,8,0.92)';
+  const subColor   = isDark ? 'rgba(255,255,255,0.58)' : 'rgba(24,18,8,0.58)';
+  const mutedColor = isDark ? 'rgba(255,255,255,0.32)' : 'rgba(24,18,8,0.32)';
+  const divColor   = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
+
   return (
     <TouchableOpacity
-      style={[nc.card, { borderBottomColor: divider }]}
+      style={[nc.card, { borderBottomColor: divColor }]}
       onPress={onPress}
       activeOpacity={0.75}
     >
@@ -101,65 +152,72 @@ const NoteCard = memo(function NoteCard({
             activeOpacity={0.7}
             style={nc.refRow}
           >
-            <Ionicons name="book-outline" size={11} color={gold} style={{ marginRight: 5 }} />
-            <Text style={[nc.refText, { color: gold }]}>{note.bibleReference}</Text>
+            <Ionicons name="book-outline" size={11} color={GOLD} style={{ marginRight: 5 }} />
+            <Text style={nc.refText}>{note.bibleReference}</Text>
           </TouchableOpacity>
         ) : (
-          <Text style={[nc.date, { color: textMuted }]}>{formatDate(note.updatedAt)}</Text>
+          <Text style={[nc.date, { color: mutedColor }]}>{formatDate(note.updatedAt)}</Text>
         )}
         <TouchableOpacity onPress={onFavorite} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Ionicons
             name={note.favorite ? 'star' : 'star-outline'}
             size={14}
-            color={note.favorite ? gold : textMuted}
+            color={note.favorite ? GOLD : mutedColor}
           />
         </TouchableOpacity>
       </View>
 
-      <Text style={[nc.title, { color: text }]} numberOfLines={1}>{note.title}</Text>
-      <Text style={[nc.preview, { color: textSub }]} numberOfLines={2}>{note.content}</Text>
+      <Text style={[nc.title, { color: textColor }]} numberOfLines={1}>{note.title}</Text>
+      <Text style={[nc.preview, { color: subColor, fontFamily: SERIF }]} numberOfLines={2}>
+        {note.content}
+      </Text>
 
       {note.bibleReference && (
-        <Text style={[nc.date, { color: textMuted, marginTop: 6 }]}>{formatDate(note.updatedAt)}</Text>
+        <Text style={[nc.date, { color: mutedColor, marginTop: 6 }]}>{formatDate(note.updatedAt)}</Text>
       )}
     </TouchableOpacity>
   );
 });
 
 const nc = StyleSheet.create({
-  card: {
-    paddingVertical: 20,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
+  card: { paddingVertical: 20, borderBottomWidth: StyleSheet.hairlineWidth },
   topRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   refRow:  { flexDirection: 'row', alignItems: 'center' },
-  refText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
+  refText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, color: GOLD, textTransform: 'uppercase' },
   title:   { fontSize: 17, fontWeight: '700', letterSpacing: -0.2, marginBottom: 6, lineHeight: 23 },
   preview: { fontSize: 13, lineHeight: 21, fontStyle: 'italic' },
   date:    { fontSize: 11 },
 });
 
-function EmptyState({ t, onAdd, isFiltered }: { t: any; onAdd: () => void; isFiltered: boolean }) {
+// ─── Empty State ──────────────────────────────────────────────────────────────
+
+function EmptyState({ onAdd, isFiltered, isDark }: { onAdd: () => void; isFiltered: boolean; isDark: boolean }) {
+  const textColor  = isDark ? 'rgba(255,255,255,0.90)' : 'rgba(24,18,8,0.90)';
+  const subColor   = isDark ? 'rgba(255,255,255,0.55)' : 'rgba(24,18,8,0.55)';
+  const mutedColor = isDark ? 'rgba(255,255,255,0.36)' : 'rgba(24,18,8,0.36)';
+
   return (
     <View style={es.container}>
-      <View style={[es.iconWrap, { backgroundColor: t.filterInactiveBg }]}>
-        <Ionicons name="journal-outline" size={36} color={t.textMuted} />
+      <View style={[es.iconWrap, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)' }]}>
+        <Ionicons name="journal-outline" size={36} color={mutedColor} />
       </View>
-      <Text style={[es.title, { color: t.text }]}>
+      <Text style={[es.title, { color: textColor, fontFamily: SERIF }]}>
         {isFiltered ? 'No favorites yet' : 'No notes yet'}
       </Text>
-      <Text style={[es.body, { color: t.textSub }]}>
+      <Text style={[es.body, { color: subColor }]}>
         {isFiltered
           ? 'Star a note to save it here for quick access.'
           : 'Capture reflections, Scripture insights,\nand moments God speaks to you.'}
       </Text>
       {!isFiltered && (
-        <TouchableOpacity
-          style={[es.btn, { backgroundColor: t.gold }]}
-          onPress={onAdd}
-          activeOpacity={0.8}
-        >
-          <Text style={[es.btnText, { color: t.bg }]}>Write your first note</Text>
+        <TouchableOpacity style={es.btn} onPress={onAdd} activeOpacity={0.85}>
+          <LinearGradient
+            colors={[GOLD, '#B8904A']}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+            style={es.btnGradient}
+          >
+            <Text style={es.btnText}>Write your first note</Text>
+          </LinearGradient>
         </TouchableOpacity>
       )}
     </View>
@@ -169,30 +227,36 @@ function EmptyState({ t, onAdd, isFiltered }: { t: any; onAdd: () => void; isFil
 const es = StyleSheet.create({
   container: { alignItems: 'center', paddingHorizontal: 40, paddingTop: 40, paddingBottom: 40, gap: 14 },
   iconWrap:  { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  title:     { fontSize: 20, fontWeight: '700', letterSpacing: -0.2 },
+  title:     { fontSize: 20, fontWeight: '400', letterSpacing: -0.2, textAlign: 'center' },
   body:      { fontSize: 14, lineHeight: 22, textAlign: 'center' },
-  btn:       { borderRadius: 12, paddingHorizontal: 28, paddingVertical: 14, marginTop: 4 },
-  btnText:   { fontSize: 15, fontWeight: '700' },
+  btn:       { borderRadius: 30, overflow: 'hidden', marginTop: 4 },
+  btnGradient: { paddingHorizontal: 28, paddingVertical: 14 },
+  btnText:   { fontSize: 15, fontWeight: '700', color: '#08071A' },
 });
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function NotesScreen() {
   const navigation = useNavigation<NavProp>();
   const rootNav    = useNavigation<any>();
-  const t = useTheme();
-  const [notes, setNotes]   = useState<Note[]>([]);
+  const t          = useTheme();
+  const insets     = useSafeAreaInsets();
+
+  const isDark     = t.statusBar === 'light-content';
+  const rootBg     = isDark ? '#060810' : '#DDD5C4';
+  const mutedColor = isDark ? 'rgba(255,255,255,0.36)' : 'rgba(24,18,8,0.36)';
+
+  const [notes,   setNotes]   = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
-  const [query, setQuery]   = useState('');
-  const [filter, setFilter] = useState<'all' | 'favorites'>('all');
-  const [error, setError]   = useState<string | null>(null);
+  const [query,   setQuery]   = useState('');
+  const [filter,  setFilter]  = useState<'all' | 'favorites'>('all');
+  const [error,   setError]   = useState<string | null>(null);
+
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const headerAnim = useRef(new Animated.Value(1)).current;
+  const headerAnim     = useRef(new Animated.Value(1)).current;
 
   const onSearchActiveChange = useCallback((active: boolean) => {
-    Animated.timing(headerAnim, {
-      toValue: active ? 0 : 1,
-      duration: 250,
-      useNativeDriver: false,
-    }).start();
+    Animated.timing(headerAnim, { toValue: active ? 0 : 1, duration: 250, useNativeDriver: false }).start();
   }, [headerAnim]);
 
   const load = useCallback(async () => {
@@ -230,43 +294,46 @@ export default function NotesScreen() {
   const displayed = filter === 'favorites' ? notes.filter(n => n.favorite) : notes;
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <SafeAreaView style={s.safe} edges={['top']}>
-        <StatusBar barStyle={t.statusBar} backgroundColor="transparent" translucent />
+    <View style={{ flex: 1, backgroundColor: rootBg }}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-        {/* Header — collapses when search is active */}
-        <Animated.View
-          style={{
-            height: headerAnim.interpolate({ inputRange: [0, 1], outputRange: [0, HERO_H] }),
-            opacity: headerAnim,
-            overflow: 'hidden',
-          }}
-        >
-          <HeroSection
-            count={notes.length}
-            onAdd={() => navigation.navigate('NoteEditor', undefined)}
-            t={t}
-          />
-        </Animated.View>
-
-        {/* Search bar */}
-        <PremiumSearchBar
-          value={query}
-          onChangeText={handleSearch}
-          placeholder="Search notes, verses, keywords…"
-          onActiveChange={onSearchActiveChange}
-          style={{ marginBottom: 4 }}
+      {/* Hero — collapses when search is active */}
+      <Animated.View
+        style={{
+          height: headerAnim.interpolate({ inputRange: [0, 1], outputRange: [insets.top, HERO_H] }),
+          opacity: headerAnim,
+          overflow: 'hidden',
+        }}
+      >
+        <HeroSection
+          count={notes.length}
+          onAdd={() => navigation.navigate('NoteEditor', undefined)}
+          insets={insets}
         />
+      </Animated.View>
 
-        {/* Filter tabs */}
-        <View style={s.filterRow}>
-          {(['all', 'favorites'] as const).map(f => (
+      {/* Search bar */}
+      <PremiumSearchBar
+        value={query}
+        onChangeText={handleSearch}
+        placeholder="Search notes, verses, keywords…"
+        onActiveChange={onSearchActiveChange}
+        style={{ marginBottom: 4 }}
+      />
+
+      {/* Filter tabs */}
+      <View style={s.filterRow}>
+        {(['all', 'favorites'] as const).map(f => {
+          const active = filter === f;
+          return (
             <TouchableOpacity
               key={f}
               style={[
                 s.filterTab,
-                { borderColor: t.chipBorder, backgroundColor: t.chipBg },
-                filter === f && { borderColor: t.goldBorder, backgroundColor: t.goldBg },
+                active
+                  ? { backgroundColor: 'rgba(201,169,107,0.14)', borderColor: 'rgba(201,169,107,0.38)' }
+                  : { backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)',
+                      borderColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.09)' },
               ]}
               onPress={() => setFilter(f)}
               activeOpacity={0.75}
@@ -275,88 +342,78 @@ export default function NotesScreen() {
                 <Ionicons
                   name="star"
                   size={11}
-                  color={filter === f ? t.gold : t.textMuted}
+                  color={active ? GOLD : mutedColor}
                   style={{ marginRight: 4 }}
                 />
               )}
-              <Text style={[s.filterTabText, { color: filter === f ? t.gold : t.textMuted }]}>
+              <Text style={[s.filterTabText, { color: active ? GOLD : mutedColor }]}>
                 {f === 'all' ? 'All Notes' : 'Favorites'}
               </Text>
             </TouchableOpacity>
-          ))}
-        </View>
+          );
+        })}
+      </View>
 
-        {/* Content */}
-        {loading ? (
-          <View style={s.center}>
-            <ActivityIndicator color={t.gold} size="large" />
+      {/* Content */}
+      {loading ? (
+        <View style={s.center}>
+          <ActivityIndicator color={GOLD} size="large" />
+        </View>
+      ) : error ? (
+        <View style={s.center}>
+          <View style={[s.errorIcon, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)' }]}>
+            <Ionicons name="cloud-offline-outline" size={28} color={mutedColor} />
           </View>
-        ) : error ? (
-          <View style={s.center}>
-            <View style={[s.errorIcon, { backgroundColor: t.filterInactiveBg }]}>
-              <Ionicons name="cloud-offline-outline" size={28} color={t.textMuted} />
-            </View>
-            <Text style={[s.errorText, { color: t.textSub }]}>{error}</Text>
-            <TouchableOpacity
-              style={[s.retryBtn, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}
-              onPress={load}
-            >
-              <Text style={[s.retryText, { color: t.gold }]}>Try Again</Text>
-            </TouchableOpacity>
-          </View>
-        ) : displayed.length === 0 ? (
-          <EmptyState
-            t={t}
-            onAdd={() => navigation.navigate('NoteEditor', undefined)}
-            isFiltered={filter === 'favorites'}
-          />
-        ) : (
-          <FlatList
-            data={displayed}
-            keyExtractor={n => n.id}
-            contentContainerStyle={s.list}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            windowSize={11}
-            maxToRenderPerBatch={10}
-            removeClippedSubviews
-            renderItem={({ item }) => (
-              <NoteCard
-                note={item}
-                cardBg={t.card}
-                cardBorder={t.cardBorder}
-                text={t.text}
-                textSub={t.textSub}
-                textMuted={t.textMuted}
-                gold={t.gold}
-                goldBg={t.goldBg}
-                goldBorder={t.goldBorder}
-                divider={t.divider}
-                onPress={() => navigation.navigate('NoteEditor', { noteId: item.id })}
-                onFavorite={() => handleFavorite(item)}
-                onOpenBible={item.bibleReference ? () => {
-                  const parsed = parseBibleRefForNav(item.bibleReference!);
-                  if (!parsed) return;
-                  rootNav.navigate('MainTabs', {
-                    screen: 'BibleTab',
-                    params: {
-                      screen: 'Bible',
-                      params: { bookIndex: parsed.bookIndex, chapter: parsed.chapter, verseToScroll: parsed.verse },
-                    },
-                  });
-                } : undefined}
-              />
-            )}
-          />
-        )}
-      </SafeAreaView>
+          <Text style={[s.errorText, { color: mutedColor }]}>{error}</Text>
+          <TouchableOpacity
+            style={[s.retryBtn, { backgroundColor: 'rgba(201,169,107,0.10)', borderColor: 'rgba(201,169,107,0.30)' }]}
+            onPress={load}
+          >
+            <Text style={[s.retryText, { color: GOLD }]}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      ) : displayed.length === 0 ? (
+        <EmptyState
+          onAdd={() => navigation.navigate('NoteEditor', undefined)}
+          isFiltered={filter === 'favorites'}
+          isDark={isDark}
+        />
+      ) : (
+        <FlatList
+          data={displayed}
+          keyExtractor={n => n.id}
+          contentContainerStyle={s.list}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          windowSize={11}
+          maxToRenderPerBatch={10}
+          removeClippedSubviews
+          renderItem={({ item }) => (
+            <NoteCard
+              note={item}
+              isDark={isDark}
+              onPress={() => navigation.navigate('NoteEditor', { noteId: item.id })}
+              onFavorite={() => handleFavorite(item)}
+              onOpenBible={item.bibleReference ? () => {
+                const parsed = parseBibleRefForNav(item.bibleReference!);
+                if (!parsed) return;
+                rootNav.navigate('MainTabs', {
+                  screen: 'BibleTab',
+                  params: {
+                    screen: 'Bible',
+                    params: { bookIndex: parsed.bookIndex, chapter: parsed.chapter, verseToScroll: parsed.verse },
+                  },
+                });
+              } : undefined}
+            />
+          )}
+        />
+      )}
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1 },
-
   filterRow: { flexDirection: 'row', paddingHorizontal: 18, gap: 8, marginBottom: 14 },
   filterTab: {
     flexDirection: 'row', alignItems: 'center',

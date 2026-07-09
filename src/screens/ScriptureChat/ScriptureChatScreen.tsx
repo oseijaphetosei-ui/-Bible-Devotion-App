@@ -15,7 +15,8 @@ import {
   Animated,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { createNote } from '../../services/notesService';
@@ -60,10 +61,14 @@ function TypingIndicator({ t }: { t: AppTheme }) {
 
   return (
     <View style={ms.assistantRow}>
-      <View style={[ms.avatarDot, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}>
+      <View style={[ms.avatarDot, { backgroundColor: 'rgba(201,169,107,0.10)', borderColor: 'rgba(201,169,107,0.28)' }]}>
         <Ionicons name="book" size={10} color={t.gold} />
       </View>
-      <View style={[ms.aiBubble, { backgroundColor: t.card, borderColor: t.cardBorder }]}>
+      <View style={[ms.aiBubble, {
+        backgroundColor: t.statusBar === 'light-content' ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.72)',
+        borderColor: t.statusBar === 'light-content' ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.82)',
+        borderWidth: 1,
+      }]}>
         <View style={ms.dotsRow}>
           {[dot1, dot2, dot3].map((dot, i) => (
             <Animated.View
@@ -178,11 +183,15 @@ function MessageBubble({
 
   return (
     <View style={ms.assistantRow}>
-      <View style={[ms.avatarDot, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}>
+      <View style={[ms.avatarDot, { backgroundColor: 'rgba(201,169,107,0.10)', borderColor: 'rgba(201,169,107,0.28)' }]}>
         <Ionicons name="book" size={10} color={t.gold} />
       </View>
       <View style={ms.aiBubbleWrap}>
-        <View style={[ms.aiBubble, { backgroundColor: t.card, borderColor: t.cardBorder }]}>
+        <View style={[ms.aiBubble, {
+          backgroundColor: t.statusBar === 'light-content' ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.72)',
+          borderColor: t.statusBar === 'light-content' ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.82)',
+          borderWidth: 1,
+        }]}>
           <AIMessageContent text={content} t={t} />
         </View>
         {item._type === 'message' && (
@@ -225,20 +234,35 @@ function EmptyState({
 }) {
   return (
     <View style={es.wrap}>
-      <View style={[es.iconWrap, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}>
-        <Ionicons name="chatbubbles-outline" size={28} color={t.gold} />
+      {/* Icon with ring */}
+      <View style={es.iconArea}>
+        <View style={[es.ring, { borderColor: t.goldBorder }]} />
+        <View style={[es.iconWrap, { backgroundColor: 'rgba(201,169,107,0.10)', borderColor: 'rgba(201,169,107,0.28)' }]}>
+          <Ionicons name="sparkles" size={26} color={t.gold} />
+        </View>
       </View>
-      <Text style={[es.title, { color: t.text }]}>Talk to the Scripture</Text>
-      <Text style={[es.sub, { color: t.textMuted }]}>
-        Ask anything about{' '}
-        <Text style={{ color: t.gold, fontWeight: '600' }}>{reference}</Text>
+
+      <Text style={[es.title, { color: t.text, fontFamily: 'Georgia' }]}>
+        Talk to the Scripture
       </Text>
+      <Text style={[es.ref, { color: t.gold }]}>{reference}</Text>
+      <Text style={[es.sub, { color: t.textMuted }]}>
+        Ask questions, explore themes, and deepen your understanding.
+      </Text>
+
       <View style={es.chips}>
         {SUGGESTED_QUESTIONS.map((q) => (
           <TouchableOpacity
             key={q}
             onPress={() => onSuggest(q)}
-            style={[es.chip, { backgroundColor: t.card, borderColor: t.cardBorder }]}
+            style={[es.chip, {
+              backgroundColor: t.statusBar === 'light-content'
+                ? 'rgba(255,255,255,0.06)'
+                : 'rgba(255,255,255,0.64)',
+              borderColor: t.statusBar === 'light-content'
+                ? 'rgba(255,255,255,0.10)'
+                : 'rgba(47,42,36,0.09)',
+            }]}
             activeOpacity={0.7}
           >
             <Text style={[es.chipText, { color: t.textSub }]}>{q}</Text>
@@ -321,7 +345,7 @@ function InsightsView({
       <InsightSection icon="pricetags-outline" label="KEY THEMES" t={t}>
         <View style={is.themeRow}>
           {insights.keyThemes.map((theme) => (
-            <View key={theme} style={[is.themeChip, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}>
+            <View key={theme} style={[is.themeChip, { backgroundColor: 'rgba(201,169,107,0.10)', borderColor: 'rgba(201,169,107,0.28)' }]}>
               <Text style={[is.themeText, { color: t.gold }]}>{theme}</Text>
             </View>
           ))}
@@ -368,6 +392,7 @@ export default function ScriptureChatScreen() {
   const insets = useSafeAreaInsets();
 
   const isInsights = params.mode === 'insights';
+  const isDark = t.statusBar === 'light-content';
 
   // ── Chat state ──
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -567,16 +592,21 @@ export default function ScriptureChatScreen() {
   const canSend = inputText.trim().length > 0 && !isTyping && !isStreaming;
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
+    <View style={{ flex: 1, backgroundColor: isDark ? '#060810' : '#DDD5C4' }}>
       <StatusBar barStyle={t.statusBar} backgroundColor="transparent" translucent />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+        <View style={{ flex: 1 }}>
 
           {/* ── Header ── */}
-          <View style={[s.header, { borderBottomColor: t.divider }]}>
+          <View style={[s.header, { overflow: 'hidden', paddingTop: insets.top + 4 }]}>
+            <BlurView
+              intensity={isDark ? 50 : 60}
+              tint={isDark ? 'dark' : 'light'}
+              style={[StyleSheet.absoluteFillObject, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.divider }]}
+            />
             <TouchableOpacity onPress={() => navigation.goBack()} style={s.headerBtn} activeOpacity={0.7}>
               <Ionicons name="chevron-back" size={22} color={t.text} />
             </TouchableOpacity>
@@ -584,7 +614,7 @@ export default function ScriptureChatScreen() {
               <Text style={[s.headerRef, { color: t.text }]} numberOfLines={1}>
                 {params.reference}
               </Text>
-              <View style={[s.headerBadge, { backgroundColor: t.goldBg }]}>
+              <View style={[s.headerBadge, { backgroundColor: 'rgba(201,169,107,0.10)' }]}>
                 <Text style={[s.headerBadgeText, { color: t.gold }]}>{contextLabel}</Text>
               </View>
             </View>
@@ -603,7 +633,7 @@ export default function ScriptureChatScreen() {
 
           {/* ── Saved confirmation toast ── */}
           {savedMsgId && (
-            <View style={[s.toast, { backgroundColor: t.goldBg, borderColor: t.goldBorder }]}>
+            <View style={[s.toast, { backgroundColor: 'rgba(201,169,107,0.10)', borderColor: 'rgba(201,169,107,0.28)' }]}>
               <Ionicons name="checkmark-circle" size={14} color={t.gold} />
               <Text style={[s.toastText, { color: t.gold }]}>Saved to Notes</Text>
             </View>
@@ -668,7 +698,10 @@ export default function ScriptureChatScreen() {
                 <TouchableOpacity
                   key={q}
                   onPress={() => sendMessage(q)}
-                  style={[s.suggestionChip, { backgroundColor: t.card, borderColor: t.cardBorder }]}
+                  style={[s.suggestionChip, {
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.60)',
+                    borderColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.80)',
+                  }]}
                   activeOpacity={0.7}
                 >
                   <Text style={[s.suggestionText, { color: t.textSub }]} numberOfLines={1}>
@@ -683,8 +716,8 @@ export default function ScriptureChatScreen() {
           {!isInsights && (
             <>
               <View style={[s.inputBar, {
-                backgroundColor: t.card,
-                borderColor: 'transparent',
+                backgroundColor: isDark ? 'rgba(255,255,255,0.055)' : 'rgba(255,255,255,0.68)',
+                borderColor: isDark ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,0.85)',
               }]}>
                 <TextInput
                   style={[s.textInput, { color: t.text }]}
@@ -713,7 +746,7 @@ export default function ScriptureChatScreen() {
             </>
           )}
 
-        </SafeAreaView>
+        </View>
       </KeyboardAvoidingView>
     </View>
   );
@@ -859,18 +892,33 @@ const ms = StyleSheet.create({
 
 // Empty state styles
 const es = StyleSheet.create({
-  wrap: { flex: 1, alignItems: 'center', paddingTop: 48, paddingHorizontal: 20, paddingBottom: 24 },
+  wrap: { flex: 1, alignItems: 'center', paddingTop: 52, paddingHorizontal: 22, paddingBottom: 24 },
+  iconArea: {
+    width: 88,
+    height: 88,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 22,
+  },
+  ring: {
+    position: 'absolute',
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    borderWidth: 1,
+    opacity: 0.4,
+  },
   iconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
+    width: 66,
+    height: 66,
+    borderRadius: 22,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
   },
-  title: { fontSize: 20, fontWeight: '700', marginBottom: 6, textAlign: 'center' },
-  sub: { fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: 28 },
+  title: { fontSize: 22, fontWeight: '400', marginBottom: 6, textAlign: 'center', letterSpacing: 0.1 },
+  ref: { fontSize: 14, fontWeight: '600', marginBottom: 10, textAlign: 'center' },
+  sub: { fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: 28 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
   chip: {
     paddingHorizontal: 14,

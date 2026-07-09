@@ -1,10 +1,12 @@
 import React, { useState, useCallback, useMemo, useRef, memo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  StatusBar, TextInput, Keyboard,
+  StatusBar, TextInput, Keyboard, Platform, Dimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Image as ExpoImage } from 'expo-image';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../../theme';
@@ -16,37 +18,60 @@ import { RootStackParamList } from '../../types/navigation';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
-// ── Hymn card ─────────────────────────────────────────────────────────────────
+const { width: SCREEN_W } = Dimensions.get('window');
+const HERO_H = Math.round(SCREEN_W * 0.55);
+const GOLD   = '#C9A96B';
+const SERIF  = Platform.OS === 'ios' ? 'Georgia' : 'serif';
+
+function glassStyle(isDark: boolean) {
+  return isDark
+    ? { backgroundColor: 'rgba(255,255,255,0.055)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)' }
+    : { backgroundColor: 'rgba(255,255,255,0.68)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.85)' };
+}
+
+const FILTER_CATEGORIES: Array<HymnCategory | 'All'> = ['All', ...HYMN_CATEGORIES];
+
+// ─── Hymn Card ────────────────────────────────────────────────────────────────
 
 const HymnCard = memo(function HymnCard({
-  hymn, hasAudio, onPress, text, textSub, textMuted, card, cardBorder, gold, goldBg, goldBorder,
+  hymn, hasAudio, onPress, isDark,
 }: {
-  hymn: Hymn; hasAudio: boolean; onPress: () => void;
-  text: string; textSub: string; textMuted: string;
-  card: string; cardBorder: string;
-  gold: string; goldBg: string; goldBorder: string;
+  hymn: Hymn; hasAudio: boolean; onPress: () => void; isDark: boolean;
 }) {
+  const textColor  = isDark ? 'rgba(255,255,255,0.92)' : 'rgba(24,18,8,0.92)';
+  const subColor   = isDark ? 'rgba(255,255,255,0.55)' : 'rgba(24,18,8,0.55)';
+  const mutedColor = isDark ? 'rgba(255,255,255,0.32)' : 'rgba(24,18,8,0.32)';
+  const glass = glassStyle(isDark);
+
   return (
     <TouchableOpacity
-      style={[hc.card, { backgroundColor: card, borderColor: cardBorder }]}
+      style={[
+        hc.card,
+        glass,
+        {
+          shadowColor: isDark ? '#000' : 'rgba(47,42,36,0.10)',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: isDark ? 0.18 : 1,
+          shadowRadius: 8,
+          elevation: 3,
+        },
+      ]}
       onPress={onPress}
       activeOpacity={0.82}
     >
       <View style={hc.left}>
-        <View style={hc.info}>
-          <Text style={[hc.title, { color: text }]} numberOfLines={1}>{hymn.title}</Text>
-          <Text style={[hc.author, { color: textSub }]} numberOfLines={1}>
-            {hymn.author} · {hymn.year}
-          </Text>
-        </View>
+        <Text style={[hc.title, { color: textColor }]} numberOfLines={1}>{hymn.title}</Text>
+        <Text style={[hc.author, { color: subColor }]} numberOfLines={1}>
+          {hymn.author} · {hymn.year}
+        </Text>
       </View>
       <View style={hc.right}>
         {hasAudio && (
-          <View style={[hc.audioBadge, { backgroundColor: goldBg, borderColor: goldBorder }]}>
-            <Ionicons name="musical-notes" size={11} color={gold} />
+          <View style={[hc.audioBadge, { backgroundColor: 'rgba(201,169,107,0.12)', borderColor: 'rgba(201,169,107,0.30)' }]}>
+            <Ionicons name="musical-notes" size={11} color={GOLD} />
           </View>
         )}
-        <Ionicons name="chevron-forward" size={16} color={textMuted} />
+        <Ionicons name="chevron-forward" size={16} color={mutedColor} />
       </View>
     </TouchableOpacity>
   );
@@ -55,33 +80,31 @@ const HymnCard = memo(function HymnCard({
 const hc = StyleSheet.create({
   card: {
     flexDirection: 'row', alignItems: 'center',
-    borderRadius: 14, borderWidth: 1,
-    paddingHorizontal: 14, paddingVertical: 14,
-    marginBottom: 8,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04, shadowRadius: 3, elevation: 1,
+    borderRadius: 16, paddingHorizontal: 14, paddingVertical: 15,
+    marginBottom: 10,
   },
-  left: { flex: 1 },
-  info: { flex: 1 },
-  title:  { fontSize: 15, fontWeight: '700', marginBottom: 2 },
+  left:  { flex: 1 },
+  title: { fontSize: 15, fontWeight: '600', marginBottom: 3 },
   author: { fontSize: 12 },
-  right:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  right: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   audioBadge: {
-    width: 24, height: 24, borderRadius: 12,
+    width: 26, height: 26, borderRadius: 13,
     borderWidth: 1, alignItems: 'center', justifyContent: 'center',
   },
 });
 
-// ── Category chip ─────────────────────────────────────────────────────────────
-
-const FILTER_CATEGORIES: Array<HymnCategory | 'All'> = ['All', ...HYMN_CATEGORIES];
-
-// ── Main screen ───────────────────────────────────────────────────────────────
+// ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function HymnsScreen() {
   const t          = useTheme();
   const navigation = useNavigation<NavProp>();
+  const insets     = useSafeAreaInsets();
   const { favorites } = useFavorites();
+
+  const isDark     = t.statusBar === 'light-content';
+  const rootBg     = isDark ? '#060810' : '#DDD5C4';
+  const textColor  = isDark ? 'rgba(255,255,255,0.92)' : 'rgba(24,18,8,0.92)';
+  const mutedColor = isDark ? 'rgba(255,255,255,0.36)' : 'rgba(24,18,8,0.36)';
 
   const [query,    setQuery]    = useState('');
   const [category, setCategory] = useState<HymnCategory | 'All'>('All');
@@ -121,242 +144,243 @@ export default function HymnsScreen() {
       hymn={item}
       hasAudio={HYMN_IDS_WITH_AUDIO.has(item.id)}
       onPress={() => navigation.navigate('HymnReader', { hymnId: item.id })}
-      text={t.text}
-      textSub={t.textSub}
-      textMuted={t.textMuted}
-      card={t.card}
-      cardBorder={t.cardBorder}
-      gold={t.gold}
-      goldBg={t.goldBg}
-      goldBorder={t.goldBorder}
+      isDark={isDark}
     />
-  ), [navigation, t]);
-
-  const isDark = t.statusBar === 'light-content';
+  ), [navigation, isDark]);
 
   return (
-    <View style={[s.root, { backgroundColor: t.bg }]}>
-      <StatusBar barStyle={t.statusBar} backgroundColor="transparent" translucent />
-      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+    <View style={{ flex: 1, backgroundColor: rootBg }}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-        {/* Header */}
-        <View style={s.header}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="chevron-back" size={26} color={t.text} />
-          </TouchableOpacity>
-          <View style={s.headerCenter}>
-            <Text style={[s.headerTitle, { color: t.text }]}>Hymnal</Text>
-            <Text style={[s.headerSub, { color: t.textMuted }]}>{HYMNS.length} hymns</Text>
-          </View>
-          <View style={{ width: 34 }} />
-        </View>
+      <FlatList
+        data={displayed}
+        keyExtractor={h => h.id}
+        contentContainerStyle={s.list}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        windowSize={11}
+        maxToRenderPerBatch={10}
+        ListHeaderComponent={(
+          <View>
+            {/* Cinematic hero — scrolls naturally with content */}
+            <View style={{ marginHorizontal: -18 }}>
+              <View style={{ height: HERO_H, overflow: 'hidden', backgroundColor: '#06080E' }}>
+                <ExpoImage
+                  source={require('../../assets/intro-background.jpg')}
+                  style={StyleSheet.absoluteFillObject}
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                  priority="high"
+                  transition={0}
+                />
+                <LinearGradient
+                  colors={['rgba(0,0,0,0.55)', 'rgba(0,0,0,0)']}
+                  locations={[0, 0.3]}
+                  style={StyleSheet.absoluteFillObject}
+                />
+                <LinearGradient
+                  colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.15)', 'rgba(0,0,0,0.80)']}
+                  locations={[0, 0.4, 1]}
+                  style={StyleSheet.absoluteFillObject}
+                />
 
-        {/* Search */}
-        <View style={s.searchWrap}>
-          <View style={[
-            s.searchRow,
-            { backgroundColor: t.card, borderColor: focused ? t.gold : t.cardBorder },
-          ]}>
-            <Ionicons name="search" size={16} color={focused ? t.gold : t.textMuted} />
-            <TextInput
-              ref={inputRef}
-              style={[s.searchInput, { color: t.text }]}
-              placeholder="Search by title, author, or lyric…"
-              placeholderTextColor={t.textMuted}
-              value={query}
-              onChangeText={setQuery}
-              onFocus={() => setFocused(true)}
-              onBlur={() => setFocused(false)}
-              returnKeyType="search"
-              onSubmitEditing={Keyboard.dismiss}
-            />
-            {query.length > 0 && (
-              <TouchableOpacity
-                onPress={() => setQuery('')}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                activeOpacity={0.6}
-              >
-                <Ionicons name="close-circle" size={17} color={t.textMuted} />
-              </TouchableOpacity>
-            )}
-          </View>
-          {focused && (
-            <TouchableOpacity
-              onPress={handleCancel}
-              activeOpacity={0.7}
-              style={s.cancelBtn}
-            >
-              <Text style={[s.cancelText, { color: t.gold }]}>Cancel</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+                {/* Back button */}
+                <TouchableOpacity
+                  style={[s.heroBackBtn, { top: insets.top + 10 }]}
+                  onPress={() => navigation.goBack()}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="chevron-back" size={22} color="rgba(255,255,255,0.90)" />
+                </TouchableOpacity>
 
-        <FlatList
-          data={displayed}
-          keyExtractor={h => h.id}
-          contentContainerStyle={s.list}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          ListHeaderComponent={!query.trim() ? (
-            <View>
-              {/* Favorites section */}
-              {category === 'All' && (
-                <View style={s.featuredSection}>
-                  <Text style={[s.sectionLabel, { color: t.textMuted }]}>FAVORITE HYMNS</Text>
-                  {favoriteHymns.length > 0 ? (
-                    <FlatList
-                      data={favoriteHymns}
-                      keyExtractor={h => h.id}
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={s.featuredList}
-                      renderItem={({ item }) => (
-                        <TouchableOpacity
-                          style={[s.featuredCard, {
-                            backgroundColor: t.goldBg,
-                            borderColor: t.goldBorder,
-                          }]}
-                          onPress={() => navigation.navigate('HymnReader', { hymnId: item.id })}
-                          activeOpacity={0.8}
-                        >
-                          <View style={s.featuredIconWrap}>
-                            <Ionicons name="heart" size={16} color={'#E05C5C'} />
-                          </View>
-                          <Text style={[s.featuredTitle, { color: t.text }]} numberOfLines={2}>
-                            {item.title}
-                          </Text>
-                          <Text style={[s.featuredAuthor, { color: t.textMuted }]} numberOfLines={1}>
-                            {item.author}
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                    />
-                  ) : (
-                    <View style={s.favEmpty}>
-                      <Ionicons name="heart-outline" size={20} color={t.textMuted} />
-                      <Text style={[s.favEmptyText, { color: t.textMuted }]}>
-                        Tap ♥ on any hymn to save it here
-                      </Text>
-                    </View>
-                  )}
+                {/* Hero content */}
+                <View style={s.heroContent}>
+                  <View style={s.heroEyebrowRow}>
+                    <Ionicons name="musical-notes-outline" size={11} color={GOLD} />
+                    <Text style={s.heroEyebrow}>HYMNAL</Text>
+                  </View>
+                  <Text style={s.heroTitle}>Timeless{'\n'}Hymns of Faith</Text>
+                  <Text style={s.heroMeta}>{HYMNS.length} hymns of worship</Text>
                 </View>
-              )}
+              </View>
+            </View>
 
-              {/* Category filters */}
-              <Text style={[s.sectionLabel, { color: t.textMuted, marginTop: category === 'All' ? 4 : 0 }]}>
-                BROWSE BY CATEGORY
-              </Text>
-              <FlatList
-                data={FILTER_CATEGORIES}
-                keyExtractor={c => c}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={s.chipList}
-                renderItem={({ item: cat }) => {
-                  const active = category === cat;
-                  return (
-                    <TouchableOpacity
-                      style={[
-                        s.chip,
-                        { backgroundColor: t.filterInactiveBg, borderColor: t.filterInactiveBorder },
-                        active && { backgroundColor: t.goldBg, borderColor: t.goldBorder },
-                      ]}
-                      onPress={() => handleCategoryPress(cat)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[s.chipText, { color: t.textMuted }, active && { color: t.gold }]}>
-                        {cat}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                }}
+            {/* Search */}
+            <View style={{ paddingTop: 16 }} />
+            <View style={[
+              s.searchRow,
+              glassStyle(isDark),
+              { borderColor: focused ? GOLD : (isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.88)') },
+            ]}>
+              <Ionicons name="search" size={16} color={focused ? GOLD : mutedColor} />
+              <TextInput
+                ref={inputRef}
+                style={[s.searchInput, { color: textColor }]}
+                placeholder="Search by title, author, or lyric…"
+                placeholderTextColor={mutedColor}
+                value={query}
+                onChangeText={setQuery}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+                returnKeyType="search"
+                onSubmitEditing={Keyboard.dismiss}
               />
+              {query.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => setQuery('')}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  activeOpacity={0.6}
+                >
+                  <Ionicons name="close-circle" size={17} color={mutedColor} />
+                </TouchableOpacity>
+              )}
+              {focused && (
+                <TouchableOpacity onPress={handleCancel} activeOpacity={0.7} style={s.cancelBtn}>
+                  <Text style={s.cancelText}>Cancel</Text>
+                </TouchableOpacity>
+              )}
+            </View>
 
-              {/* Results label */}
-              <Text style={[s.sectionLabel, { color: t.textMuted, marginTop: 16 }]}>
-                {category === 'All' ? 'ALL HYMNS' : category.toUpperCase()} · {displayed.length}
-              </Text>
-            </View>
-          ) : (
-            <Text style={[s.sectionLabel, { color: t.textMuted }]}>
-              RESULTS · {displayed.length}
+            {/* Favorites */}
+            {!query.trim() && category === 'All' && (
+              <View style={s.favSection}>
+                <Text style={[s.sectionLabel, { color: mutedColor }]}>FAVORITE HYMNS</Text>
+                {favoriteHymns.length > 0 ? (
+                  <FlatList
+                    data={favoriteHymns}
+                    keyExtractor={h => h.id}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ gap: 10, paddingBottom: 4 }}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        style={[s.favCard, glassStyle(isDark), {
+                          borderColor: isDark ? 'rgba(201,169,107,0.22)' : 'rgba(201,169,107,0.35)',
+                        }]}
+                        onPress={() => navigation.navigate('HymnReader', { hymnId: item.id })}
+                        activeOpacity={0.8}
+                      >
+                        <View style={s.favIconWrap}>
+                          <Ionicons name="heart" size={15} color="#E05C5C" />
+                        </View>
+                        <Text style={[s.favTitle, { color: textColor }]} numberOfLines={2}>{item.title}</Text>
+                        <Text style={[s.favAuthor, { color: mutedColor }]} numberOfLines={1}>{item.author}</Text>
+                      </TouchableOpacity>
+                    )}
+                  />
+                ) : (
+                  <View style={s.favEmpty}>
+                    <Ionicons name="heart-outline" size={18} color={mutedColor} />
+                    <Text style={[s.favEmptyText, { color: mutedColor }]}>
+                      Tap ♥ on any hymn to save it here
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Category filter chips */}
+            {!query.trim() && (
+              <View>
+                <Text style={[s.sectionLabel, { color: mutedColor }]}>BROWSE BY CATEGORY</Text>
+                <FlatList
+                  data={FILTER_CATEGORIES}
+                  keyExtractor={c => c}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: 8, paddingBottom: 4, marginBottom: 4 }}
+                  renderItem={({ item: cat }) => {
+                    const active = category === cat;
+                    return (
+                      <TouchableOpacity
+                        style={[
+                          s.chip,
+                          active
+                            ? { backgroundColor: 'rgba(201,169,107,0.16)', borderColor: 'rgba(201,169,107,0.40)' }
+                            : { backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)',
+                                borderColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.09)' },
+                        ]}
+                        onPress={() => handleCategoryPress(cat)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[s.chipText, { color: active ? GOLD : mutedColor }]}>{cat}</Text>
+                      </TouchableOpacity>
+                    );
+                  }}
+                />
+              </View>
+            )}
+
+            <Text style={[s.sectionLabel, { color: mutedColor, marginTop: 16 }]}>
+              {query.trim() ? `RESULTS · ${displayed.length}` :
+                `${category === 'All' ? 'ALL HYMNS' : category.toUpperCase()} · ${displayed.length}`}
             </Text>
-          )}
-          ListEmptyComponent={
-            <View style={s.empty}>
-              <Ionicons name="musical-notes-outline" size={40} color={t.textMuted} />
-              <Text style={[s.emptyText, { color: t.textMuted }]}>No hymns found</Text>
-            </View>
-          }
-          renderItem={renderHymn}
-        />
-      </SafeAreaView>
+          </View>
+        )}
+        ListEmptyComponent={(
+          <View style={s.empty}>
+            <Ionicons name="musical-notes-outline" size={40} color={mutedColor} />
+            <Text style={[s.emptyText, { color: mutedColor }]}>No hymns found</Text>
+          </View>
+        )}
+        renderItem={renderHymn}
+      />
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1 },
-
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12,
+  heroBackBtn: {
+    position: 'absolute', left: 18,
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: 'rgba(0,0,0,0.30)',
+    alignItems: 'center', justifyContent: 'center',
   },
-  headerCenter: { flex: 1, alignItems: 'center' },
-  headerTitle:  { fontSize: 18, fontWeight: '700' },
-  headerSub:    { fontSize: 11, marginTop: 1 },
-
-  searchWrap: {
-    flexDirection: 'row', alignItems: 'center',
-    marginHorizontal: 18, marginBottom: 12, gap: 10,
+  heroContent: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    paddingHorizontal: 22, paddingBottom: 22,
   },
-  searchRow: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10,
-    borderRadius: 14, borderWidth: 1,
-    paddingHorizontal: 14, paddingVertical: 11,
+  heroEyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 10 },
+  heroEyebrow:    { fontSize: 10, fontWeight: '700', letterSpacing: 2, color: GOLD },
+  heroTitle: {
+    fontFamily: SERIF,
+    fontSize: 26, fontWeight: '400', lineHeight: 34, letterSpacing: -0.3,
+    color: 'rgba(255,255,255,0.96)', marginBottom: 8,
   },
-  searchInput: { flex: 1, fontSize: 14 },
-  cancelBtn:  { paddingVertical: 4 },
-  cancelText: { fontSize: 14, fontWeight: '600' },
+  heroMeta: { fontSize: 12, color: 'rgba(255,255,255,0.42)', letterSpacing: 0.4 },
 
   list: { paddingHorizontal: 18, paddingBottom: 120 },
 
-  sectionLabel: {
-    fontSize: 10, fontWeight: '800', letterSpacing: 1.2,
-    marginBottom: 10,
+  searchRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderRadius: 16, borderWidth: 1,
+    paddingHorizontal: 14, paddingVertical: 12,
+    marginBottom: 20,
   },
+  searchInput: { flex: 1, fontSize: 14 },
+  cancelBtn:   { paddingLeft: 8 },
+  cancelText:  { fontSize: 14, fontWeight: '600', color: GOLD },
 
-  featuredSection: { marginBottom: 20 },
-  featuredList:    { gap: 10, paddingBottom: 4 },
-  featuredCard: {
-    width: 130, borderRadius: 14, borderWidth: 1,
-    padding: 14, gap: 10,
+  sectionLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 1.6, marginBottom: 10 },
+
+  favSection: { marginBottom: 20 },
+  favCard: {
+    width: 130, borderRadius: 16, padding: 14, gap: 10,
   },
-  featuredIconWrap: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: 'rgba(201,169,107,0.15)',
+  favIconWrap: {
+    width: 32, height: 32, borderRadius: 10,
+    backgroundColor: 'rgba(224,92,92,0.10)',
     alignItems: 'center', justifyContent: 'center',
   },
-  featuredTitle:  { fontSize: 13, fontWeight: '700', lineHeight: 18 },
-  featuredAuthor: { fontSize: 11 },
-
-  favEmpty: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingVertical: 14, paddingHorizontal: 4,
-  },
+  favTitle:  { fontSize: 13, fontWeight: '600', lineHeight: 18 },
+  favAuthor: { fontSize: 11 },
+  favEmpty:  { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 14 },
   favEmptyText: { fontSize: 13 },
 
-  chipList: { gap: 8, paddingBottom: 4, marginBottom: 0 },
-  chip: {
-    paddingHorizontal: 14, paddingVertical: 7,
-    borderRadius: 20, borderWidth: 1,
-  },
+  chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
   chipText: { fontSize: 12, fontWeight: '600' },
 
-  empty: { paddingTop: 60, alignItems: 'center', gap: 12 },
+  empty:     { paddingTop: 60, alignItems: 'center', gap: 12 },
   emptyText: { fontSize: 15 },
 });

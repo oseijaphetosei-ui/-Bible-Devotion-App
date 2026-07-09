@@ -20,8 +20,21 @@ export type HomeStackParamList = {
   PrayerEditor: { prayerId?: string; prefillVerse?: { label: string; text: string }; prefillContent?: string } | undefined;
   PrayerDetail: { prayerId: string };
   PrayerAnswered: { prayerId: string };
+  Explore: undefined;
   Hymns: undefined;
   HymnReader: { hymnId: string };
+  SermonBuilder: undefined;
+  SermonWizard: undefined;
+  SermonGenerating: {
+    audience: string;
+    audienceLabel: string;
+    sermonType: string;
+    scriptures: string[];
+    topic: string;
+    duration: number;
+    tone: string;
+  };
+  SermonResult: { sermonId: string };
 };
 
 export type BibleStackParamList = {

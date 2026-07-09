@@ -4,24 +4,30 @@ import React, {
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity, Pressable,
   StatusBar, Animated, Easing, Platform,
-  ImageBackground, Share as RNShare, Linking,
-  LayoutAnimation, UIManager,
+  Share as RNShare, Linking,
+  LayoutAnimation, UIManager, Dimensions,
 } from 'react-native';
 import { Audio } from 'expo-av';
+import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import { RootStackParamList } from '../../types/navigation';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { getTodayVerseEntry } from '../../services/verseService';
-import { speakText } from '../../services/ttsService';
-import { loadGoals, isCompletedToday } from '../../services/goalsService';
-import { Goal } from '../../types/goal';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import ProfileAvatar from '../../components/ProfileAvatar';
+import { tabBarScrollSignal } from '../../components/CustomBottomBar';
+import { RootStackParamList } from '../../types/navigation';
+import { getTodayVerseEntry } from '../../services/verseService';
+import { speakText } from '../../services/ttsService';
+import { getStreakData } from '../../services/devotionStreakService';
+import { getTodayFallback } from '../../services/devotionService';
+import { getPrayerStats } from '../../services/prayerService';
+import type { PrayerStats } from '../../types/prayer';
 import {
   getActivePlan, getPlanById, getTodayReading,
   isTodayCompleted, planProgress,
@@ -33,11 +39,16 @@ import {
 import { patchPrefs, loadPrefs } from '../../services/notificationPreferences';
 import { navigateToNotificationSettings } from '../../navigation/navigationRef';
 import { loadOnboarding, PrimaryGoal } from '../../services/onboardingService';
-import { getStreakData } from '../../services/devotionStreakService';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const { width: SCREEN_W } = Dimensions.get('window');
+const HERO_H = Math.round(SCREEN_W * 0.72);
+const PARALLAX_MAX = 105;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -189,80 +200,153 @@ const nb = StyleSheet.create({
   ctaLabel:  { fontSize: 14, fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.2 },
 });
 
-// ─── Hero Section ─────────────────────────────────────────────────────────────
+// ─── Cinematic Hero ───────────────────────────────────────────────────────────
 
-const HeroSection = memo(function HeroSection({
-  greeting, today, tagline, streak, total, t,
+const CinematicHero = memo(function CinematicHero({
+  scrollY, greeting, tagline, streak, firstName, topInset,
 }: {
-  greeting: string; today: string;
-  tagline: string; streak: number; total: number; t: AppTheme;
+  scrollY: Animated.Value;
+  greeting: string;
+  tagline: string;
+  streak: number;
+  firstName: string;
+  topInset: number;
 }) {
-  const isDark = t.statusBar === 'light-content';
+  const ringOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(ringOpacity, {
+      toValue: 1, duration: 800, delay: 400,
+      easing: Easing.out(Easing.quad), useNativeDriver: true,
+    }).start();
+  }, [ringOpacity]);
+
+  const heroParallax = useMemo(() =>
+    scrollY.interpolate({ inputRange: [0, 300], outputRange: [0, -PARALLAX_MAX], extrapolate: 'clamp' }),
+  [scrollY]);
+
+  const todayLabel = useMemo(() =>
+    new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase(),
+  []);
+
+  const ringBorderColor = streak > 0 ? 'rgba(201,169,107,0.75)' : 'rgba(255,255,255,0.22)';
 
   return (
-    <LinearGradient
-      colors={isDark
-        ? ['rgba(19,22,38,1)', 'rgba(13,15,26,0.92)']
-        : ['rgba(237,231,217,1)', 'rgba(237,231,217,0.82)']}
-      style={hs.container}
-    >
-      {/* Avatar left + greeting right */}
-      <View style={hs.greetRow}>
-        <ProfileAvatar size={48} />
-        <Text style={[hs.greeting, { color: t.text }]}>{greeting}</Text>
-      </View>
+    <View style={{ height: HERO_H, overflow: 'hidden' }}>
+      {/* Parallax image layer */}
+      <Animated.View style={{
+        position: 'absolute',
+        top: 0, left: 0, right: 0,
+        height: HERO_H + PARALLAX_MAX,
+        transform: [{ translateY: heroParallax }],
+      }}>
+        <ExpoImage
+          source={require('../../assets/open-bible-in-the-morning.jpg')}
+          style={{ width: '100%', height: '100%' }}
+          contentFit="cover"
+          transition={350}
+          cachePolicy="memory-disk"
+        />
+      </Animated.View>
 
-      {/* Date + tagline */}
-      <Text style={[hs.date, { color: t.textMuted }]}>{today}</Text>
-      <Text style={[hs.tagline, { color: t.textMuted }]}>{tagline}</Text>
+      {/* Cinematic scrim */}
+      <LinearGradient
+        colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.18)', 'rgba(0,0,0,0.74)']}
+        locations={[0, 0.45, 1]}
+        style={StyleSheet.absoluteFillObject}
+      />
 
-      {/* Stats row */}
-      <View style={[hs.statsRow, { borderTopColor: t.divider }]}>
-        <View style={hs.statItem}>
-          <Text style={[hs.statValue, { color: t.text }]}>{streak}</Text>
-          <Text style={[hs.statLabel, { color: t.textMuted }]}>Day Streak</Text>
+      {/* Content */}
+      <View style={[ch.content, { paddingTop: topInset + 10 }]}>
+        {/* Top row */}
+        <View style={ch.topRow}>
+          <ProfileAvatar size={44} />
+          <TouchableOpacity
+            onPress={navigateToNotificationSettings}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="notifications-outline" size={22} color="rgba(255,255,255,0.7)" />
+          </TouchableOpacity>
         </View>
-        <View style={[hs.statDivider, { backgroundColor: t.divider }]} />
-        <View style={hs.statItem}>
-          <Text style={[hs.statValue, { color: t.text }]}>{total}</Text>
-          <Text style={[hs.statLabel, { color: t.textMuted }]}>Devotions</Text>
-        </View>
-        <View style={[hs.statDivider, { backgroundColor: t.divider }]} />
-        <View style={hs.statItem}>
-          <Ionicons
-            name={streak > 0 ? 'flame' : 'sunny-outline'}
-            size={22}
-            color={streak > 0 ? t.gold : t.textMuted}
-          />
-          <Text style={[hs.statLabel, { color: t.textMuted }]}>
-            {streak > 0 ? 'On Fire!' : 'Begin Today'}
-          </Text>
+
+        {/* Spacer */}
+        <View style={{ flex: 1 }} />
+
+        {/* Bottom row: greeting + streak ring */}
+        <View style={ch.bottomRow}>
+          {/* Greeting block */}
+          <View style={{ flex: 1, paddingRight: 16 }}>
+            <Text style={ch.eyebrow}>{todayLabel}</Text>
+            <Text style={ch.greetLine1}>{greeting},</Text>
+            <Text style={ch.greetLine2}>{firstName || 'Friend'}</Text>
+            <Text style={ch.tagline}>{tagline}</Text>
+          </View>
+
+          {/* Streak ring */}
+          <View style={ch.ringWrap}>
+            <Animated.View style={[ch.ring, { borderColor: ringBorderColor, opacity: ringOpacity }]}>
+              <Ionicons
+                name={streak > 0 ? 'flame' : 'calendar-outline'}
+                size={18}
+                color={streak > 0 ? '#C9A96B' : 'rgba(255,255,255,0.5)'}
+              />
+            </Animated.View>
+            <Text style={ch.ringCount}>{streak}</Text>
+            <Text style={ch.ringLabel}>day streak</Text>
+          </View>
         </View>
       </View>
-    </LinearGradient>
+    </View>
   );
 });
 
-const hs = StyleSheet.create({
-  container:  { paddingHorizontal: 24, paddingTop: 14, paddingBottom: 0 },
-  greetRow:   { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 16 },
-  greeting:   { fontSize: 28, fontWeight: '700', letterSpacing: -0.4, lineHeight: 34 },
-  date:       { fontSize: 14, marginBottom: 4 },
-  tagline:    { fontSize: 14, fontStyle: 'italic', lineHeight: 20, marginBottom: 28 },
-  statsRow: {
-    flexDirection: 'row', alignItems: 'center',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: 20, paddingBottom: 20,
+const ch = StyleSheet.create({
+  content: {
+    flex: 1, paddingHorizontal: 22, paddingBottom: 28,
   },
-  statItem:    { flex: 1, alignItems: 'center', gap: 4 },
-  statValue:   { fontSize: 22, fontWeight: '700', letterSpacing: -0.5 },
-  statLabel:   { fontSize: 10, fontWeight: '500', letterSpacing: 0.5 },
-  statDivider: { width: StyleSheet.hairlineWidth, height: 32, marginHorizontal: 4 },
+  topRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  },
+  bottomRow: {
+    flexDirection: 'row', alignItems: 'flex-end',
+  },
+  eyebrow: {
+    fontSize: 12, fontWeight: '500', letterSpacing: 1.4,
+    color: 'rgba(255,255,255,0.55)', marginBottom: 8,
+  },
+  greetLine1: {
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    fontSize: 32, fontWeight: '400', lineHeight: 40,
+    letterSpacing: -0.3, color: 'rgba(255,255,255,0.95)',
+  },
+  greetLine2: {
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    fontSize: 32, fontWeight: '400', lineHeight: 40,
+    letterSpacing: -0.3, color: 'rgba(255,255,255,0.95)',
+    marginBottom: 8,
+  },
+  tagline: {
+    fontSize: 13, fontStyle: 'italic',
+    color: 'rgba(255,255,255,0.5)',
+  },
+  ringWrap: { alignItems: 'center', paddingBottom: 2 },
+  ring: {
+    width: 52, height: 52, borderRadius: 26, borderWidth: 2,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 6,
+  },
+  ringCount: {
+    fontSize: 14, fontWeight: '700', color: '#C9A96B', letterSpacing: -0.3,
+  },
+  ringLabel: {
+    fontSize: 10, color: 'rgba(255,255,255,0.45)', marginTop: 1,
+  },
 });
 
 // ─── Verse of the Day ─────────────────────────────────────────────────────────
 
-const VerseCard = memo(function VerseCard() {
+const VerseOfDayCard = memo(function VerseOfDayCard() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const verse      = getTodayVerseEntry();
   const [speaking, setSpeaking]     = useState(false);
@@ -322,93 +406,253 @@ const VerseCard = memo(function VerseCard() {
   }, [navigation, verse]);
 
   const cardPressIn  = useCallback(() =>
-    Animated.spring(cardScale, { toValue: 0.97, useNativeDriver: true, tension: 300, friction: 20 }).start(),
+    Animated.spring(cardScale, { toValue: 0.975, useNativeDriver: true, tension: 300, friction: 20 }).start(),
   [cardScale]);
   const cardPressOut = useCallback(() =>
     Animated.spring(cardScale, { toValue: 1, useNativeDriver: true, tension: 300, friction: 20 }).start(),
   [cardScale]);
 
+  const tagPills = (verse.tags ?? []).slice(0, 2).join(' · ');
+  const verseText = verse.fallbackText.replace(/^[""]+|[""]+$/g, '').trim();
+
   return (
-    <Pressable
-      onPress={() => navigation.navigate('Verse')}
-      onPressIn={cardPressIn}
-      onPressOut={cardPressOut}
-    >
-    <Animated.View style={[vc.card, { transform: [{ scale: cardScale }] }]}>
-      <ImageBackground
-        source={require('../../assets/today-verse.jpg')}
-        style={vc.bg}
-        resizeMode="cover"
-      >
-        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(4,6,18,0.38)' }]} />
-        <LinearGradient
-          colors={['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.50)', 'rgba(0,0,0,0.88)']}
-          locations={[0, 0.45, 1]}
-          style={StyleSheet.absoluteFillObject}
-        />
-        <View style={vc.content}>
-          <View style={vc.meta}>
-            <Text style={vc.metaLabel}>VERSE OF THE DAY</Text>
-            <Text style={vc.metaRef}>{verse.label}</Text>
-          </View>
-          <Text style={vc.verseText}>
-            {verse.fallbackText.replace(/^[""]+|[""]+$/g, '').trim()}
-          </Text>
-          <View style={vc.actions}>
-            <TouchableOpacity style={vc.action} onPress={() => navigation.navigate('Verse')} activeOpacity={0.72}>
-              <Ionicons name="book-outline" size={22} color="rgba(255,255,255,0.88)" />
-              <Text style={vc.actionLabel}>Read</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={vc.action} onPress={handleInsights} activeOpacity={0.72}>
-              <Ionicons name="sparkles-outline" size={22} color="rgba(255,255,255,0.88)" />
-              <Text style={vc.actionLabel}>Insights</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={vc.action} onPress={handleListen} activeOpacity={0.72}>
-              <Ionicons
-                name={speaking ? 'stop-circle-outline' : 'headset-outline'}
-                size={22}
-                color={speaking ? '#C9A96B' : 'rgba(255,255,255,0.88)'}
-              />
-              <Text style={[vc.actionLabel, speaking && { color: '#C9A96B' }]}>
-                {speaking ? 'Stop' : 'Listen'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={vc.action} onPress={handleShare} activeOpacity={0.72}>
-              <Ionicons name="share-outline" size={22} color="rgba(255,255,255,0.88)" />
-              <Text style={vc.actionLabel}>Share</Text>
+    <Pressable onPress={() => navigation.navigate('Verse')} onPressIn={cardPressIn} onPressOut={cardPressOut}>
+      <Animated.View style={[vd.card, { transform: [{ scale: cardScale }] }]}>
+        <View style={vd.imageBg}>
+          <ExpoImage source={verse.image} style={StyleSheet.absoluteFillObject} contentFit="cover" transition={350} cachePolicy="memory-disk" />
+          <BlurView intensity={48} tint="dark" style={StyleSheet.absoluteFillObject} />
+          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(4,6,18,0.42)' }]} />
+
+          <View style={vd.content}>
+            {/* Tags row */}
+            <View style={vd.tagsRow}>
+              {tagPills ? (
+                <View style={vd.tagPill}>
+                  <Text style={vd.tagText}>{tagPills}</Text>
+                </View>
+              ) : null}
+              <View style={{ flex: 1 }} />
+              <Text style={vd.dagger}>†</Text>
+            </View>
+
+            {/* Verse block */}
+            <View style={vd.verseBlock}>
+              <Text style={vd.reference}>{verse.label}</Text>
+              <Text style={vd.verseText} numberOfLines={6}>{verseText}</Text>
+            </View>
+
+            {/* Action pill bar */}
+            <View style={vd.actionBarWrap}>
+              <BlurView intensity={24} tint="dark" style={vd.actionBar}>
+                <TouchableOpacity style={vd.action} onPress={() => navigation.navigate('Verse')} activeOpacity={0.72}>
+                  <Ionicons name="book-outline" size={19} color="rgba(255,255,255,0.82)" />
+                  <Text style={vd.actionLabel}>Read</Text>
+                </TouchableOpacity>
+                <View style={vd.actionDivider} />
+                <TouchableOpacity style={vd.action} onPress={handleListen} activeOpacity={0.72}>
+                  <Ionicons
+                    name={speaking ? 'stop-circle-outline' : 'headset-outline'}
+                    size={19}
+                    color={speaking ? '#C9A96B' : 'rgba(255,255,255,0.82)'}
+                  />
+                  <Text style={[vd.actionLabel, speaking && { color: '#C9A96B' }]}>
+                    {speaking ? 'Stop' : 'Listen'}
+                  </Text>
+                </TouchableOpacity>
+                <View style={vd.actionDivider} />
+                <TouchableOpacity style={vd.action} onPress={handleShare} activeOpacity={0.72}>
+                  <Ionicons name="share-outline" size={19} color="rgba(255,255,255,0.82)" />
+                  <Text style={vd.actionLabel}>Share</Text>
+                </TouchableOpacity>
+              </BlurView>
+            </View>
+
+            {/* Insights link */}
+            <TouchableOpacity onPress={handleInsights} activeOpacity={0.7} style={vd.insightsLink}>
+              <Text style={vd.insightsText}>Explore Insights →</Text>
             </TouchableOpacity>
           </View>
         </View>
-      </ImageBackground>
-    </Animated.View>
+      </Animated.View>
     </Pressable>
   );
 });
 
-const vc = StyleSheet.create({
+const vd = StyleSheet.create({
   card: {
-    borderRadius: 22, overflow: 'hidden',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28, shadowRadius: 18, elevation: 10,
+    borderRadius: 24, overflow: 'hidden',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.35, shadowRadius: 22, elevation: 12,
   },
-  bg:      { width: '100%', minHeight: 340 },
-  content: { flex: 1, padding: 22, paddingTop: 24, paddingBottom: 18, justifyContent: 'space-between', minHeight: 340 },
-  meta:    { gap: 4, marginBottom: 8 },
-  metaLabel: {
-    fontSize: 10, color: 'rgba(255,255,255,0.55)',
-    letterSpacing: 1.8, fontWeight: '700',
+  imageBg: { width: '100%', minHeight: 300, overflow: 'hidden' },
+  content: {
+    flex: 1, paddingHorizontal: 22, paddingTop: 22, paddingBottom: 0,
+    minHeight: 300, justifyContent: 'space-between',
   },
-  metaRef: { fontSize: 18, fontWeight: '700', color: '#fff', letterSpacing: 0.2 },
-  verseText: {
-    flex: 1,
+  tagsRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 0 },
+  tagPill: {
+    backgroundColor: 'rgba(201,169,107,0.18)',
+    borderWidth: 1, borderColor: 'rgba(201,169,107,0.35)',
+    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
+  },
+  tagText: {
+    fontSize: 9, fontWeight: '700', letterSpacing: 1.4,
+    color: 'rgba(255,255,255,0.7)',
+  },
+  dagger: {
+    fontSize: 18, color: 'rgba(201,169,107,0.55)',
+  },
+  verseBlock: { flex: 1, justifyContent: 'center', paddingVertical: 16 },
+  reference: {
     fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-    fontSize: 21, lineHeight: 35,
-    color: 'rgba(255,255,255,0.92)',
-    letterSpacing: 0.1, paddingVertical: 12,
+    fontSize: 14, fontStyle: 'italic', letterSpacing: 0.3,
+    color: 'rgba(255,255,255,0.55)', marginBottom: 12,
   },
-  actions:     { flexDirection: 'row', justifyContent: 'space-around', paddingTop: 12 },
-  action:      { alignItems: 'center', gap: 5 },
-  actionLabel: { fontSize: 11, color: 'rgba(255,255,255,0.65)', fontWeight: '500', letterSpacing: 0.2 },
+  verseText: {
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    fontSize: 22, fontWeight: '300', lineHeight: 36,
+    color: 'rgba(255,255,255,0.92)', letterSpacing: 0.1,
+  },
+  actionBarWrap: { marginTop: 16, marginBottom: 0, overflow: 'hidden', borderRadius: 40 },
+  actionBar: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 40, paddingVertical: 12, paddingHorizontal: 8,
+  },
+  action: { flex: 1, alignItems: 'center', gap: 5 },
+  actionLabel: {
+    fontSize: 10, fontWeight: '500', letterSpacing: 0.3,
+    color: 'rgba(255,255,255,0.55)',
+  },
+  actionDivider: {
+    width: 1, height: 22, backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  insightsLink: { paddingBottom: 18, paddingTop: 10, alignItems: 'center' },
+  insightsText: {
+    fontSize: 12, color: 'rgba(201,169,107,0.75)', textAlign: 'center',
+  },
+});
+
+// ─── Today's Devotion Card ────────────────────────────────────────────────────
+
+const TodayDevotionCard = memo(function TodayDevotionCard() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const t = useTheme();
+  const isDark = t.statusBar === 'light-content';
+  const devotion = useMemo(() => getTodayFallback(), []);
+
+  const cardScale = useRef(new Animated.Value(1)).current;
+  const pressIn  = useCallback(() =>
+    Animated.spring(cardScale, { toValue: 0.975, useNativeDriver: true, tension: 300, friction: 20 }).start(),
+  [cardScale]);
+  const pressOut = useCallback(() =>
+    Animated.spring(cardScale, { toValue: 1, useNativeDriver: true, tension: 300, friction: 20 }).start(),
+  [cardScale]);
+
+  const excerpt = (devotion.devotionalBody[0] ?? '').slice(0, 90) + '...';
+
+  const gradColors: [string, string] = isDark
+    ? ['rgba(13,15,26,0.5)', 'rgba(13,15,26,0.88)']
+    : ['rgba(47,30,10,0.45)', 'rgba(20,12,4,0.82)'];
+
+  return (
+    <Pressable onPress={() => navigation.navigate('Devotion', undefined)} onPressIn={pressIn} onPressOut={pressOut}>
+      <Animated.View style={{ transform: [{ scale: cardScale }] }}>
+        <View style={td.imageBg}>
+          <ExpoImage
+            source={require('../../assets/hands-cluds.jpg')}
+            style={[StyleSheet.absoluteFillObject, { borderRadius: 22 }]}
+            contentFit="cover"
+            transition={350}
+            cachePolicy="memory-disk"
+          />
+          <LinearGradient colors={gradColors} style={[StyleSheet.absoluteFillObject, { borderRadius: 22 }]} />
+
+          <View style={td.content}>
+            {/* Eyebrow */}
+            <View style={td.eyebrowRow}>
+              <Ionicons name="sunny-outline" size={12} color="#C9A96B" />
+              <Text style={td.eyebrowLabel}>DAILY DEVOTION</Text>
+              <View style={{ flex: 1 }} />
+              {devotion.keyTheme ? (
+                <View style={td.themePill}>
+                  <Text style={td.themeText}>{devotion.keyTheme}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            {/* Title */}
+            <Text style={td.title}>{devotion.title}</Text>
+
+            {/* Scripture reference */}
+            <Text style={td.scripture}>{devotion.scriptureReference}</Text>
+
+            {/* Excerpt */}
+            <Text style={td.excerpt} numberOfLines={2}>{excerpt}</Text>
+
+            {/* CTA row */}
+            <View style={td.ctaRow}>
+              <TouchableOpacity
+                style={td.ctaBtn}
+                onPress={() => navigation.navigate('Devotion', undefined)}
+                activeOpacity={0.8}
+              >
+                <Text style={td.ctaBtnText}>Begin Today's Devotion</Text>
+              </TouchableOpacity>
+              <Text style={td.readTime}>~5 min read</Text>
+            </View>
+          </View>
+        </View>
+      </Animated.View>
+    </Pressable>
+  );
+});
+
+const td = StyleSheet.create({
+  imageBg: {
+    borderRadius: 22, overflow: 'hidden',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3, shadowRadius: 20, elevation: 10,
+  },
+  content: { paddingHorizontal: 22, paddingTop: 22, paddingBottom: 24 },
+  eyebrowRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12,
+  },
+  eyebrowLabel: {
+    fontSize: 10, fontWeight: '700', letterSpacing: 1.8,
+    color: 'rgba(201,169,107,0.8)',
+  },
+  themePill: {
+    backgroundColor: 'rgba(201,169,107,0.15)',
+    borderWidth: 1, borderColor: 'rgba(201,169,107,0.3)',
+    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
+  },
+  themeText: { fontSize: 9, fontWeight: '600', color: 'rgba(201,169,107,0.85)' },
+  title: {
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    fontSize: 22, fontWeight: '400', lineHeight: 31,
+    color: 'rgba(255,255,255,0.95)', marginBottom: 8,
+  },
+  scripture: {
+    fontSize: 12, fontStyle: 'italic',
+    color: 'rgba(255,255,255,0.45)', marginBottom: 14,
+  },
+  excerpt: {
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    fontSize: 14, fontWeight: '300', lineHeight: 23,
+    color: 'rgba(255,255,255,0.65)', marginBottom: 20,
+  },
+  ctaRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  },
+  ctaBtn: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 28, paddingVertical: 11, paddingHorizontal: 18,
+  },
+  ctaBtnText: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.9)' },
+  readTime: { fontSize: 11, color: 'rgba(255,255,255,0.35)' },
 });
 
 // ─── Reading Plan Card ────────────────────────────────────────────────────────
@@ -416,6 +660,7 @@ const vc = StyleSheet.create({
 const ReadingPlanCard = memo(function ReadingPlanCard() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const t = useTheme();
+  const isDark = t.statusBar === 'light-content';
   const [active, setActive] = useState<ReadingActivePlan | null | undefined>(undefined);
 
   useFocusEffect(useCallback(() => {
@@ -424,23 +669,26 @@ const ReadingPlanCard = memo(function ReadingPlanCard() {
 
   if (active === undefined) return null;
 
+  const glass = isDark ? DARK_GLASS : LIGHT_GLASS;
+
   if (!active) {
     return (
       <TouchableOpacity
-        style={[rp.card, { backgroundColor: t.card }]}
+        style={[rp.card, glass, { alignItems: 'center', gap: 12, paddingVertical: 28 }]}
         onPress={() => navigation.navigate('PlanLibrary')}
         activeOpacity={0.82}
       >
-        <View style={[rp.noPlanIconWrap, { backgroundColor: t.accentBg }]}>
-          <Ionicons name="book-outline" size={26} color={t.accent} />
+        <View style={[rp.emptyIconWrap, { backgroundColor: t.accentBg }]}>
+          <Ionicons name="book-outline" size={32} color={t.accent} />
         </View>
-        <Text style={[rp.noPlanTitle, { color: t.text }]}>Begin Your Reading Journey</Text>
-        <Text style={[rp.noPlanSub, { color: t.textMuted }]}>
-          Build a lasting daily Scripture habit with a guided reading plan.
+        <Text style={[rp.emptyTitle, { fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', color: t.text }]}>
+          Start a Reading Plan
         </Text>
-        <View style={[rp.noPlanCta, { backgroundColor: t.accentBg, borderColor: t.accentBorder }]}>
-          <Text style={[rp.noPlanCtaText, { color: t.accent }]}>Choose a Plan</Text>
-          <Ionicons name="arrow-forward" size={14} color={t.accent} />
+        <Text style={[rp.emptySub, { color: t.textMuted }]}>
+          Build a daily Scripture habit with a structured guide.
+        </Text>
+        <View style={[rp.emptyCta, { backgroundColor: t.gold }]}>
+          <Text style={rp.emptyCtaText}>Browse Plans</Text>
         </View>
       </TouchableOpacity>
     );
@@ -449,19 +697,25 @@ const ReadingPlanCard = memo(function ReadingPlanCard() {
   const plan    = getPlanById(active.planId);
   const reading = getTodayReading(active);
   const done    = isTodayCompleted(active);
-  const pct     = Math.round(planProgress(active) * 100);
 
   if (!plan || !reading) return null;
 
+  const numDots = Math.min(plan.totalDays, 28);
+
   return (
     <TouchableOpacity
-      style={[rp.card, { backgroundColor: t.card }]}
+      style={[rp.card, glass]}
       onPress={() => navigation.navigate('TodayJourney')}
       activeOpacity={0.85}
     >
-      {/* Top row */}
+      {/* Top accent bar */}
+      <View style={[rp.accentBar, {
+        backgroundColor: isDark ? 'rgba(201,169,107,0.35)' : 'rgba(201,169,107,0.5)',
+      }]} />
+
+      {/* Eyebrow + streak */}
       <View style={rp.cardTop}>
-        <Text style={[rp.cardLabel, { color: t.textMuted }]}>CONTINUE TODAY'S JOURNEY</Text>
+        <Text style={[rp.cardLabel, { color: t.textMuted }]}>TODAY'S READING</Text>
         {active.streak > 0 && (
           <View style={rp.streakBadge}>
             <Ionicons name="flame" size={12} color={t.gold} />
@@ -471,11 +725,12 @@ const ReadingPlanCard = memo(function ReadingPlanCard() {
       </View>
 
       {/* Reading title */}
-      <Text style={[rp.readingTitle, { color: t.text }]} numberOfLines={2}>
+      <Text style={[rp.readingTitle, { fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', color: t.text }]}
+        numberOfLines={2}>
         {reading.title}
       </Text>
 
-      {/* Meta info */}
+      {/* Meta */}
       <View style={rp.metaRow}>
         <Text style={[rp.metaText, { color: t.textMuted }]}>{plan.title}</Text>
         <View style={[rp.metaDot, { backgroundColor: t.textMuted }]} />
@@ -484,342 +739,372 @@ const ReadingPlanCard = memo(function ReadingPlanCard() {
         <Text style={[rp.metaText, { color: t.textMuted }]}>{reading.estimatedMinutes} min</Text>
       </View>
 
-      {/* Progress */}
-      <View style={[rp.progressTrack, { backgroundColor: t.progressTrack }]}>
-        <View style={[rp.progressFill, { width: `${pct}%` as any, backgroundColor: t.gold }]} />
+      {/* Dot segment progress */}
+      <View style={rp.dotsRow}>
+        {Array.from({ length: numDots }, (_, i) => {
+          const dayNum = i + 1;
+          const filled = active.completedDays.includes(dayNum);
+          return (
+            <View
+              key={dayNum}
+              style={[rp.dot, {
+                backgroundColor: filled ? t.gold : t.progressTrack,
+                opacity: filled ? 1 : 0.55,
+              }]}
+            />
+          );
+        })}
       </View>
-      <Text style={[rp.pctLabel, { color: t.textMuted }]}>{pct}% complete</Text>
 
       {/* CTA */}
-      <View style={[rp.cta, { backgroundColor: t.accentBg, borderColor: t.accentBorder }]}>
-        {done ? (
-          <>
-            <Ionicons name="checkmark-circle" size={15} color={t.accent} />
-            <Text style={[rp.ctaText, { color: t.accent }]}>Today's Journey Complete</Text>
-          </>
-        ) : (
-          <>
-            <Text style={[rp.ctaText, { color: t.accent }]}>Continue Reading</Text>
-            <Ionicons name="arrow-forward" size={14} color={t.accent} />
-          </>
-        )}
-      </View>
+      {done ? (
+        <View style={[rp.cta, { borderWidth: 1, borderColor: t.accentBorder, backgroundColor: 'transparent' }]}>
+          <Ionicons name="checkmark-circle" size={15} color={t.accent} />
+          <Text style={[rp.ctaText, { color: t.accent }]}>Today's Journey Complete</Text>
+        </View>
+      ) : (
+        <View style={[rp.cta, { backgroundColor: t.accent }]}>
+          <Text style={[rp.ctaText, { color: '#fff' }]}>Continue Reading</Text>
+          <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.7)" />
+        </View>
+      )}
     </TouchableOpacity>
   );
 });
 
 const rp = StyleSheet.create({
   card: {
-    borderRadius: 18, padding: 18, gap: 10,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+    borderRadius: 22, padding: 22, paddingTop: 28, gap: 10,
+    position: 'relative',
   },
-  // No plan
-  noPlanIconWrap: {
-    width: 52, height: 52, borderRadius: 16,
+  accentBar: {
+    position: 'absolute', top: 0, left: 22, right: 22, height: 2, borderRadius: 2,
+  },
+  emptyIconWrap: {
+    width: 60, height: 60, borderRadius: 18,
     alignItems: 'center', justifyContent: 'center',
   },
-  noPlanTitle: { fontSize: 17, fontWeight: '700', letterSpacing: -0.2 },
-  noPlanSub:   { fontSize: 13, lineHeight: 20 },
-  noPlanCta: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
-    borderRadius: 20, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 9,
-    marginTop: 4,
+  emptyTitle: { fontSize: 18, fontWeight: '400', textAlign: 'center' },
+  emptySub:   { fontSize: 13, lineHeight: 20, textAlign: 'center', paddingHorizontal: 16 },
+  emptyCta: {
+    borderRadius: 30, paddingVertical: 12, paddingHorizontal: 24, alignSelf: 'center',
   },
-  noPlanCtaText: { fontSize: 13, fontWeight: '700' },
-  // Active plan
+  emptyCtaText: { fontSize: 13, fontWeight: '700', color: '#1A1005' },
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1.8 },
   streakBadge: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   streakNum:   { fontSize: 12, fontWeight: '700' },
-  readingTitle: { fontSize: 19, fontWeight: '700', letterSpacing: -0.2, lineHeight: 26 },
-  metaRow:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  readingTitle: { fontSize: 19, fontWeight: '400', lineHeight: 27 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   metaText: { fontSize: 12, fontWeight: '500' },
-  metaDot:  { width: 2, height: 2, borderRadius: 1, opacity: 0.4 },
-  progressTrack: { height: 3, borderRadius: 2 },
-  progressFill:  { height: 3, borderRadius: 2 },
-  pctLabel:  { fontSize: 11, fontWeight: '500', marginTop: -4 },
+  metaDot:  { width: 3, height: 3, borderRadius: 1.5, opacity: 0.45 },
+  dotsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  dot: { width: 5, height: 5, borderRadius: 2.5 },
   cta: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 7, borderRadius: 12, borderWidth: 1,
-    paddingVertical: 12, marginTop: 4,
+    gap: 7, borderRadius: 14, paddingVertical: 14, marginTop: 4,
   },
   ctaText: { fontSize: 14, fontWeight: '700', letterSpacing: 0.1 },
 });
 
-// ─── Today's Practice Card ────────────────────────────────────────────────────
+// ─── Prayer Snapshot Card ─────────────────────────────────────────────────────
 
-const TodayCard = memo(function TodayCard() {
+const PrayerSnapshotCard = memo(function PrayerSnapshotCard({
+  prayerStats,
+}: {
+  prayerStats: PrayerStats | null;
+}) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const t = useTheme();
-  const [goals, setGoals] = useState<Goal[]>([]);
-
-  useFocusEffect(useCallback(() => {
-    loadGoals().then(setGoals).catch(() => {});
-  }, []));
-
-  const completedGoals = goals.filter(isCompletedToday).length;
-  const totalGoals     = goals.length;
-  const goalPct        = totalGoals > 0 ? (completedGoals / totalGoals) * 100 : 0;
+  const isDark = t.statusBar === 'light-content';
+  const glass = isDark ? DARK_GLASS : LIGHT_GLASS;
 
   return (
-    <View style={[tc.card, { backgroundColor: t.card }]}>
-      <Text style={[tc.label, { color: t.textMuted }]}>TODAY'S PRACTICE</Text>
-
-      {/* Daily Devotion */}
-      <TouchableOpacity
-        style={tc.row}
-        onPress={() => navigation.navigate('Devotion', undefined)}
-        activeOpacity={0.75}
-      >
-        <View style={[tc.iconWrap, { backgroundColor: t.goldBg }]}>
-          <Ionicons name="sunny-outline" size={17} color={t.gold} />
+    <TouchableOpacity
+      style={[ps.card, glass]}
+      onPress={() => navigation.navigate('PrayerJournal')}
+      activeOpacity={0.82}
+    >
+      {!prayerStats || prayerStats.total === 0 ? (
+        /* Empty state */
+        <View style={ps.emptyRow}>
+          <Ionicons name="heart-outline" size={22} color={t.accent} />
+          <Text style={[ps.emptyText, { color: t.textMuted }]}>Start your prayer journal</Text>
+          <View style={{ flex: 1 }} />
+          <Ionicons name="chevron-forward" size={16} color={t.textMuted} />
         </View>
-        <View style={tc.rowBody}>
-          <Text style={[tc.rowTitle, { color: t.text }]}>Daily Devotion</Text>
-          <Text style={[tc.rowSub, { color: t.textMuted }]}>Nourish your soul with Scripture</Text>
+      ) : (
+        /* Stats state */
+        <View style={ps.statsRow}>
+          <View style={ps.statsLeft}>
+            <Ionicons name="heart" size={22} color="#C47B8A" />
+            <Text style={[ps.statsTitle, { color: t.text }]}>Prayer Journal</Text>
+          </View>
+          <View style={[ps.divider, { backgroundColor: t.divider }]} />
+          <View style={ps.statsGroup}>
+            <View style={ps.statItem}>
+              <Text style={[ps.statNum, { color: t.text }]}>{prayerStats.active}</Text>
+              <Text style={[ps.statLabel, { color: t.textMuted }]}>Active</Text>
+            </View>
+            <View style={ps.statItem}>
+              <Text style={[ps.statNum, { color: t.gold }]}>{prayerStats.answered}</Text>
+              <Text style={[ps.statLabel, { color: t.textMuted }]}>Answered</Text>
+            </View>
+            <View style={ps.statItem}>
+              <Text style={[ps.statNum, { color: t.accent }]}>{prayerStats.streak}</Text>
+              <Text style={[ps.statLabel, { color: t.textMuted }]}>Day streak</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={t.textMuted} />
         </View>
-        <Ionicons name="chevron-forward" size={14} color={t.textMuted} />
-      </TouchableOpacity>
-
-      <View style={[tc.divider, { backgroundColor: t.divider }]} />
-
-      {/* Prayer Journal */}
-      <TouchableOpacity
-        style={tc.row}
-        onPress={() => navigation.navigate('PrayerJournal')}
-        activeOpacity={0.75}
-      >
-        <View style={[tc.iconWrap, { backgroundColor: '#C47B8A22' }]}>
-          <Ionicons name="heart-outline" size={17} color="#C47B8A" />
-        </View>
-        <View style={tc.rowBody}>
-          <Text style={[tc.rowTitle, { color: t.text }]}>Prayer Journal</Text>
-          <Text style={[tc.rowSub, { color: t.textMuted }]}>Talk to God, track His answers</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={14} color={t.textMuted} />
-      </TouchableOpacity>
-
-      <View style={[tc.divider, { backgroundColor: t.divider }]} />
-
-      {/* Spiritual Goals */}
-      <TouchableOpacity
-        style={tc.row}
-        onPress={() => navigation.navigate('Goals')}
-        activeOpacity={0.75}
-      >
-        <View style={[tc.iconWrap, { backgroundColor: '#6E8B7422' }]}>
-          <Ionicons name="flag-outline" size={17} color="#6E8B74" />
-        </View>
-        <View style={tc.rowBody}>
-          <Text style={[tc.rowTitle, { color: t.text }]}>Spiritual Goals</Text>
-          {totalGoals > 0 ? (
-            <>
-              <View style={[tc.progressTrack, { backgroundColor: t.progressTrack }]}>
-                <View style={[tc.progressFill, {
-                  width: `${goalPct}%` as any,
-                  backgroundColor: '#6E8B74',
-                }]} />
-              </View>
-              <Text style={[tc.rowSub, { color: t.textMuted }]}>
-                {completedGoals} of {totalGoals} done today
-              </Text>
-            </>
-          ) : (
-            <Text style={[tc.rowSub, { color: t.textMuted }]}>Set your daily spiritual goals</Text>
-          )}
-        </View>
-        <Ionicons name="chevron-forward" size={14} color={t.textMuted} />
-      </TouchableOpacity>
-    </View>
+      )}
+    </TouchableOpacity>
   );
 });
 
-const tc = StyleSheet.create({
-  card: {
-    borderRadius: 18, overflow: 'hidden',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
-  },
-  label: {
-    fontSize: 10, fontWeight: '700', letterSpacing: 1.8,
-    paddingHorizontal: 18, paddingTop: 18, paddingBottom: 14,
-  },
-  row: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 18, paddingVertical: 14, gap: 14,
-  },
-  iconWrap: {
-    width: 36, height: 36, borderRadius: 11,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  rowBody:  { flex: 1, gap: 4 },
-  rowTitle: { fontSize: 15, fontWeight: '600', letterSpacing: 0.1 },
-  rowSub:   { fontSize: 12, lineHeight: 17 },
-  divider:  { height: StyleSheet.hairlineWidth, marginLeft: 68 },
-  progressTrack: { height: 2, borderRadius: 1, marginTop: 5, marginBottom: 2 },
-  progressFill:  { height: 2, borderRadius: 1 },
+const ps = StyleSheet.create({
+  card: { borderRadius: 18, paddingVertical: 16, paddingHorizontal: 18 },
+  emptyRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  emptyText: { fontSize: 14, fontWeight: '500' },
+  statsRow: { flexDirection: 'row', alignItems: 'center' },
+  statsLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  statsTitle: { fontSize: 13, fontWeight: '600' },
+  divider: { width: 1, height: 28, marginHorizontal: 18 },
+  statsGroup: { flex: 1, flexDirection: 'row', gap: 20 },
+  statItem: { alignItems: 'center', gap: 2 },
+  statNum:  { fontSize: 16, fontWeight: '700', letterSpacing: -0.3 },
+  statLabel: { fontSize: 10, fontWeight: '500' },
 });
 
-// ─── Quick Actions ────────────────────────────────────────────────────────────
+// ─── Explore Teaser ───────────────────────────────────────────────────────────
 
-const QuickActions = memo(function QuickActions() {
+const EXPLORE_ICONS: Array<{ icon: string; color: string }> = [
+  { icon: 'book-outline',                 color: '#7B9FE8' },
+  { icon: 'images-outline',              color: '#D4956A' },
+  { icon: 'sparkles-outline',            color: '#C9A96B' },
+  { icon: 'mic-outline',                 color: '#C4A96B' },
+  { icon: 'musical-notes-outline',       color: '#D4A96A' },
+  { icon: 'chatbubble-ellipses-outline', color: '#A897CC' },
+];
+
+const ExploreTeaser = memo(function ExploreTeaser() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const t = useTheme();
-  const verse = getTodayVerseEntry();
-
-  const actions = [
-    {
-      icon: 'book-outline'           as const,
-      label: 'Bible',
-      color: '#5B6EAE',
-      bg:    '#5B6EAE22',
-      onPress: () => (navigation as any).navigate('MainTabs', { screen: 'BibleTab' }),
-    },
-    {
-      icon: 'images-outline'         as const,
-      label: 'Stories',
-      color: '#C9804A',
-      bg:    '#C9804A22',
-      onPress: () => navigation.navigate('Stories'),
-    },
-    {
-      icon: 'sparkles-outline'       as const,
-      label: 'AI Insights',
-      color: t.accent,
-      bg:    t.accentBg,
-      onPress: () => navigation.navigate('ScriptureInsights', {
-        reference:   verse.label,
-        contextType: 'verse',
-        context:     verse.fallbackText,
-      }),
-    },
-    {
-      icon: 'musical-notes-outline'  as const,
-      label: 'Hymnal',
-      color: '#B07A3A',
-      bg:    '#B07A3A22',
-      onPress: () => navigation.navigate('Hymns'),
-    },
-  ];
+  const t       = useTheme();
+  const isDark  = t.statusBar === 'light-content';
+  const glass   = isDark ? DARK_GLASS : LIGHT_GLASS;
+  const GOLD_C  = '#C9A96B';
+  const SERIF_F = Platform.OS === 'ios' ? 'Georgia' : 'serif';
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const pressIn   = () => Animated.spring(scaleAnim, { toValue: 0.975, useNativeDriver: true, tension: 280, friction: 16 }).start();
+  const pressOut  = () => Animated.spring(scaleAnim, { toValue: 1,     useNativeDriver: true, tension: 280, friction: 16 }).start();
 
   return (
     <View>
-      <Text style={[qa.label, { color: t.textMuted }]}>EXPLORE</Text>
-      <View style={qa.grid}>
-        {actions.map(a => (
-          <TouchableOpacity
-            key={a.label}
-            style={[qa.item, { backgroundColor: t.card }]}
-            onPress={a.onPress}
-            activeOpacity={0.78}
-          >
-            <View style={[qa.iconWrap, { backgroundColor: a.bg }]}>
-              <Ionicons name={a.icon} size={22} color={a.color} />
+      <Text style={[et.sectionLabel, { color: t.textMuted }]}>EXPLORE</Text>
+      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('Explore')}
+          onPressIn={pressIn}
+          onPressOut={pressOut}
+          activeOpacity={1}
+          accessibilityRole="button"
+          accessibilityLabel="Explore all features"
+        >
+          <View style={[et.card, glass]}>
+            {/* Gold top accent */}
+            <View style={[et.accentBar, { backgroundColor: GOLD_C }]} />
+
+            {/* Icon preview row */}
+            <View style={et.iconRow}>
+              {EXPLORE_ICONS.map(({ icon, color }) => (
+                <View
+                  key={icon}
+                  style={[et.iconBubble, { backgroundColor: color + '1E' }]}
+                >
+                  <Ionicons name={icon as any} size={18} color={color} />
+                </View>
+              ))}
             </View>
-            <Text style={[qa.itemLabel, { color: t.text }]}>{a.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+
+            {/* Text + CTA */}
+            <View style={et.body}>
+              <View style={et.textBlock}>
+                <Text style={[et.title, { color: t.text, fontFamily: SERIF_F }]}>
+                  Discover Everything
+                </Text>
+                <Text style={[et.sub, { color: t.textMuted }]}>
+                  Six tools for your spiritual journey
+                </Text>
+              </View>
+              <View style={et.ctaRow}>
+                <Text style={[et.ctaText, { color: GOLD_C }]}>View all features</Text>
+                <Ionicons name="arrow-forward" size={13} color={GOLD_C} />
+              </View>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
     </View>
   );
 });
 
-const qa = StyleSheet.create({
-  label: { fontSize: 10, fontWeight: '700', letterSpacing: 1.8, marginBottom: 12 },
-  grid:  { flexDirection: 'row', gap: 10 },
-  item: {
-    flex: 1, alignItems: 'center', gap: 10,
-    borderRadius: 18, paddingVertical: 18,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
+const et = StyleSheet.create({
+  sectionLabel: {
+    fontSize: 10, fontWeight: '700', letterSpacing: 1.8, marginBottom: 12,
   },
-  iconWrap:  { width: 46, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  itemLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0.1 },
+  card: {
+    borderRadius: 20, overflow: 'hidden', paddingBottom: 18,
+  },
+  accentBar: {
+    height: 3, marginHorizontal: 18, marginTop: 18,
+    borderRadius: 2, marginBottom: 16, width: 36,
+  },
+  iconRow: {
+    flexDirection: 'row', gap: 8,
+    paddingHorizontal: 18, marginBottom: 18,
+  },
+  iconBubble: {
+    width: 38, height: 38, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  body: {
+    paddingHorizontal: 18, gap: 10,
+  },
+  textBlock: { gap: 3 },
+  title: { fontSize: 20, fontWeight: '400', letterSpacing: -0.3 },
+  sub:   { fontSize: 12, fontWeight: '400' },
+  ctaRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+  },
+  ctaText: { fontSize: 13, fontWeight: '600' },
 });
+
+// ─── Glass card constants ─────────────────────────────────────────────────────
+
+const LIGHT_GLASS = {
+  backgroundColor: 'rgba(255,255,255,0.62)',
+  borderWidth: 1,
+  borderColor: 'rgba(255,255,255,0.80)',
+  shadowColor: 'rgba(47,42,36,0.12)' as string,
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 1 as number,
+  shadowRadius: 12,
+  elevation: 3,
+};
+
+const DARK_GLASS = {
+  backgroundColor: 'rgba(255,255,255,0.06)',
+  borderWidth: 1,
+  borderColor: 'rgba(255,255,255,0.10)',
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.28,
+  shadowRadius: 14,
+  elevation: 5,
+};
 
 // ─── Home Screen ──────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
   const t = useTheme();
+  const insets = useSafeAreaInsets();
 
   const greeting = useMemo(() => getGreeting(), []);
-  const today    = useMemo(() => new Date().toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric',
-  }), []);
-
   const [streak,      setStreak]      = useState(0);
-  const [total,       setTotal]       = useState(0);
   const [primaryGoal, setPrimaryGoal] = useState<PrimaryGoal | null>(null);
+  const [firstName,   setFirstName]   = useState('');
+  const [prayerStats, setPrayerStats] = useState<PrayerStats | null>(null);
+
+  const scrollY   = useRef(new Animated.Value(0)).current;
+  const fadeAnims  = useRef([0, 1, 2, 3, 4].map(() => new Animated.Value(0))).current;
+  const slideAnims = useRef([0, 1, 2, 3, 4].map(() => new Animated.Value(28))).current;
+
+  // Load name from storage
+  useEffect(() => {
+    AsyncStorage.getItem('@chat_display_name').then(name => {
+      if (name) setFirstName(name.trim().split(' ')[0]);
+    }).catch(() => {});
+  }, []);
+
+  // Staggered entrance animation
+  useEffect(() => {
+    Animated.stagger(80, [0, 1, 2, 3, 4].map(i =>
+      Animated.parallel([
+        Animated.timing(fadeAnims[i], {
+          toValue: 1, duration: 500,
+          easing: Easing.out(Easing.cubic), useNativeDriver: true,
+        }),
+        Animated.spring(slideAnims[i], {
+          toValue: 0, tension: 160, friction: 22, useNativeDriver: true,
+        }),
+      ])
+    )).start();
+  }, []);
 
   useFocusEffect(useCallback(() => {
-    getStreakData().then(d => { setStreak(d.streak); setTotal(d.total); });
+    getStreakData().then(d => setStreak(d.streak));
     loadOnboarding().then(d => setPrimaryGoal(d.primaryGoal)).catch(() => {});
+    getPrayerStats().then(setPrayerStats).catch(() => {});
   }, []));
-
-  // Content entrance animation
-  const fadeAnim  = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(20)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim,  {
-        toValue: 1, duration: 640, delay: 120,
-        easing: Easing.out(Easing.cubic), useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0, duration: 640, delay: 120,
-        easing: Easing.out(Easing.cubic), useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
 
   const tagline = primaryGoal ? GOAL_TAGLINES[primaryGoal] : 'Walk faithfully today.';
 
+  const onScroll = useMemo(() => Animated.event(
+    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+    {
+      useNativeDriver: true,
+      listener: (e: any) => {
+        tabBarScrollSignal.setValue(e.nativeEvent.contentOffset.y);
+      },
+    }
+  ), [scrollY]);
+
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <SafeAreaView style={s.safe} edges={['top']}>
-        <StatusBar barStyle={t.statusBar} backgroundColor="transparent" translucent />
+    <View style={{ flex: 1, backgroundColor: t.statusBar === 'light-content' ? '#060810' : '#DDD5C4' }}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-        <ScrollView
-          style={s.scroll}
-          contentContainerStyle={s.content}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* ── Hero ── */}
-          <HeroSection
-            greeting={greeting}
-            today={today}
-            tagline={tagline}
-            streak={streak}
-            total={total}
-            t={t}
-          />
+      <Animated.ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={s.contentContainer}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={onScroll}
+      >
+        {/* Full-bleed hero */}
+        <CinematicHero
+          scrollY={scrollY}
+          greeting={greeting}
+          tagline={tagline}
+          streak={streak}
+          firstName={firstName}
+          topInset={insets.top}
+        />
 
-          {/* ── Content (animated entrance) ── */}
-          <Animated.View
-            style={[s.contentInner, {
-              opacity:   fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            }]}
-          >
-            {/* Reading Plan */}
-            <ReadingPlanCard />
+        {/* Content sections */}
+        <View style={s.contentInner}>
+          <NotificationReminderBanner />
 
-            {/* Notification reminder */}
-            <NotificationReminderBanner />
-
-            {/* Verse of the Day */}
-            <VerseCard />
-
-            {/* Today's Practice */}
-            <TodayCard />
-
-            {/* Explore */}
-            <QuickActions />
+          <Animated.View style={{ opacity: fadeAnims[0], transform: [{ translateY: slideAnims[0] }] }}>
+            <VerseOfDayCard />
           </Animated.View>
-        </ScrollView>
-      </SafeAreaView>
+
+          <Animated.View style={{ opacity: fadeAnims[1], transform: [{ translateY: slideAnims[1] }] }}>
+            <TodayDevotionCard />
+          </Animated.View>
+
+          <Animated.View style={{ opacity: fadeAnims[2], transform: [{ translateY: slideAnims[2] }] }}>
+            <ReadingPlanCard />
+          </Animated.View>
+
+          <Animated.View style={{ opacity: fadeAnims[3], transform: [{ translateY: slideAnims[3] }] }}>
+            <PrayerSnapshotCard prayerStats={prayerStats} />
+          </Animated.View>
+
+          <Animated.View style={{ opacity: fadeAnims[4], transform: [{ translateY: slideAnims[4] }] }}>
+            <ExploreTeaser />
+          </Animated.View>
+        </View>
+      </Animated.ScrollView>
     </View>
   );
 }
@@ -827,8 +1112,6 @@ export default function HomeScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  safe:         { flex: 1 },
-  scroll:       { flex: 1 },
-  content:      { paddingBottom: 120 },
-  contentInner: { paddingHorizontal: 18, paddingTop: 22, gap: 20 },
+  contentContainer: { paddingBottom: 140 },
+  contentInner: { paddingHorizontal: 18, paddingTop: 20, gap: 20 },
 });
