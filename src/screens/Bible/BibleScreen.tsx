@@ -1143,10 +1143,6 @@ export default function BibleScreen() {
         onRequestClose={closeBookPicker}
       >
         <View style={[s.modalRoot, { backgroundColor: m.bgModal, paddingTop: safeTop }]}>
-            <KeyboardAvoidingView
-              style={{ flex: 1 }}
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            >
 
               {bookPickerStep === 'books' ? (
                 <>
@@ -1291,7 +1287,6 @@ export default function BibleScreen() {
                   />
                 </>
               )}
-            </KeyboardAvoidingView>
         </View>
       </Modal>
 
