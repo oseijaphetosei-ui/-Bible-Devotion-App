@@ -46,6 +46,17 @@ service cloud.firestore {
       allow read, create, update, delete: if signedIn();
     }
 
+    // Study catalog — published from the console/admin SDK; read-only for clients
+    match /studies/{studyId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Per-device study progress sync
+    match /studyProgress/{deviceId} {
+      allow read, create, update, delete: if signedIn();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

@@ -25,7 +25,8 @@ import { RootStackParamList } from '../../types/navigation';
 import { getTodayVerseEntry } from '../../services/verseService';
 import { speakText } from '../../services/ttsService';
 import { getStreakData } from '../../services/devotionStreakService';
-import { getTodayFallback } from '../../services/devotionService';
+import { getJourneySnapshot } from '../../services/studyService';
+import type { JourneySnapshot } from '../../types/study';
 import { getPrayerStats } from '../../services/prayerService';
 import type { PrayerStats } from '../../types/prayer';
 import {
@@ -534,13 +535,25 @@ const vd = StyleSheet.create({
   },
 });
 
-// ─── Today's Devotion Card ────────────────────────────────────────────────────
+// ─── Continue Your Journey Card (Daily Devotion → structured Bible journey) ───
 
 const TodayDevotionCard = memo(function TodayDevotionCard() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const t = useTheme();
   const isDark = t.statusBar === 'light-content';
-  const devotion = useMemo(() => getTodayFallback(), []);
+
+  const [journey, setJourney] = useState<JourneySnapshot | null>(null);
+  const [loaded,  setLoaded]  = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      let mounted = true;
+      getJourneySnapshot().then(snap => {
+        if (mounted) { setJourney(snap); setLoaded(true); }
+      });
+      return () => { mounted = false; };
+    }, []),
+  );
 
   const cardScale = useRef(new Animated.Value(1)).current;
   const pressIn  = useCallback(() =>
@@ -550,14 +563,17 @@ const TodayDevotionCard = memo(function TodayDevotionCard() {
     Animated.spring(cardScale, { toValue: 1, useNativeDriver: true, tension: 300, friction: 20 }).start(),
   [cardScale]);
 
-  const excerpt = (devotion.devotionalBody[0] ?? '').slice(0, 90) + '...';
-
   const gradColors: [string, string] = isDark
     ? ['rgba(13,15,26,0.5)', 'rgba(13,15,26,0.88)']
     : ['rgba(47,30,10,0.45)', 'rgba(20,12,4,0.82)'];
 
+  if (!loaded) return null;
+
+  const open = () => navigation.navigate('Journey');
+  const percent = journey ? Math.round(journey.percent * 100) : 0;
+
   return (
-    <Pressable onPress={() => navigation.navigate('Devotion', undefined)} onPressIn={pressIn} onPressOut={pressOut}>
+    <Pressable onPress={open} onPressIn={pressIn} onPressOut={pressOut}>
       <Animated.View style={{ transform: [{ scale: cardScale }] }}>
         <View style={td.imageBg}>
           <ExpoImage
@@ -572,36 +588,71 @@ const TodayDevotionCard = memo(function TodayDevotionCard() {
           <View style={td.content}>
             {/* Eyebrow */}
             <View style={td.eyebrowRow}>
-              <Ionicons name="sunny-outline" size={12} color="#C9A96B" />
-              <Text style={td.eyebrowLabel}>DAILY DEVOTION</Text>
+              <Ionicons name="map-outline" size={12} color="#C9A96B" />
+              <Text style={td.eyebrowLabel}>
+                {journey ? 'CONTINUE YOUR JOURNEY' : 'BEGIN A JOURNEY'}
+              </Text>
               <View style={{ flex: 1 }} />
-              {devotion.keyTheme ? (
+              {journey && journey.streak > 0 && (
                 <View style={td.themePill}>
-                  <Text style={td.themeText}>{devotion.keyTheme}</Text>
+                  <Text style={td.themeText}>🔥 {journey.streak} day{journey.streak === 1 ? '' : 's'}</Text>
                 </View>
-              ) : null}
+              )}
             </View>
 
-            {/* Title */}
-            <Text style={td.title}>{devotion.title}</Text>
+            {journey ? (
+              <>
+                {/* Current study */}
+                <Text style={td.title}>{journey.study.title}</Text>
+                <Text style={td.scripture}>
+                  Day {Math.min(journey.progress.currentDay, journey.study.totalDays)} of {journey.study.totalDays}
+                </Text>
 
-            {/* Scripture reference */}
-            <Text style={td.scripture}>{devotion.scriptureReference}</Text>
+                {/* Today's lesson */}
+                {journey.progress.finished ? (
+                  <Text style={td.excerpt} numberOfLines={2}>
+                    Journey complete — celebrate and choose your next study.
+                  </Text>
+                ) : journey.todayLesson ? (
+                  <Text style={td.excerpt} numberOfLines={2}>
+                    {journey.doneForToday
+                      ? 'Today complete. Tomorrow: '
+                      : "Today's Lesson: "}
+                    {journey.doneForToday && journey.todayLesson.tomorrowPreview
+                      ? journey.todayLesson.tomorrowPreview
+                      : journey.todayLesson.title}
+                  </Text>
+                ) : null}
 
-            {/* Excerpt */}
-            <Text style={td.excerpt} numberOfLines={2}>{excerpt}</Text>
+                {/* Progress bar */}
+                <View style={td.progressTrack}>
+                  <View style={[td.progressFill, { width: `${percent}%` }]} />
+                </View>
 
-            {/* CTA row */}
-            <View style={td.ctaRow}>
-              <TouchableOpacity
-                style={td.ctaBtn}
-                onPress={() => navigation.navigate('Devotion', undefined)}
-                activeOpacity={0.8}
-              >
-                <Text style={td.ctaBtnText}>Begin Today's Devotion</Text>
-              </TouchableOpacity>
-              <Text style={td.readTime}>~5 min read</Text>
-            </View>
+                <View style={td.ctaRow}>
+                  <TouchableOpacity style={td.ctaBtn} onPress={open} activeOpacity={0.8}>
+                    <Text style={td.ctaBtnText}>
+                      {journey.progress.finished ? 'View Journey' : journey.doneForToday ? 'Review Journey' : 'Continue'}
+                    </Text>
+                    <Ionicons name="arrow-forward" size={13} color="rgba(255,255,255,0.9)" />
+                  </TouchableOpacity>
+                  <Text style={td.readTime}>{percent}% complete</Text>
+                </View>
+              </>
+            ) : (
+              <>
+                <Text style={td.title}>Begin a Bible Journey</Text>
+                <Text style={td.excerpt} numberOfLines={2}>
+                  Guided studies that walk with you one day at a time — a clear path through Scripture.
+                </Text>
+                <View style={td.ctaRow}>
+                  <TouchableOpacity style={td.ctaBtn} onPress={open} activeOpacity={0.8}>
+                    <Text style={td.ctaBtnText}>Explore Studies</Text>
+                    <Ionicons name="arrow-forward" size={13} color="rgba(255,255,255,0.9)" />
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
           </View>
         </View>
       </Animated.View>
@@ -647,12 +698,18 @@ const td = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
   },
   ctaBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
     backgroundColor: 'rgba(255,255,255,0.12)',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
     borderRadius: 28, paddingVertical: 11, paddingHorizontal: 18,
   },
   ctaBtnText: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.9)' },
   readTime: { fontSize: 11, color: 'rgba(255,255,255,0.35)' },
+  progressTrack: {
+    height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.14)',
+    marginBottom: 16, overflow: 'hidden',
+  },
+  progressFill: { height: 4, borderRadius: 2, backgroundColor: '#C9A96B' },
 });
 
 // ─── Reading Plan Card ────────────────────────────────────────────────────────

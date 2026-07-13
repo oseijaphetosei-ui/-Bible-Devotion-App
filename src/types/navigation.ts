@@ -10,6 +10,11 @@ export type HomeStackParamList = {
   Verse: undefined;
   Goals: undefined;
   Devotion: { topic?: string } | undefined;
+  Journey: undefined;
+  StudyLibrary: undefined;
+  StudyDetail: { studyId: string };
+  LessonReader: { studyId: string; day: number };
+  StudyComplete: { studyId: string };
   ScriptureChat: ScriptureChatNavParams;
   ScriptureInsights: ScriptureInsightsNavParams;
   TodayJourney: undefined;

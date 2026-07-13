@@ -64,6 +64,11 @@ import PrivacyScreen from './src/screens/Profile/PrivacyScreen';
 import NotesScreen from './src/screens/Notes/NotesScreen';
 import NoteEditorScreen from './src/screens/Notes/NoteEditorScreen';
 import DevotionScreen from './src/screens/Devotion/DevotionScreen';
+import JourneyScreen from './src/screens/Study/JourneyScreen';
+import StudyLibraryScreen from './src/screens/Study/StudyLibraryScreen';
+import StudyDetailScreen from './src/screens/Study/StudyDetailScreen';
+import LessonReaderScreen from './src/screens/Study/LessonReaderScreen';
+import StudyCompleteScreen from './src/screens/Study/StudyCompleteScreen';
 import ScriptureChatScreen from './src/screens/ScriptureChat/ScriptureChatScreen';
 import ScriptureInsightsScreen from './src/screens/ScriptureInsights/ScriptureInsightsScreen';
 import TodayJourneyScreen from './src/screens/ReadingPlan/TodayJourneyScreen';
@@ -112,6 +117,11 @@ function HomeStackScreen() {
       <HomeStack.Screen name="Verse" component={VerseScreen} />
       <HomeStack.Screen name="Goals" component={GoalsScreen} />
       <HomeStack.Screen name="Devotion" component={DevotionScreen} />
+      <HomeStack.Screen name="Journey"       component={JourneyScreen}       />
+      <HomeStack.Screen name="StudyLibrary"  component={StudyLibraryScreen}  />
+      <HomeStack.Screen name="StudyDetail"   component={StudyDetailScreen}   />
+      <HomeStack.Screen name="LessonReader"  component={LessonReaderScreen}  />
+      <HomeStack.Screen name="StudyComplete" component={StudyCompleteScreen} />
       <HomeStack.Screen name="ScriptureChat" component={ScriptureChatScreen} />
       <HomeStack.Screen name="ScriptureInsights" component={ScriptureInsightsScreen} />
       <HomeStack.Screen name="TodayJourney" component={TodayJourneyScreen} />
