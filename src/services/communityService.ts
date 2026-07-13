@@ -238,20 +238,57 @@ export async function addComment(postId: string, content: string, parentId?: str
 
 // ── Groups ────────────────────────────────────────────────────────────────────
 
+const DEFAULT_GROUPS_SEED: Omit<Group, 'joined'>[] = [
+  { id: 'grp_prayer_circle',    name: 'Daily Prayer Circle',    description: 'Join together in daily prayer and intercession for one another.',   icon: '🙏', memberCount: 128, category: 'prayer',     chatId: 'grp_prayer_circle'    },
+  { id: 'grp_bible_study',      name: 'Bible Study Fellowship', description: 'Deep dive into scripture, share insights and grow in the Word.',      icon: '📖', memberCount: 94,  category: 'bible',      chatId: 'grp_bible_study'      },
+  { id: 'grp_testimony_corner', name: 'Testimony Corner',       description: 'Share and celebrate what God is doing in your life.',                  icon: '✨', memberCount: 76,  category: 'testimony',  chatId: 'grp_testimony_corner' },
+  { id: 'grp_new_believers',    name: 'New Believers',          description: 'A welcoming space for those who are new to faith in Christ.',          icon: '✝️', memberCount: 52,  category: 'fellowship', chatId: 'grp_new_believers'    },
+  { id: 'grp_men_of_faith',     name: 'Men of Faith',           description: 'Brotherhood, accountability, and spiritual growth for men.',            icon: '💪', memberCount: 61,  category: 'fellowship', chatId: 'grp_men_of_faith'     },
+  { id: 'grp_women_of_god',     name: 'Women of God',           description: 'Sisters in faith lifting each other up in love and truth.',             icon: '🌸', memberCount: 83,  category: 'fellowship', chatId: 'grp_women_of_god'     },
+  { id: 'grp_youth_ministry',   name: 'Youth Ministry',         description: 'A vibrant community for young believers walking with God.',             icon: '🎯', memberCount: 47,  category: 'youth',      chatId: 'grp_youth_ministry'   },
+  { id: 'grp_worship_praise',   name: 'Worship & Praise',       description: 'Share songs, hymns, praise reports, and moments of worship.',          icon: '🎵', memberCount: 115, category: 'worship',    chatId: 'grp_worship_praise'   },
+];
+
+async function seedDefaultGroups(): Promise<void> {
+  try {
+    const batch = writeBatch(db);
+    for (const g of DEFAULT_GROUPS_SEED) {
+      const { id, ...data } = g;
+      batch.set(doc(db, 'communityGroups', id), { ...data, createdAt: Timestamp.now() });
+    }
+    await batch.commit();
+  } catch { /* offline, ignore */ }
+}
+
 export async function getGroups(): Promise<Group[]> {
-  const joined  = await getLocalJoined();
+  const joined = await getLocalJoined();
   try {
     const snap = await getDocs(collection(db, 'communityGroups'));
-    return snap.docs.map(d => {
+    const firestoreGroups: Group[] = snap.docs.map(d => {
       const data = d.data();
       return {
         id: d.id, name: data.name, description: data.description,
         icon: data.icon, memberCount: data.memberCount, category: data.category,
-        joined: joined.has(d.id), chatId: data.chatId,
+        joined: joined.has(d.id), chatId: data.chatId ?? d.id,
       };
     });
+
+    if (firestoreGroups.length === 0) {
+      // Seed Firestore in the background, return defaults immediately
+      seedDefaultGroups();
+      return DEFAULT_GROUPS_SEED.map(g => ({ ...g, joined: joined.has(g.id) }));
+    }
+
+    // Merge: Firestore docs override defaults with same ID; unmatched defaults append
+    const firestoreIds = new Set(firestoreGroups.map(g => g.id));
+    const extraDefaults = DEFAULT_GROUPS_SEED
+      .filter(g => !firestoreIds.has(g.id))
+      .map(g => ({ ...g, joined: joined.has(g.id) }));
+
+    return [...firestoreGroups, ...extraDefaults];
   } catch {
-    return [];
+    // Offline fallback
+    return DEFAULT_GROUPS_SEED.map(g => ({ ...g, joined: joined.has(g.id) }));
   }
 }
 

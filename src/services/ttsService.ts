@@ -23,6 +23,42 @@ async function ensureAudioMode(): Promise<void> {
   if (audioModeConfigured) return;
   await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
   audioModeConfigured = true;
+  purgeStaleTTSCache();
+}
+
+// Delete cached audio from previous TTS_CACHE_VERSIONs — those files can never
+// be served again (the version is part of the filename) so they are pure waste.
+let stalePurgeRan = false;
+async function purgeStaleTTSCache(): Promise<void> {
+  if (stalePurgeRan) return;
+  stalePurgeRan = true;
+  try {
+    const dir = FileSystem.cacheDirectory!;
+    const files = await FileSystem.readDirectoryAsync(dir);
+    const currentPrefix = `tts_${TTS_CACHE_VERSION}_`;
+    await Promise.all(
+      files
+        .filter(f => f.startsWith('tts_') && !f.startsWith(currentPrefix))
+        .map(f => FileSystem.deleteAsync(dir + f, { idempotent: true })),
+    );
+  } catch { /* best-effort cleanup */ }
+}
+
+// Write TTS audio to a local file: prefer the CDN URL (25% smaller transfer,
+// server synthesizes each unique text only once), fall back to inline base64.
+async function saveTTSAudio(
+  result: { audioUrl?: string; audioBase64?: string },
+  uri: string,
+): Promise<void> {
+  if (result.audioUrl) {
+    await FileSystem.downloadAsync(result.audioUrl, uri);
+  } else if (result.audioBase64) {
+    await FileSystem.writeAsStringAsync(uri, result.audioBase64, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+  } else {
+    throw new Error('TTS response contained no audio.');
+  }
 }
 
 // Fetch TTS audio from the backend function and cache locally so repeat plays are instant
@@ -33,9 +69,7 @@ export async function fetchTTSChunk(text: string, cacheKey: string): Promise<str
   if (info.exists) return uri;
 
   const result = await ttsSpeak({ text });
-  await FileSystem.writeAsStringAsync(uri, result.audioBase64, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
+  await saveTTSAudio(result, uri);
 
   return uri;
 }
@@ -50,9 +84,7 @@ export async function speakText(text: string, cacheKey?: string): Promise<Audio.
     : await (async () => {
         const result = await ttsSpeak({ text });
         const tempUri = `${FileSystem.cacheDirectory}tts_tmp_${TTS_CACHE_VERSION}_${Date.now()}.mp3`;
-        await FileSystem.writeAsStringAsync(tempUri, result.audioBase64, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
+        await saveTTSAudio(result, tempUri);
         return tempUri;
       })();
   const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true });

@@ -15,3 +15,6 @@ ios/
 src/config/openaiConfig.ts
 src/config/bibleConfig.ts
 src/config/firebaseConfig.ts
+
+# Hymn MP3s live in Firebase Storage (hymns/{id}.mp3) — keep out of git
+src/assets/hymn-audio/

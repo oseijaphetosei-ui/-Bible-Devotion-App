@@ -1,7 +1,12 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
+import { initializeApp } from 'firebase-admin/app';
+import { getStorage, getDownloadURL } from 'firebase-admin/storage';
+import { createHash, randomUUID } from 'crypto';
 import { GoogleGenAI } from '@google/genai';
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
+
+initializeApp();
 
 const geminiKey = defineSecret('GEMINI_API_KEY');
 
@@ -395,27 +400,75 @@ const ttsClient = new TextToSpeechClient();
 export const ttsSpeak = onCall(
   { cors: true, invoker: 'public' },
   async (request) => {
-    const { text } = request.data as { text: string };
+    const { text, urlOnly } = request.data as { text: string; urlOnly?: boolean };
 
     if (!text?.trim()) {
       throw new HttpsError('invalid-argument', 'Missing text.');
     }
-
-    const [response] = await ttsClient.synthesizeSpeech({
-      input: { text: text.trim() },
-      voice: { languageCode: TTS_VOICE_LANGUAGE, name: TTS_VOICE_NAME },
-      audioConfig: {
-        audioEncoding: 'MP3',
-        speakingRate: TTS_SPEAKING_RATE,
-        pitch: TTS_PITCH,
-      },
-    });
-
-    if (!response.audioContent) {
-      throw new HttpsError('internal', 'No audio data returned by TTS.');
+    if (text.length > 5000) {
+      throw new HttpsError('invalid-argument', 'Text too long.');
     }
 
-    const audioBase64 = Buffer.from(response.audioContent as Uint8Array).toString('base64');
-    return { audioBase64, mimeType: 'audio/mp3' };
+    const trimmed = text.trim();
+
+    // Content-addressed Storage cache: identical text + voice config synthesizes
+    // exactly once ever, then every subsequent caller gets the CDN URL. The hash
+    // covers all voice parameters so a config change naturally misses the cache.
+    const hash = createHash('sha256')
+      .update(`${TTS_VOICE_NAME}|${TTS_SPEAKING_RATE}|${TTS_PITCH}|${trimmed}`)
+      .digest('hex');
+    const file = getStorage().bucket().file(`tts/${TTS_VOICE_NAME}/${hash}.mp3`);
+
+    let audioBuffer: Buffer | null = null;
+    const [exists] = await file.exists();
+
+    if (!exists) {
+      const [response] = await ttsClient.synthesizeSpeech({
+        input: { text: trimmed },
+        voice: { languageCode: TTS_VOICE_LANGUAGE, name: TTS_VOICE_NAME },
+        audioConfig: {
+          audioEncoding: 'MP3',
+          speakingRate: TTS_SPEAKING_RATE,
+          pitch: TTS_PITCH,
+        },
+      });
+
+      if (!response.audioContent) {
+        throw new HttpsError('internal', 'No audio data returned by TTS.');
+      }
+
+      audioBuffer = Buffer.from(response.audioContent as Uint8Array);
+      await file.save(audioBuffer, {
+        contentType: 'audio/mpeg',
+        metadata: {
+          cacheControl: 'public, max-age=31536000, immutable',
+          // Admin-SDK uploads get no download token automatically, and
+          // getDownloadURL() throws without one — so mint it here.
+          metadata: { firebaseStorageDownloadTokens: randomUUID() },
+        },
+      });
+    }
+
+    let audioUrl: string;
+    try {
+      audioUrl = await getDownloadURL(file);
+    } catch {
+      // Pre-existing object without a token (e.g. written by an older
+      // revision): mint a token now, then retry once.
+      await file.setMetadata({ metadata: { firebaseStorageDownloadTokens: randomUUID() } });
+      audioUrl = await getDownloadURL(file);
+    }
+
+    // New clients pass urlOnly and download the (25% smaller) binary from the
+    // CDN. Older clients still receive inline base64 until they update.
+    if (urlOnly) {
+      return { audioUrl, mimeType: 'audio/mp3' };
+    }
+
+    if (!audioBuffer) {
+      const [contents] = await file.download();
+      audioBuffer = contents;
+    }
+    return { audioUrl, audioBase64: audioBuffer.toString('base64'), mimeType: 'audio/mp3' };
   },
 );

@@ -4,7 +4,10 @@ import type { Devotion } from '../types/devotion';
 import type { ChatMessage } from '../types/scriptureChat';
 
 type TtsResponse = {
-  audioBase64: string;
+  /** CDN download URL for the synthesized MP3 (preferred). */
+  audioUrl?: string;
+  /** Inline audio — only present for legacy calls without urlOnly. */
+  audioBase64?: string;
   mimeType: string;
 };
 
@@ -49,7 +52,7 @@ export function getScriptureInsights(data: {
 }
 
 export function ttsSpeak(data: { text: string }): Promise<TtsResponse> {
-  return callFunction('ttsSpeak', data);
+  return callFunction('ttsSpeak', { ...data, urlOnly: true });
 }
 
 export function generateSermon(data: {

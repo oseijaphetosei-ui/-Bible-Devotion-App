@@ -4,6 +4,7 @@ import {
   FlatList, Image, Dimensions, Platform, Alert,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme';
 import { AVATARS, AVATAR_CATEGORIES, type AvatarDef } from '../data/avatars';
@@ -106,7 +107,24 @@ export default function AvatarPicker({ visible, current, onSelect, onClose }: Pr
           });
 
     if (!result.canceled && result.assets[0]) {
-      const pic: ProfilePicture = { type: 'photo', uri: result.assets[0].uri };
+      // The picker returns a URI in a temp cache the OS can purge at any time.
+      // Copy into the app's document directory so the avatar survives restarts.
+      // Timestamped name: a fresh URI also busts RN's image cache for the old photo.
+      let uri = result.assets[0].uri;
+      try {
+        const dir = FileSystem.documentDirectory!;
+        const old = await FileSystem.readDirectoryAsync(dir);
+        await Promise.all(
+          old.filter(f => f.startsWith('profile-photo-'))
+             .map(f => FileSystem.deleteAsync(dir + f, { idempotent: true })),
+        );
+        const ext  = uri.includes('.') ? uri.slice(uri.lastIndexOf('.')) : '.jpg';
+        const dest = `${dir}profile-photo-${Date.now()}${ext}`;
+        await FileSystem.copyAsync({ from: uri, to: dest });
+        uri = dest;
+      } catch { /* fall back to the picker URI */ }
+
+      const pic: ProfilePicture = { type: 'photo', uri };
       setPreview(pic);
       onSelect(pic);
       close();

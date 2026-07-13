@@ -1,7 +1,7 @@
-import React, { useState, useCallback, useRef, useEffect, memo } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo, memo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, StatusBar,
-  Animated, ActivityIndicator, Pressable, Platform,
+  Animated, ActivityIndicator, Pressable, Platform, TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -25,6 +25,16 @@ type NavProp = NativeStackNavigationProp<CommunityStackParamList, 'Community'>;
 
 const GOLD     = '#C9A96B';
 const HEADER_H = 62;
+
+const GROUP_CATEGORIES: { key: string; label: string }[] = [
+  { key: 'all',        label: 'All'        },
+  { key: 'prayer',     label: 'Prayer'     },
+  { key: 'bible',      label: 'Bible'      },
+  { key: 'fellowship', label: 'Fellowship' },
+  { key: 'testimony',  label: 'Testimony'  },
+  { key: 'youth',      label: 'Youth'      },
+  { key: 'worship',    label: 'Worship'    },
+];
 
 const SECTION_TITLES: Record<FeedFilter, string> = {
   all:       'COMMUNITY FEED',
@@ -302,19 +312,20 @@ const pc = StyleSheet.create({
 // ── Group card ────────────────────────────────────────────────────────────────
 
 const GroupCard = memo(function GroupCard({
-  group, onJoin, isDark,
+  group, onJoin, onPress, isDark,
 }: {
   group: Group;
   onJoin: () => void;
+  onPress: () => void;
   isDark: boolean;
 }) {
-  const glass    = isDark ? DARK_GLASS : LIGHT_GLASS;
+  const glass      = isDark ? DARK_GLASS : LIGHT_GLASS;
   const textColor  = isDark ? 'rgba(255,255,255,0.92)' : 'rgba(24,18,8,0.92)';
   const subColor   = isDark ? 'rgba(255,255,255,0.60)' : 'rgba(24,18,8,0.58)';
   const mutedColor = isDark ? 'rgba(255,255,255,0.36)' : 'rgba(24,18,8,0.36)';
 
   return (
-    <View style={[gc.card, glass]}>
+    <TouchableOpacity style={[gc.card, glass]} onPress={onPress} activeOpacity={0.86}>
       <View style={[gc.iconWrap, { backgroundColor: GOLD + '1A' }]}>
         <Text style={gc.icon}>{group.icon}</Text>
       </View>
@@ -327,18 +338,17 @@ const GroupCard = memo(function GroupCard({
         style={[
           gc.joinBtn,
           group.joined
-            ? { backgroundColor: 'transparent', borderColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)' }
+            ? { backgroundColor: 'rgba(201,169,107,0.08)', borderColor: 'rgba(201,169,107,0.22)' }
             : { backgroundColor: 'rgba(201,169,107,0.12)', borderColor: 'rgba(201,169,107,0.30)' },
         ]}
-        onPress={onJoin}
-        activeOpacity={group.joined ? 1 : 0.78}
-        disabled={group.joined}
+        onPress={group.joined ? onPress : onJoin}
+        activeOpacity={0.78}
       >
-        <Text style={[gc.joinText, { color: group.joined ? mutedColor : GOLD }]}>
-          {group.joined ? 'Joined ✓' : 'Join'}
+        <Text style={[gc.joinText, { color: GOLD }]}>
+          {group.joined ? 'Open' : 'Join'}
         </Text>
       </TouchableOpacity>
-    </View>
+    </TouchableOpacity>
   );
 });
 
@@ -386,6 +396,8 @@ export default function CommunityScreen() {
   const [isSearching,   setIsSearching]   = useState(false);
   const [searchResults, setSearchResults] = useState<Post[]>([]);
   const [showCompose,   setShowCompose]   = useState(false);
+  const [groupSearch,   setGroupSearch]   = useState('');
+  const [groupCategory, setGroupCategory] = useState('all');
 
   const headerAnim     = useRef(new Animated.Value(1)).current;
   const composeAnim    = useRef(new Animated.Value(0)).current;
@@ -462,6 +474,24 @@ export default function CommunityScreen() {
     setFilter(CATEGORY_FILTER_MAP[categoryId] ?? 'all');
   }, []);
 
+  const filteredGroups = useMemo(() => {
+    let result = groups;
+    if (groupCategory !== 'all') {
+      result = result.filter(g => g.category === groupCategory);
+    }
+    if (groupSearch.trim()) {
+      const lower = groupSearch.toLowerCase();
+      result = result.filter(g =>
+        g.name.toLowerCase().includes(lower) || g.description.toLowerCase().includes(lower),
+      );
+    }
+    return result;
+  }, [groups, groupCategory, groupSearch]);
+
+  const handleGroupPress = useCallback((group: Group) => {
+    (navigation as any).navigate('GroupChat', { chatId: group.chatId ?? group.id, groupName: group.name });
+  }, [navigation]);
+
   const displayedPosts = isSearching && query ? searchResults : posts;
 
   // ── Empty states ──────────────────────────────────────────────────────────
@@ -497,18 +527,23 @@ export default function CommunityScreen() {
   const GroupEmptyState = useCallback(() => {
     const textCol  = isDark ? 'rgba(255,255,255,0.85)' : 'rgba(24,18,8,0.85)';
     const mutedCol = isDark ? 'rgba(255,255,255,0.45)' : 'rgba(24,18,8,0.45)';
+    const isFiltered = groupSearch.trim() || groupCategory !== 'all';
     return (
       <View style={s.emptyState}>
         <View style={[s.emptyIconWrap, { backgroundColor: 'rgba(201,169,107,0.12)', borderColor: 'rgba(201,169,107,0.28)' }]}>
           <Ionicons name="people-outline" size={30} color={GOLD} />
         </View>
-        <Text style={[s.emptyTitle, { color: textCol }]}>No groups yet</Text>
+        <Text style={[s.emptyTitle, { color: textCol }]}>
+          {isFiltered ? 'No groups found' : 'No groups yet'}
+        </Text>
         <Text style={[s.emptySub, { color: mutedCol }]}>
-          Groups are coming soon. Check back to find communities to join.
+          {isFiltered
+            ? 'Try a different search or category.'
+            : 'Be the first to discover a community of faith.'}
         </Text>
       </View>
     );
-  }, [isDark]);
+  }, [isDark, groupSearch, groupCategory]);
 
   // ── List header ───────────────────────────────────────────────────────────
 
@@ -616,16 +651,66 @@ export default function CommunityScreen() {
         </View>
       ) : filter === 'groups' ? (
         <FlatList
-          data={groups}
+          data={filteredGroups}
           keyExtractor={g => g.id}
           contentContainerStyle={s.list}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           ListHeaderComponent={() => (
-            <Text style={[s.sectionTitle, { color: sectionColor }]}>DISCOVER GROUPS</Text>
+            <View>
+              <Text style={[s.sectionTitle, { color: sectionColor }]}>DISCOVER GROUPS</Text>
+              {/* Group search */}
+              <View style={[gs.searchPill, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', borderColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)' }]}>
+                <Ionicons name="search" size={15} color={isDark ? 'rgba(255,255,255,0.40)' : 'rgba(0,0,0,0.32)'} />
+                <TextInput
+                  style={[gs.searchInput, { color: isDark ? '#FFFFFF' : '#1C1C1E' }]}
+                  value={groupSearch}
+                  onChangeText={setGroupSearch}
+                  placeholder="Search groups…"
+                  placeholderTextColor={isDark ? 'rgba(255,255,255,0.30)' : 'rgba(0,0,0,0.28)'}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                />
+                {groupSearch.length > 0 && (
+                  <TouchableOpacity onPress={() => setGroupSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="close-circle" size={15} color={isDark ? 'rgba(255,255,255,0.40)' : 'rgba(0,0,0,0.32)'} />
+                  </TouchableOpacity>
+                )}
+              </View>
+              {/* Category chips */}
+              <FlatList
+                data={GROUP_CATEGORIES}
+                keyExtractor={c => c.key}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={gs.catList}
+                style={gs.catScroll}
+                renderItem={({ item: c }) => {
+                  const active = groupCategory === c.key;
+                  return (
+                    <TouchableOpacity
+                      style={[gs.chip, { backgroundColor: active ? chipActiveColor : chipInactiveColor, borderColor: active ? chipActiveBorder : chipInactiveBorder }]}
+                      onPress={() => setGroupCategory(c.key)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[gs.chipText, { color: active ? GOLD : isDark ? 'rgba(255,255,255,0.55)' : 'rgba(24,18,8,0.55)' }]}>
+                        {c.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+            </View>
           )}
           ListEmptyComponent={<GroupEmptyState />}
           renderItem={({ item }) => (
-            <GroupCard group={item} onJoin={() => handleJoinGroup(item.id)} isDark={isDark} />
+            <GroupCard
+              group={item}
+              onJoin={() => handleJoinGroup(item.id)}
+              onPress={() => handleGroupPress(item)}
+              isDark={isDark}
+            />
           )}
         />
       ) : (
@@ -693,6 +778,25 @@ export default function CommunityScreen() {
     </View>
   );
 }
+
+const gs = StyleSheet.create({
+  searchPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderWidth: 1, borderRadius: 28,
+    paddingHorizontal: 14, paddingVertical: 10,
+    marginBottom: 12,
+  },
+  searchInput: {
+    flex: 1, fontSize: 14,
+    paddingVertical: 0,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
+  },
+  catScroll:  { marginBottom: 16 },
+  catList:    { gap: 8 },
+  chip:       { paddingHorizontal: 15, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
+  chipText:   { fontSize: 12, fontWeight: '600', letterSpacing: 0.1 },
+});
 
 const s = StyleSheet.create({
   header: {
